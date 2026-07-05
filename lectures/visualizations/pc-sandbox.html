@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semaphore Sandbox — Producer / Consumer (build your own)</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b;
+    --p1:#f97316; --p2:#a855f7; --con:#22d3ee;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0;font-size:20px}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px;flex-wrap:wrap}
+  .stage{flex:1 1 620px;min-width:360px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;overflow-x:auto}
+  .side{flex:0 0 400px;min-width:320px;position:sticky;top:16px;align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:96px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:14px;line-height:1.55}
+  .caption code{background:var(--s1,#0c141d);border:1px solid var(--s13,#2c3e54);border-radius:4px;padding:1px 5px;font-size:13px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  button{background:var(--s4,#243446);color:var(--ink);border:1px solid var(--s6,#33485f);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s}
+  button:hover:not(:disabled){background:var(--s5,#2e4459)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  .blockTitle{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+  .shared{background:#0d1f14;border:1px solid #1e5232;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-family:Consolas,"Cascadia Mono",monospace;font-size:13px;line-height:1.65;color:#bfe8cd}
+  .shared .cm{color:#6f9a80}
+  .shared b{color:#7ce3a4}
+
+  /* verdict banner */
+  .verdict{border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.5;display:none}
+  .verdict.show{display:block}
+  .verdict.good{background:#0d2417;border:1px solid #1e6b3d;color:#a7f3c6}
+  .verdict.bad{background:#2a0e0e;border:1px solid #7a2020;color:#f7b4b4}
+  .verdict.dead{background:#2a1c00;border:1px solid #7a5410;color:#f6d493}
+  .verdict.run{background:#0f2033;border:1px solid #2c6cb0;color:#a9cdf3}
+  .verdict b{font-weight:800}
+  /* ---------- scene ---------- */
+  .scene{position:relative;display:flex;gap:14px;align-items:stretch;flex-wrap:wrap}
+  .pcol{flex:0 0 210px;display:flex;flex-direction:column;gap:12px;min-width:196px}
+  .ccol{flex:1 1 240px;min-width:230px;display:flex;flex-direction:column;gap:12px}
+  .pcard{border:1px solid var(--border);border-radius:10px;background:var(--s1,#0c141d);padding:10px 12px;transition:box-shadow .2s,border-color .2s}
+  .pcard.running{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .pcard.asleep{border-color:var(--warn)}
+  .phead{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .pname{font-weight:800;font-size:13px}
+  .badge{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:5px;padding:2px 7px}
+  .badge.run{background:#12324f;color:#8ecbff}
+  .badge.zzz{background:#3a2a10;color:#f6c873;animation:pulse 1.2s ease-in-out infinite}
+  .badge.done{background:#123222;color:#7ce3a4}
+  .badge.ready{background:var(--s7,#1a2735);color:#8aa0b6}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .pcode{font-family:Consolas,"Cascadia Mono",monospace;font-size:12.5px;line-height:1.7;color:var(--t2,#9fb4cc)}
+  .pcode .ln{display:block;border-radius:5px;padding:0 7px;white-space:pre;border-left:3px solid transparent}
+  .pcode .ln.cur{background:var(--s3,#13233f);color:#e7eef7;border-left-color:var(--accent)}
+  .pcode .ln.zz{background:#2a1c00;color:#f6c873;border-left-color:var(--warn)}
+  .pcode .ln.done{opacity:.4}
+  .pitem{margin-top:8px;font-size:11.5px;color:var(--muted);min-height:24px;display:flex;align-items:center;gap:6px}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;font-weight:800;font-size:14px;color:#0b0f14;animation:cpop .25s ease}
+  @keyframes cpop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+
+  /* semaphores */
+  .semrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .sem{flex:1 1 90px;border:1px solid var(--border);border-radius:10px;background:var(--s1,#0c141d);padding:8px 10px;text-align:center;transition:box-shadow .2s}
+  .sem .sname{font-size:11px;color:var(--muted);font-family:Consolas,monospace}
+  .sem .sval{font-size:26px;font-weight:800;color:var(--t3,#cfe0ff);font-variant-numeric:tabular-nums}
+  .sem .squeue{font-size:10.5px;color:var(--warn);min-height:15px}
+  .sem.flash{box-shadow:0 0 0 2px var(--accent)}
+
+  /* buffer */
+  .bufwrap{border:1px solid var(--border);border-radius:10px;background:var(--s1,#0c141d);padding:12px;margin-bottom:12px}
+  .ptrrow{display:flex;gap:6px;height:20px;margin:2px 0}
+  .ptrcell{width:52px;flex:0 0 52px;text-align:center;font-size:11px;font-weight:800}
+  .ptr-in{color:var(--p1)} .ptr-out{color:var(--con)}
+  .slots{display:flex;gap:6px}
+  .bslot{width:52px;flex:0 0 52px;height:46px;border-radius:8px;border:1px solid var(--border);background:var(--s2,#0e1826);display:flex;align-items:center;justify-content:center;position:relative;transition:box-shadow .25s,border-color .25s}
+  .bslot .idx{position:absolute;bottom:1px;right:5px;font-size:9px;color:var(--muted)}
+  .bslot .chip{width:28px;height:28px;font-size:15px}
+  .bslot.fWrite{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 0 14px rgba(96,165,250,.5)}
+  .bslot.fRead{border-color:var(--ok);box-shadow:0 0 0 2px var(--ok),0 0 14px rgba(34,197,94,.5)}
+  .bslot.fBad{border-color:var(--bad);box-shadow:0 0 0 2px var(--bad),0 0 14px rgba(239,68,68,.55)}
+
+  /* trays */
+  .trays{display:flex;gap:10px;flex-wrap:wrap}
+  .tray{flex:1 1 130px;border-radius:10px;padding:8px 10px;min-height:56px}
+  .tray .tlab{font-size:10px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
+  .tray .titems{display:flex;gap:5px;flex-wrap:wrap;min-height:24px;align-items:center}
+  .tray .none{font-size:11px;color:var(--muted)}
+  .tray.cons{background:#0d1f14;border:1px solid #1e5232}
+  .tray.cons .tlab{color:#7ce3a4}
+  .tray.lost{background:#230d0d;border:1px solid #5a1f1f}
+  .tray.lost .tlab{color:#f39d9d}
+  .chip.bad{background:var(--bad);color:#2a0505;text-decoration:line-through}
+  .chip.garb{background:var(--bad);color:#2a0505}
+
+  .flyer{position:absolute;left:0;top:0;transform:translate(-50%,-50%);min-width:28px;height:28px;padding:0 8px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;opacity:0;pointer-events:none;z-index:6;transition:opacity .12s;color:#0b0f14}
+  .flyer.show{opacity:1}
+
+  /* ---------- builder (drag & drop) ---------- */
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .panel h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}
+  .hint{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 10px}
+  .builder{display:flex;gap:12px;flex-wrap:wrap}
+  .prog{flex:1 1 200px;min-width:190px}
+  .prog .lab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  .prog.pP .lab{color:var(--p1)} .prog.pC .lab{color:var(--con)}
+  .steplist{list-style:none;margin:0;padding:6px;border:1px dashed var(--border);border-radius:9px;background:var(--s1,#0c141d);min-height:52px;display:flex;flex-direction:column;gap:5px}
+  .steplist.over{border-color:var(--accent);background:var(--s2,#0e1826)}
+  .stmt{display:flex;align-items:center;gap:7px;background:var(--s4,#243446);border:1px solid var(--s6,#33485f);border-radius:7px;padding:6px 8px;font-family:Consolas,"Cascadia Mono",monospace;font-size:12.5px;cursor:grab;user-select:none}
+  .stmt.dragging{opacity:.4}
+  .stmt .grip{color:var(--muted);font-size:12px;cursor:grab}
+  .stmt .txt{flex:1}
+  .stmt .del{margin-left:auto;background:transparent;border:none;color:var(--muted);font-size:15px;padding:0 3px;cursor:pointer;line-height:1}
+  .stmt .del:hover{color:var(--bad)}
+  .stmt.locked{cursor:default;opacity:.85}
+  .stmt.locked .grip{visibility:hidden}
+  .stmt.fixed{background:var(--s2,#0e1826);border-style:dashed}
+  .palette{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .palette .chipbtn{font-family:Consolas,monospace;font-size:12px;padding:6px 9px;border-radius:7px;background:var(--s1,#0c141d);border:1px solid var(--s6,#33485f);color:var(--t1,#cdd9e6);cursor:pointer}
+  .palette .chipbtn:hover{border-color:var(--accent);color:var(--ink)}
+  .palette .chipbtn:disabled{opacity:.35;cursor:not-allowed}
+
+  /* config rows */
+  .cfg{display:flex;flex-direction:column;gap:9px}
+  .cfgrow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .cfgrow label{font-size:12.5px;color:var(--t1,#cdd9e6);min-width:82px}
+  .cfgrow input[type=number]{width:58px;background:var(--s1,#0c141d);color:var(--ink);border:1px solid var(--s6,#33485f);border-radius:7px;padding:5px 7px;font-family:Consolas,monospace;font-size:13px}
+  .semtoggle{display:flex;gap:6px;flex-wrap:wrap}
+  .semtoggle .st{display:flex;align-items:center;gap:6px;background:var(--s1,#0c141d);border:1px solid var(--s6,#33485f);border-radius:8px;padding:5px 9px;font-size:12.5px;font-family:Consolas,monospace}
+  .semtoggle .st input[type=number]{width:44px}
+  .semtoggle .st.off{opacity:.5}
+  .presetrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .presetrow button{font-size:12.5px;padding:7px 11px}
+
+  /* interleave / scheduler */
+  .runbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .who{display:inline-flex;gap:6px}
+  .who button{font-weight:700;padding:9px 16px}
+  .who button.bP{border-color:var(--p1)} .who button.bP:hover:not(:disabled){background:rgba(249,115,22,.18)}
+  .who button.bC{border-color:var(--con)} .who button.bC:hover:not(:disabled){background:rgba(34,211,238,.18)}
+  .modeToggle{display:inline-flex;border:1px solid var(--s6,#33485f);border-radius:8px;overflow:hidden;margin-bottom:12px}
+  .modeToggle button{background:var(--s4,#243446);border:none;color:var(--muted);padding:8px 14px;font-size:13px}
+  .modeToggle button+button{border-left:1px solid var(--s6,#33485f)}
+  .modeToggle button.active{background:var(--accent);color:#06121f;font-weight:700}
+  .tracestrip{display:flex;gap:4px;flex-wrap:wrap;margin-top:10px;font-family:Consolas,monospace;font-size:11px}
+  .tracestrip .tk{padding:2px 6px;border-radius:5px;background:var(--s1,#0c141d);border:1px solid var(--border)}
+  .tracestrip .tk.tP{color:var(--p1)} .tracestrip .tk.tC{color:var(--con)}
+  .tracestrip .tk.cur{outline:2px solid var(--accent)}
+
+  /* fixed, responsive page header (matches the index page) */
+  header{position:sticky;top:0;z-index:50;background:var(--bg);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);border-bottom:1px solid var(--border)}
+  header h1{font-size:clamp(17px,2.5vh,24px)}
+  header .sub{font-size:clamp(11px,1.5vh,14px)}
+  .side{top:calc(var(--hh,92px) + 12px)}
+  header{display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a[href="index.html"]{grid-column:1;grid-row:1 / span 2;align-self:center;margin-bottom:0 !important}
+  header h1{grid-column:2;grid-row:1}
+  header .sub{grid-column:2;grid-row:2}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;align-self:center;justify-self:end;background:var(--s4,#243446);color:var(--ink);border:1px solid var(--s6,#33485f);border-radius:8px;padding:8px 12px;font-size:clamp(11px,1.5vh,13px);font-weight:600;cursor:pointer;white-space:nowrap;transition:.15s}
+  .fsBtn:hover{background:var(--s5,#2e4459);border-color:var(--accent)}
+  .fsBtn .fsIcon{margin-right:6px}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;background:var(--s4,#243446);color:var(--ink);border:1px solid var(--s6,#33485f);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+  .fsExit:hover{background:var(--s5,#2e4459);border-color:var(--accent)}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:-webkit-full-screen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex;align-items:center;gap:6px}
+  .fsRoot:-webkit-full-screen .fsExit{display:inline-flex;align-items:center;gap:6px}
+  .fsRoot:fullscreen .side{top:14px}
+  .fsRoot:-webkit-full-screen .side{top:14px}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a href="index.html" style="display:inline-block;margin-bottom:10px;font-size:13px;color:#60a5fa;text-decoration:none;font-weight:600">&larr; All visualizations</a>
+  <h1>Semaphore Sandbox — build your own Producer / Consumer</h1>
+  <div class="sub">Week 8 · Chapter 8 — <b>drag <code>wait()</code> / <code>signal()</code> into different places</b> and see what breaks: data loss, garbage reads, races, or deadlock</div>
+</header>
+
+<details open class="lobj" style="margin:16px 24px 0;border:1px solid #2c6cb0;border-left:4px solid #60a5fa;border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px;"><summary style="cursor:pointer;padding:11px 0;font-weight:700;color:#60a5fa;font-size:14px;">&#129513; How to use the sandbox <span style="color:#8aa0b6;font-weight:500;font-size:12px;">&mdash; click to minimize</span></summary><ul style="margin:4px 0 14px;padding-left:22px;color:var(--t1,#cdd9e6);font-size:13.5px;line-height:1.7;"><li>Each process's body is a list of statements. <b>Drag to reorder</b> them, drop <code>wait()</code>/<code>signal()</code> from the palette, or delete a line.</li><li>Turn semaphores on/off and set their initial values. Set the buffer size and how many items each side handles.</li><li>Then <b>interleave</b> the two processes: click <span style="color:var(--p1)">Step Producer</span> or <span style="color:var(--con)">Step Consumer</span> to choose who runs next — or let it <b>auto-run</b> a random schedule.</li><li>The engine reports the outcome live: <b style="color:var(--ok)">correct</b>, <b style="color:var(--bad)">data lost / garbage</b>, or <b style="color:var(--warn)">deadlock</b>. Try the presets, then break them.</li></ul></details>
+
+<div class="wrap">
+  <div class="stage">
+    <p class="blockTitle">Shared memory &amp; semaphores you declared</p>
+    <div class="shared" id="sharedBox"></div>
+
+    <p class="blockTitle">Semaphores (live)</p>
+    <div class="semrow" id="semRow"></div>
+
+    <div class="scene" id="scene">
+      <div class="pcol" id="prodCol"></div>
+      <div class="ccol">
+        <div class="bufwrap">
+          <div class="ptrrow" id="inRow"></div>
+          <div class="slots" id="slotRow"></div>
+          <div class="ptrrow" id="outRow"></div>
+        </div>
+        <div class="trays">
+          <div class="tray cons" id="consTray"><div class="tlab">Consumed (in order)</div><div class="titems" id="consItems"></div></div>
+          <div class="tray lost" id="lostTray"><div class="tlab">Destroyed / garbage</div><div class="titems" id="lostItems"></div></div>
+        </div>
+      </div>
+      <div class="pcol" id="consCol"></div>
+      <div class="flyer" id="flyer"></div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="verdict" id="verdict"></div>
+
+    <div class="caption">
+      <div class="step" id="stepLabel">Not started</div>
+      <div class="text" id="captionText">Configure the two programs below, then interleave them. Load a preset to start quickly.</div>
+    </div>
+
+    <div class="modeToggle" role="group" aria-label="mode">
+      <button id="tabBuild" class="active" onclick="setTab('build')">🔧 Build</button>
+      <button id="tabRun" onclick="setTab('run')">▶ Run</button>
+    </div>
+
+    <div id="buildPane">
+      <div class="presetrow" id="presetRow"></div>
+
+      <div class="panel">
+        <h3>Configuration</h3>
+        <div class="cfg">
+          <div class="cfgrow">
+            <label for="nBuf">Buffer N</label>
+            <input type="number" id="nBuf" min="1" max="8" value="4">
+            <label for="nProdItems" style="min-width:auto">· items to produce</label>
+            <input type="number" id="nProdItems" min="1" max="6" value="3">
+            <label for="nConsN" style="min-width:auto">· to consume</label>
+            <input type="number" id="nConsN" min="1" max="6" value="3">
+          </div>
+          <div class="cfgrow">
+            <label>Semaphores</label>
+            <div class="semtoggle" id="semToggle"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Programs</h3>
+        <p class="hint">Drag lines to reorder. Use the palette to insert a <code>wait()</code> or <code>signal()</code> on any declared semaphore. The core lines (produce/write/read/consume) can be reordered but not removed.</p>
+        <div class="builder">
+          <div class="prog pP">
+            <div class="lab">Producer</div>
+            <ul class="steplist" id="prodSteps" data-who="P"></ul>
+            <div class="palette" id="prodPalette"></div>
+          </div>
+          <div class="prog pC">
+            <div class="lab">Consumer</div>
+            <ul class="steplist" id="consSteps" data-who="C"></ul>
+            <div class="palette" id="consPalette"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="runPane" style="display:none">
+      <div class="panel">
+        <h3>Interleave the processes</h3>
+        <p class="hint">You are the scheduler. Pick who executes the next instruction. Watch semaphores, the buffer, and the verdict change.</p>
+        <div class="runbar">
+          <span class="who">
+            <button class="bP" id="stepP" onclick="stepWho('P')">▷ Step Producer</button>
+            <button class="bC" id="stepC" onclick="stepWho('C')">▷ Step Consumer</button>
+          </span>
+        </div>
+        <div class="controls">
+          <button id="autoBtn" onclick="toggleAuto()">🎲 Auto-run</button>
+          <button onclick="undo()" id="undoBtn">◀ Undo</button>
+          <button class="primary" onclick="resetRun()">↻ Restart run</button>
+        </div>
+        <div class="tracestrip" id="traceStrip"></div>
+      </div>
+    </div>
+
+    <div class="legend panel" style="margin-top:0">
+      <div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:13px"><span style="width:15px;height:15px;border-radius:3px;background:var(--p1)"></span> Producer item &nbsp;·&nbsp; <span style="width:15px;height:15px;border-radius:3px;background:var(--con);display:inline-block"></span> read by Consumer</div>
+      <div style="display:flex;align-items:center;gap:10px;margin:5px 0;font-size:13px"><span style="width:15px;height:15px;border-radius:3px;background:var(--bad)"></span> data destroyed / garbage &nbsp;·&nbsp; <span style="width:15px;height:15px;border-radius:3px;background:#2a1c00;border:1px solid var(--warn);display:inline-block"></span> asleep in <code style="font-size:11px">wait()</code></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Semaphore Sandbox — student builds the two programs, then
+   interactively interleaves them. Everything is stateful so the
+   student is the scheduler.
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const RAW = { P:'#f97316', C:'#22d3ee' };
+const COL = { P:'var(--p1)', C:'var(--con)' };
+
+/* semaphore metadata (the three canonical ones) */
+const SEMS = ['chars','space','lock'];
+const SEM_CM = { chars:'items in buffer', space:'free slots', lock:'mutex' };
+
+/* the configuration + the two program bodies (arrays of {t, s?}) */
+const cfg = {
+  N:4, prodItems:3, consN:3,
+  sem:{ chars:{on:true, init:0}, space:{on:true, init:4}, lock:{on:true, init:1} },
+};
+let bodies = { P:[], C:[] };
+
+/* human text for a statement */
+function stmtText(st){
+  switch(st.t){
+    case 'produce': return 'c = produce();';
+    case 'write':   return 'buf[in] = c;';
+    case 'inc':     return 'in = (in + 1) % N;';
+    case 'read':    return 'c = buf[out];';
+    case 'incout':  return 'out = (out + 1) % N;';
+    case 'consume': return 'consume(c);';
+    case 'wait':    return 'wait(' + st.s + ');';
+    case 'signal':  return 'signal(' + st.s + ');';
+  }
+  return '?';
+}
+const CORE = { P:['produce','write','inc'], C:['read','incout','consume'] };
+function isCore(st){ return st.t!=='wait' && st.t!=='signal'; }
+
+/* default correct bodies for the current sem set */
+function defaultBodies(){
+  const s = cfg.sem;
+  const P=[{t:'produce'}];
+  if(s.space.on) P.push({t:'wait',s:'space'});
+  if(s.lock.on)  P.push({t:'wait',s:'lock'});
+  P.push({t:'write'},{t:'inc'});
+  if(s.lock.on)  P.push({t:'signal',s:'lock'});
+  if(s.chars.on) P.push({t:'signal',s:'chars'});
+  const C=[];
+  if(s.chars.on) C.push({t:'wait',s:'chars'});
+  if(s.lock.on)  C.push({t:'wait',s:'lock'});
+  C.push({t:'read'},{t:'incout'});
+  if(s.lock.on)  C.push({t:'signal',s:'lock'});
+  if(s.space.on) C.push({t:'signal',s:'space'});
+  C.push({t:'consume'});
+  return {P, C};
+}
+
+/* flatten a body into a runnable program (body repeated `count` times);
+   `line` = index within the body so the code panel highlights correctly */
+function buildProg(body, count){
+  const code = body.map(stmtText);
+  const prog = [];
+  for(let r=0;r<count;r++){
+    body.forEach((st,i)=> prog.push({t:st.t, s:st.s, line:i}));
+  }
+  return {code, prog};
+}
+
+/* ============================================================
+   RUNTIME — a live, mutable machine. Each Step advances one
+   process by one instruction. We push snapshots so Undo works.
+   ============================================================ */
+let RT = null;              // current runtime
+let history = [];           // snapshots for undo
+let trace = [];             // sequence of who-ran ('P'/'C')
+let autoTimer = null;
+
+function freshRuntime(){
+  const N = cfg.N;
+  const sems = {};
+  for(const k of SEMS) if(cfg.sem[k].on) sems[k] = {val:cfg.sem[k].init, queue:[]};
+  const progP = buildProg(bodies.P, cfg.prodItems);
+  const progC = buildProg(bodies.C, cfg.consN);
+  return {
+    N, buf:Array(N).fill(null), inP:0, outP:0, sems,
+    procs:{
+      P:{id:'P', pc:0, blocked:false, blockedOn:null, item:null, itemBy:null, code:progP.code, prog:progP.prog},
+      C:{id:'C', pc:0, blocked:false, blockedOn:null, item:null, itemBy:null, code:progC.code, prog:progC.prog},
+    },
+    consumed:[], lost:[],
+    verdict:null,           // {kind:'good'|'bad'|'dead'|'run', msg}
+    ended:false,
+    nextItem:0,             // label counter for produced items (A,B,C…)
+  };
+}
+
+const LETTERS = 'ABCDEFGHIJKLMNOP';
+function snapshot(){ return JSON.parse(JSON.stringify(RT)); }
+
+/* can this process take a step right now? (not done; if blocked, it can only
+   be "observed" as still asleep, which is not a useful move) */
+function canStep(who){
+  if(!RT || RT.ended) return false;
+  const p = RT.procs[who];
+  if(p.pc >= p.prog.length) return false;   // finished
+  if(p.blocked) return false;               // asleep — cannot self-run
+  return true;
+}
+function allDone(){
+  return RT.procs.P.pc>=RT.procs.P.prog.length && RT.procs.C.pc>=RT.procs.C.prog.length;
+}
+/* deadlock: neither can move, and at least one still has work left */
+function isStuck(){
+  const P=RT.procs.P, C=RT.procs.C;
+  const pLeft = P.pc<P.prog.length, cLeft = C.pc<C.prog.length;
+  const pMove = pLeft && !P.blocked, cMove = cLeft && !C.blocked;
+  if(pMove||cMove) return false;
+  return pLeft||cLeft;   // someone still has code but nobody can run
+}
+
+/* execute one instruction of `who`; returns an event describing what happened */
+function exec(who){
+  const p = RT.procs[who], ins = p.prog[p.pc];
+  let cap='', ev={type:'none', line:ins.line, who};
+  const nm = w => '<b style="color:'+COL[w]+'">'+(w==='P'?'Producer':'Consumer')+'</b>';
+  const it = (ch,by) => '<b style="color:'+(by?COL[by]:'var(--bad)')+'">‘'+ch+'’</b>';
+
+  switch(ins.t){
+    case 'produce': {
+      const ch = LETTERS[RT.nextItem++] || '?';
+      p.item = ch; p.itemBy='P';
+      cap = nm(who)+' runs <code>c = produce()</code> → makes item '+it(ch,'P')+'.';
+      ev.type='produce';
+      p.pc++; break;
+    }
+    case 'wait': {
+      const s = RT.sems[ins.s];
+      if(!s){ cap='⚠ <code>wait('+ins.s+')</code> refers to a semaphore that is switched off — treated as a no-op.'; p.pc++; break; }
+      if(s.val>0){
+        s.val--;
+        cap = nm(who)+' runs <code>wait('+ins.s+')</code>: '+(s.val+1)+' &gt; 0 → decrement to '+s.val+', continues.';
+        ev.type='sem'; ev.s=ins.s;
+        p.pc++;
+      } else {
+        s.queue.push(who);
+        p.blocked=true; p.blockedOn=ins.s;
+        cap = nm(who)+' runs <code>wait('+ins.s+')</code>: value is <b>0</b> → '+nm(who)+' goes <b style="color:var(--warn)">to sleep</b> on <code>'+ins.s+'</code>.';
+        ev.type='block'; ev.s=ins.s;
+        // pc stays: on wake, wait() completes
+      }
+      break;
+    }
+    case 'signal': {
+      const s = RT.sems[ins.s];
+      if(!s){ cap='⚠ <code>signal('+ins.s+')</code> refers to a semaphore that is switched off — no-op.'; p.pc++; break; }
+      if(s.queue.length){
+        const w = s.queue.shift();
+        RT.procs[w].blocked=false; RT.procs[w].blockedOn=null; RT.procs[w].pc++;
+        cap = nm(who)+' runs <code>signal('+ins.s+')</code>: wakes '+nm(w)+', whose <code>wait('+ins.s+')</code> now completes. (value stays '+s.val+').';
+        ev.type='wake'; ev.s=ins.s; ev.woke=w;
+      } else {
+        s.val++;
+        cap = nm(who)+' runs <code>signal('+ins.s+')</code>: nobody waiting → increment to '+s.val+'.';
+        ev.type='sem'; ev.s=ins.s;
+      }
+      p.pc++; break;
+    }
+    case 'write': {
+      const slot = RT.inP;
+      if(RT.buf[slot]!==null){
+        const old = RT.buf[slot];
+        RT.lost.push({ch:old.ch, by:old.by});
+        RT.buf[slot] = {ch:p.item, by:'P'};
+        cap = '💥 <code>buf['+slot+']</code> still held '+it(old.ch,old.by)+' (never consumed) — '+nm(who)+' overwrites it with '+it(p.item,'P')+'. '+it(old.ch,old.by)+' is <b style="color:var(--bad)">destroyed</b>.';
+        ev.type='overwrite'; ev.slot=slot; ev.ch=p.item; ev.oldCh=old.ch; ev.oldBy=old.by;
+      } else {
+        RT.buf[slot] = {ch:p.item, by:'P'};
+        cap = nm(who)+' runs <code>buf[in] = c</code>: writes '+it(p.item,'P')+' into <code>buf['+slot+']</code>.';
+        ev.type='write'; ev.slot=slot; ev.ch=p.item;
+      }
+      p.item=null; p.pc++; break;
+    }
+    case 'inc': {
+      const old=RT.inP; RT.inP=(RT.inP+1)%RT.N;
+      cap = nm(who)+' advances write index: <code>in = ('+old+'+1) % '+RT.N+' = '+RT.inP+'</code>.';
+      ev.type='ptr'; p.pc++; break;
+    }
+    case 'read': {
+      const slot = RT.outP;
+      if(RT.buf[slot]===null){
+        p.item='?'; p.itemBy=null;
+        cap = '💥 '+nm(who)+' runs <code>c = buf[out]</code> on empty <code>buf['+slot+']</code> — reads <b style="color:var(--bad)">garbage</b>.';
+        ev.type='garbage'; ev.slot=slot;
+      } else {
+        p.item=RT.buf[slot].ch; p.itemBy=RT.buf[slot].by;
+        cap = nm(who)+' runs <code>c = buf[out]</code>: reads '+it(RT.buf[slot].ch,RT.buf[slot].by)+' from <code>buf['+slot+']</code>.';
+        ev.type='read'; ev.slot=slot; ev.ch=RT.buf[slot].ch; ev.by=RT.buf[slot].by;
+        RT.buf[slot]=null;
+      }
+      p.pc++; break;
+    }
+    case 'incout': {
+      const old=RT.outP; RT.outP=(RT.outP+1)%RT.N;
+      cap = nm(who)+' advances read index: <code>out = ('+old+'+1) % '+RT.N+' = '+RT.outP+'</code>.';
+      ev.type='ptr'; p.pc++; break;
+    }
+    case 'consume': {
+      const bad = (p.item==='?');
+      RT.consumed.push({ch:p.item, by:bad?null:p.itemBy, bad});
+      cap = bad
+        ? nm(who)+' runs <code>consume(c)</code> on <b style="color:var(--bad)">garbage</b> ✗ — junk flows downstream.'
+        : nm(who)+' runs <code>consume(c)</code>: delivers '+it(p.item,p.itemBy)+' ✓.';
+      ev.type='consume'; ev.bad=bad;
+      p.item=null; p.itemBy=null; p.pc++; break;
+    }
+  }
+  return {cap, ev};
+}
+
+/* assess overall verdict after a step */
+function assess(){
+  const anyLost = RT.lost.length>0;
+  const anyGarb = RT.consumed.some(c=>c.bad);
+  if(isStuck()){
+    RT.ended=true;
+    RT.verdict={kind:'dead', msg:'<b>Deadlock.</b> No process can proceed, yet work remains. Every runnable process is asleep in a <code>wait()</code> and no one is left to <code>signal()</code>. This is what wrong <code>wait</code>/<code>signal</code> placement (or a missing <code>signal</code>) causes.'};
+    return;
+  }
+  if(allDone()){
+    RT.ended=true;
+    if(anyLost||anyGarb){
+      RT.verdict={kind:'bad', msg:'<b>Finished, but incorrect.</b> '+(anyLost?'Data was overwritten before it was consumed. ':'')+(anyGarb?'The consumer read from empty slots (garbage). ':'')+'The synchronisation you built does not protect every interleaving.'};
+    } else if(RT.consumed.length && RT.consumed.every((c,i)=> c.ch===LETTERS[i])){
+      RT.verdict={kind:'good', msg:'<b>Correct ✓</b> — every produced item was consumed exactly once, in FIFO order, with no loss and no garbage. This ordering of <code>wait</code>/<code>signal</code> is safe for the interleaving you chose.'};
+    } else {
+      RT.verdict={kind:'good', msg:'<b>Finished with no data loss or garbage.</b> Try other interleavings (or Auto-run a few times) to see if a bad schedule can still break it.'};
+    }
+    return;
+  }
+  // in-progress verdict
+  if(anyLost||anyGarb){
+    RT.verdict={kind:'bad', msg:'<b>Already broken.</b> '+(anyLost?'An item was overwritten before consumption. ':'')+(anyGarb?'Garbage was read from an empty slot. ':'')+'Keep stepping to see the full damage, or restart and fix the placement.'};
+  } else {
+    RT.verdict={kind:'run', msg:'So far so good — no loss or garbage yet. You are the scheduler: keep interleaving, and try to <i>find</i> a schedule that breaks it.'};
+  }
+}
+
+/* ============================================================
+   RENDERING
+   ============================================================ */
+function renderShared(){
+  let h = 'char buf[N];  <span class="cm">/* N = '+cfg.N+' */</span><br>int in = 0, out = 0;';
+  let any=false;
+  for(const k of SEMS){ if(cfg.sem[k].on){ any=true;
+    h += '<br><b>semaphore '+k+' = '+cfg.sem[k].init+';</b>  <span class="cm">/* '+SEM_CM[k]+' */</span>';
+  }}
+  if(!any) h += '<br><span class="cm">/* no semaphores declared */</span>';
+  $('sharedBox').innerHTML = h;
+}
+
+function procCard(who, actorLine){
+  const p = RT.procs[who];
+  const title = who==='P'?'Producer':'Consumer';
+  const done = p.pc>=p.prog.length;
+  let badge, cls='pcard';
+  if(p.blocked){ badge='<span class="badge zzz">asleep 💤</span>'; cls+=' asleep'; }
+  else if(done){ badge='<span class="badge done">done ✓</span>'; }
+  else if(actorLine!=null){ badge='<span class="badge run">ran</span>'; cls+=' running'; }
+  else badge='<span class="badge ready">ready</span>';
+
+  const curLine = done ? -1 : p.prog[p.pc].line;   // line about to run / blocked on
+  let codeH='';
+  p.code.forEach((ln,i)=>{
+    let c='ln';
+    if(p.blocked && i===curLine) c+=' zz';
+    else if(!done && i===curLine) c+=' cur';
+    codeH += '<span class="'+c+'">'+ln+(p.blocked&&i===curLine?'  💤':'')+'</span>';
+  });
+  if(!p.code.length) codeH='<span class="ln" style="opacity:.5">(empty program)</span>';
+  const itemH = p.item
+    ? 'holding: <span class="chip" style="background:'+(p.item==='?'?'var(--bad)':RAW[p.itemBy||'P'])+'">'+p.item+'</span>'
+    : '<span style="opacity:.45">holding: —</span>';
+  return '<div class="'+cls+'" id="card_'+who+'"><div class="phead"><span class="pname" style="color:'+COL[who]+'">'+title+'</span>'+badge+'</div><div class="pcode">'+codeH+'</div><div class="pitem">'+itemH+'</div></div>';
+}
+
+function renderScene(actorLine){
+  const al = actorLine||{};
+  $('prodCol').innerHTML = procCard('P', al.P);
+  $('consCol').innerHTML = procCard('C', al.C);
+
+  let semH='';
+  for(const k of SEMS){ if(RT.sems[k]){ const v=RT.sems[k];
+    semH += '<div class="sem" id="sem_'+k+'"><div class="sname">'+k+'</div><div class="sval">'+v.val+'</div><div class="squeue">'+(v.queue.length?('⏳ '+v.queue.map(w=>w==='P'?'Prod':'Cons').join(', ')):'')+'</div></div>';
+  }}
+  $('semRow').innerHTML = semH || '<div style="font-size:12px;color:var(--muted);padding:4px 2px">— no semaphores declared —</div>';
+
+  let inH='', outH='', slotH='';
+  for(let i=0;i<RT.N;i++){
+    inH  += '<div class="ptrcell ptr-in">'+(i===RT.inP?'in ▼':'')+'</div>';
+    outH += '<div class="ptrcell ptr-out">'+(i===RT.outP?'out ▲':'')+'</div>';
+    const cell = RT.buf[i];
+    slotH += '<div class="bslot" id="slot'+i+'">'+(cell?'<span class="chip" style="background:'+RAW[cell.by]+'">'+cell.ch+'</span>':'')+'<span class="idx">'+i+'</span></div>';
+  }
+  $('inRow').innerHTML=inH; $('outRow').innerHTML=outH; $('slotRow').innerHTML=slotH;
+
+  $('consItems').innerHTML = RT.consumed.length
+    ? RT.consumed.map(c=>'<span class="chip'+(c.bad?' garb':'')+'" style="'+(c.bad?'':'background:'+RAW[c.by||'P'])+'">'+c.ch+'</span>').join('')
+    : '<span class="none">— nothing yet —</span>';
+  $('lostItems').innerHTML = RT.lost.length
+    ? RT.lost.map(c=>'<span class="chip bad">'+c.ch+'</span>').join('')
+    : '<span class="none">— none —</span>';
+}
+
+function renderVerdict(){
+  const v = RT.verdict, el=$('verdict');
+  if(!v){ el.className='verdict'; el.innerHTML=''; return; }
+  el.className='verdict show '+v.kind;
+  el.innerHTML = v.msg;
+}
+
+function renderTrace(){
+  $('traceStrip').innerHTML = trace.length
+    ? trace.map((w,i)=>'<span class="tk t'+w+(i===trace.length-1?' cur':'')+'">'+(w==='P'?'P':'C')+'</span>').join('')
+    : '<span style="color:var(--muted);font-size:11px">no steps yet</span>';
+}
+
+function renderRunControls(){
+  $('stepP').disabled = !canStep('P');
+  $('stepC').disabled = !canStep('C');
+  $('undoBtn').disabled = history.length===0;
+}
+
+/* animation of a single event (mirrors the classic page) */
+let animToken=0;
+function center(el, sr){ const r=el.getBoundingClientRect(); return [r.left-sr.left+r.width/2, r.top-sr.top+r.height/2]; }
+function fly(fromEl,toEl,label,bg,ms,my){
+  return new Promise(res=>{
+    const scene=$('scene'), fl=$('flyer');
+    if(!fromEl||!toEl){ res(); return; }
+    const sr=scene.getBoundingClientRect();
+    const [x0,y0]=center(fromEl,sr),[x1,y1]=center(toEl,sr);
+    fl.textContent=label; fl.className='flyer show'; fl.style.background=bg;
+    fl.style.left=x0+'px'; fl.style.top=y0+'px';
+    const t0=performance.now();
+    (function f(now){
+      if(my!==animToken){res();return;}
+      let k=Math.min(1,(now-t0)/ms);
+      const e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+      fl.style.left=(x0+(x1-x0)*e)+'px'; fl.style.top=(y0+(y1-y0)*e)+'px';
+      if(k<1) requestAnimationFrame(f); else res();
+    })(performance.now());
+  });
+}
+function hideFlyer(){ $('flyer').className='flyer'; }
+function flash(id,cls,ms){ const el=$(id); if(!el) return; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls),ms||700); }
+
+async function animateEvent(ev, actorLine){
+  const my=++animToken;
+  const dur = autoTimer?300:460;
+  if(ev.type==='write'){
+    await fly($('card_P'),$('slot'+ev.slot),ev.ch,RAW.P,dur,my); if(my!==animToken)return;
+    renderScene(actorLine); hideFlyer(); flash('slot'+ev.slot,'fWrite');
+  } else if(ev.type==='overwrite'){
+    await fly($('slot'+ev.slot),$('lostTray'),ev.oldCh,'#ef4444',dur,my); if(my!==animToken)return;
+    await fly($('card_P'),$('slot'+ev.slot),ev.ch,RAW.P,dur,my); if(my!==animToken)return;
+    renderScene(actorLine); hideFlyer(); flash('slot'+ev.slot,'fBad',900);
+  } else if(ev.type==='read'){
+    await fly($('slot'+ev.slot),$('card_C'),ev.ch,RAW[ev.by||'P'],dur,my); if(my!==animToken)return;
+    renderScene(actorLine); hideFlyer(); flash('slot'+ev.slot,'fRead');
+  } else if(ev.type==='garbage'){
+    await fly($('slot'+ev.slot),$('card_C'),'?','#ef4444',dur,my); if(my!==animToken)return;
+    renderScene(actorLine); hideFlyer(); flash('slot'+ev.slot,'fBad',900);
+  } else {
+    renderScene(actorLine);
+    if(ev.type==='sem'||ev.type==='wake') flash('sem_'+ev.s,'flash');
+    if(ev.type==='block') flash('sem_'+ev.s,'flash');
+    if(ev.type==='wake') flash('card_'+ev.woke,'running',900);
+  }
+}
+
+/* ============================================================
+   BUILDER — config, palette, drag & drop
+   ============================================================ */
+function renderConfigInputs(){
+  $('nBuf').value=cfg.N; $('nProdItems').value=cfg.prodItems; $('nConsN').value=cfg.consN;
+  $('semToggle').innerHTML = SEMS.map(k=>{
+    const s=cfg.sem[k];
+    return '<span class="st'+(s.on?'':' off')+'"><input type="checkbox" '+(s.on?'checked':'')+' onchange="toggleSem(\''+k+'\',this.checked)"> '+k+' = <input type="number" value="'+s.init+'" '+(s.on?'':'disabled')+' onchange="setSemInit(\''+k+'\',this.value)"></span>';
+  }).join('');
+}
+
+function renderPalette(who){
+  const declared = SEMS.filter(k=>cfg.sem[k].on);
+  const el = who==='P'?$('prodPalette'):$('consPalette');
+  let h='';
+  for(const k of declared){
+    h += '<button class="chipbtn" onclick="addStmt(\''+who+'\',\'wait\',\''+k+'\')">+ wait('+k+')</button>';
+    h += '<button class="chipbtn" onclick="addStmt(\''+who+'\',\'signal\',\''+k+'\')">+ signal('+k+')</button>';
+  }
+  if(!declared.length) h='<span style="font-size:11px;color:var(--muted)">declare a semaphore above to add wait/signal</span>';
+  el.innerHTML=h;
+}
+
+function renderSteps(who){
+  const ul = who==='P'?$('prodSteps'):$('consSteps');
+  ul.innerHTML = bodies[who].map((st,i)=>{
+    const core = isCore(st);
+    return '<li class="stmt'+(core?' fixed':'')+'" draggable="true" data-i="'+i+'">'
+      + '<span class="grip">⋮⋮</span>'
+      + '<span class="txt">'+stmtText(st)+'</span>'
+      + (core?'' : '<button class="del" title="remove" onclick="delStmt(\''+who+'\','+i+')">×</button>')
+      + '</li>';
+  }).join('');
+  wireDrag(ul, who);
+}
+
+function wireDrag(ul, who){
+  let dragI=null;
+  ul.querySelectorAll('.stmt').forEach(li=>{
+    li.addEventListener('dragstart', e=>{ dragI=+li.dataset.i; li.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+    li.addEventListener('dragend', ()=>{ li.classList.remove('dragging'); ul.classList.remove('over'); });
+  });
+  ul.addEventListener('dragover', e=>{
+    e.preventDefault(); ul.classList.add('over');
+    const after = afterElement(ul, e.clientY);
+    const dragging = ul.querySelector('.dragging'); if(!dragging) return;
+    if(after==null) ul.appendChild(dragging); else ul.insertBefore(dragging, after);
+  });
+  ul.addEventListener('dragleave', e=>{ if(!ul.contains(e.relatedTarget)) ul.classList.remove('over'); });
+  ul.addEventListener('drop', e=>{
+    e.preventDefault(); ul.classList.remove('over');
+    const order = [...ul.querySelectorAll('.stmt')].map(li=>+li.dataset.i);
+    bodies[who] = order.map(i=>bodies[who][i]);
+    dragI=null;
+    afterEdit();
+  });
+}
+function afterElement(ul, y){
+  const els=[...ul.querySelectorAll('.stmt:not(.dragging)')];
+  let best=null, bestOff=-Infinity;
+  for(const el of els){ const r=el.getBoundingClientRect(); const off=y-r.top-r.height/2;
+    if(off<0 && off>bestOff){ bestOff=off; best=el; } }
+  return best;
+}
+
+function addStmt(who, t, s){ bodies[who].push({t, s}); afterEdit(); }
+function delStmt(who, i){ bodies[who].splice(i,1); afterEdit(); }
+
+/* re-render everything the builder controls, and reset the run */
+function afterEdit(){
+  renderSteps('P'); renderSteps('C');
+  renderShared();
+  resetRun();
+}
+
+/* ============================================================
+   CONFIG HANDLERS
+   ============================================================ */
+function toggleSem(k, on){
+  cfg.sem[k].on = on;
+  if(k==='space' && on) cfg.sem[k].init = cfg.N;   // sensible default
+  // strip wait/signal on a now-off semaphore
+  if(!on){ for(const w of ['P','C']) bodies[w]=bodies[w].filter(st=>!(st.s===k)); }
+  renderConfigInputs(); renderPalette('P'); renderPalette('C'); afterEdit();
+}
+function setSemInit(k, v){ cfg.sem[k].init = Math.max(0, parseInt(v)||0); renderShared(); resetRun(); }
+
+$('nBuf').addEventListener('change', e=>{
+  cfg.N = clampInt(e.target.value,1,8,4);
+  if(cfg.sem.space.on) cfg.sem.space.init=cfg.N;
+  renderConfigInputs(); renderShared(); afterEdit();
+});
+$('nProdItems').addEventListener('change', e=>{ cfg.prodItems=clampInt(e.target.value,1,6,3); e.target.value=cfg.prodItems; resetRun(); });
+$('nConsN').addEventListener('change', e=>{ cfg.consN=clampInt(e.target.value,1,6,3); e.target.value=cfg.consN; resetRun(); });
+function clampInt(v,lo,hi,def){ v=parseInt(v); if(isNaN(v))v=def; return Math.max(lo,Math.min(hi,v)); }
+
+/* ============================================================
+   RUN CONTROLS
+   ============================================================ */
+function stepWho(who, fromAuto){
+  if(!canStep(who)) return;
+  if(!fromAuto) stopAuto();
+  history.push(snapshot());
+  const beforeLines = {};   // remember lines for the "before" render during animation
+  const {cap, ev} = exec(who);
+  trace.push(who);
+  assess();
+  // build actorLine map: the line that just executed
+  const actorLine = {}; actorLine[who]=ev.line;
+  // draw the "before" scene (from the snapshot we pushed), then animate into "after"
+  animToken++;
+  const before = history[history.length-1];
+  const saved = RT; RT = before; renderScene({}); RT = saved;
+  hideFlyer();
+  animateEvent(ev, actorLine);
+  $('stepLabel').textContent = 'Step '+trace.length+' · '+(who==='P'?'Producer':'Consumer')+' ran';
+  $('captionText').innerHTML = cap;
+  renderVerdict(); renderTrace(); renderRunControls();
+  if(RT.ended) stopAuto();
+}
+
+function undo(){
+  if(!history.length) return;
+  stopAuto();
+  RT = history.pop();
+  trace.pop();
+  animToken++;
+  renderScene({});
+  $('stepLabel').textContent = trace.length? ('Step '+trace.length+' (after undo)') : 'Run reset';
+  $('captionText').innerHTML = 'Stepped back. '+(trace.length?'Continue interleaving from here.':'Pick who runs first.');
+  renderVerdict(); renderTrace(); renderRunControls();
+}
+
+function resetRun(){
+  stopAuto();
+  RT = freshRuntime();
+  history=[]; trace=[];
+  animToken++;
+  renderShared(); renderScene({}); renderVerdict(); renderTrace(); renderRunControls();
+  $('stepLabel').textContent='Ready';
+  $('captionText').innerHTML='You are the scheduler. Click <b style="color:var(--p1)">Step Producer</b> or <b style="color:var(--con)">Step Consumer</b> to choose who runs the next instruction.';
+}
+
+function toggleAuto(){ autoTimer ? stopAuto() : startAuto(); }
+function startAuto(){
+  if(RT.ended){ resetRun(); }
+  $('autoBtn').textContent='⏸ Stop auto';
+  autoTimer = setInterval(()=>{
+    const opts=['P','C'].filter(canStep);
+    if(!opts.length){ stopAuto(); return; }
+    stepWho(opts[Math.floor(Math.random()*opts.length)], true);
+    if(RT.ended) stopAuto();
+  }, 900);
+}
+function stopAuto(){ if(autoTimer){ clearInterval(autoTimer); autoTimer=null; } $('autoBtn').textContent='🎲 Auto-run'; }
+
+/* ============================================================
+   TABS + PRESETS
+   ============================================================ */
+function setTab(t){
+  $('tabBuild').classList.toggle('active', t==='build');
+  $('tabRun').classList.toggle('active', t==='run');
+  $('buildPane').style.display = t==='build'?'':'none';
+  $('runPane').style.display = t==='run'?'':'none';
+}
+
+const PRESETS = {
+  correct:{ label:'✓ Correct solution', N:4, prod:3, cons:3, sem:{chars:[true,0],space:[true,4],lock:[true,1]}, useDefault:true,
+    note:'The textbook solution: <code>space</code> guards the producer, <code>chars</code> guards the consumer, <code>lock</code> protects the index update. Try to break it with Auto-run.' },
+  noSem:{ label:'✗ No semaphores', N:1, prod:3, cons:2, sem:{chars:[false,0],space:[false,0],lock:[false,0]}, useDefault:true,
+    note:'No synchronisation, buffer of 1. Step the Producer twice before the Consumer and watch data die.' },
+  noChars:{ label:'✗ Missing wait(chars)', N:4, prod:2, cons:2, sem:{chars:[true,0],space:[true,4],lock:[false,0]}, custom:'noChars',
+    note:'The consumer skips <code>wait(chars)</code>. Run the Consumer first — it reads a slot nobody wrote.' },
+  swapped:{ label:'✗ wait order swapped', N:4, prod:3, cons:3, sem:{chars:[true,0],space:[true,4],lock:[true,1]}, custom:'swapped',
+    note:'Both processes take <code>lock</code> <b>before</b> the counting semaphore. Fill the buffer, then step the Producer: it sleeps holding <code>lock</code>, the Consumer needs <code>lock</code>… deadlock.' },
+};
+
+function loadPreset(key){
+  const p=PRESETS[key];
+  cfg.N=p.N; cfg.prodItems=p.prod; cfg.consN=p.cons;
+  for(const k of SEMS){ cfg.sem[k]={on:p.sem[k][0], init:p.sem[k][1]}; }
+  if(p.useDefault){ const d=defaultBodies(); bodies={P:d.P, C:d.C}; }
+  else if(p.custom==='noChars'){ const d=defaultBodies(); bodies.P=d.P; bodies.C=d.C.filter(st=>st.s!=='chars'); }
+  else if(p.custom==='swapped'){
+    // deliberately buggy: lock outside the counting wait
+    bodies.P=[{t:'produce'},{t:'wait',s:'lock'},{t:'wait',s:'space'},{t:'write'},{t:'inc'},{t:'signal',s:'chars'},{t:'signal',s:'lock'}];
+    bodies.C=[{t:'wait',s:'lock'},{t:'wait',s:'chars'},{t:'read'},{t:'incout'},{t:'signal',s:'space'},{t:'signal',s:'lock'},{t:'consume'}];
+  }
+  renderConfigInputs(); renderPalette('P'); renderPalette('C');
+  renderSteps('P'); renderSteps('C'); renderShared();
+  resetRun();
+  $('captionText').innerHTML = p.note;
+  setTab('run');
+}
+
+function renderPresets(){
+  $('presetRow').innerHTML = Object.entries(PRESETS)
+    .map(([k,p])=>'<button onclick="loadPreset(\''+k+'\')">'+p.label+'</button>').join('');
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+document.addEventListener('keydown', e=>{
+  const tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='select'||tag==='textarea') return;
+  if($('runPane').style.display==='none') return;
+  if(e.key==='p'||e.key==='P'){ stepWho('P'); }
+  else if(e.key==='c'||e.key==='C'){ stepWho('C'); }
+  else if(e.key===' '){ e.preventDefault(); toggleAuto(); }
+});
+
+(function init(){
+  const d=defaultBodies(); bodies={P:d.P, C:d.C};
+  renderConfigInputs(); renderPalette('P'); renderPalette('C');
+  renderSteps('P'); renderSteps('C'); renderShared();
+  resetRun();
+  renderPresets();
+})();
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶</span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); });
+})();</script>
+</body>
