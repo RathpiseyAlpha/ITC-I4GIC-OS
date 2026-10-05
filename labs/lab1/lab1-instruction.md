@@ -1,96 +1,230 @@
-# OS Lab 1 — OS inspection and owned processes
+# OS Lab 1 — Introduction to Operating Systems (Hands-on)
 
-| | |
+| Item | Details |
 |---|---|
-| Duration | 120 minutes |
-| Work | Individual solution and submission; peer exchange is optional and bounded |
-| Primary environment | shared Ubuntu account |
-| Practice fallback | Local Linux or WSL for unprivileged work; see topic constraints |
-| Prerequisites | login, terminal, basic commands |
-| Required core | Guided example, prediction, one investigation, tests, changed case, concise report |
-| Optional extensions | See below; they do not replace the core |
+| Course | Operating Systems, Institute of Technology of Cambodia |
+| Duration | 120 minutes; installation and VM preparation happen before class |
+| Ownership | Individual work and submission; optional short peer exchange |
+| Primary environment | Shared Ubuntu server with an individual account for each student |
+| Prerequisites | Basic terminal use; your own server login; no programming required |
+| Required tools | `bash`, `uname`, `cat`, `ps`, `sleep`, `find` |
+| Practice fallback | Local Linux/WSL for unprivileged tasks; disposable VM for boot/system administration |
+| Core versus extensions | Follow the core below; [optional extensions](extensions.md) retain wider original coverage |
 
-## Observable learning targets
+> **Scenario:** Your first day at TechCorp: identify the machine you logged into, create a small record of your work, and show how one installed program can produce two independent processes.
 
-1. Identify kernel and distribution from evidence.
-2. Distinguish a program from a running process.
-3. Trace one owned process through start and exit.
+## Lab Objectives
 
-## 120-minute route
+After the required core, you should be able to:
+
+1. Identify the distribution and running kernel using command output, explaining the difference.
+2. Create and inspect files in an owned directory using basic Linux commands.
+3. Start two instances of one program and distinguish their PIDs, parent PID, state and lifetime.
+
+**Extension objectives:** Inspect APT package information, practise package installation/removal in a disposable VM, and interpret virtualization evidence. These retain the original lab's wider topics; they are not required to finish the two-hour core.
+
+## Task Overview and 120-minute Timetable
 
 | Minutes | Activity |
 |---|---|
-| 0–10 | Opening question and safety/setup |
-| 10–25 | Guided example |
-| 25–35 | Prediction on paper; five-minute optional peer comparison |
-| 35–70 | Individual investigation or build; AI optional |
-| 70–85 | Normal and edge tests; feedback pause |
-| 85–100 | Individual changed case, supervised; no AI or peers |
-| 100–110 | Evidence-based correction and concept explanation |
-| 110–120 | Cleanup and concise submission |
+| 0–10 | Introduction, objectives and setup |
+| 10–25 | Guided example: commands and observations |
+| 25–35 | Written prediction; optional five-minute peer comparison |
+| 35–70 | Numbered individual investigation tasks; AI optional |
+| 70–85 | Normal and edge tests; instructor feedback |
+| 85–100 | Individual changed-case checkpoint; no AI or peers |
+| 100–110 | Correction and conceptual explanation |
+| 110–120 | Cleanup and submission |
 
-## Setup and guided example (0–25)
+Core: Task 1 OS identification, a short Task 2 file warm-up, and Tasks 4–5 program/process investigation. Original Task 3 package changes and Task 6 virtualization work are extensions.
 
-Log in with your own account. Run `oslab doctor`, then `oslab start lab1`; `oslab status lab1` shows the workspace. The first start creates editable copies of the public fixtures in your own `~/oslab-work/lab1`. Repeating start preserves your edits. If `oslab` is not installed, create an owned directory and use the commands below with your own paths; the instructor can supply the public fixtures. Keep your submission in your own course repository.
+## Lab Setup (0–10 minutes)
 
-Run or adapt this small example in your own workspace:
+1. Log in to the Ubuntu server using **your own account**. All commands below run as that ordinary user in Bash. Use only your own files and processes.
+2. Check the helper. If it is unavailable, follow [the local setup guide](../SETUP.md) to define `oslab` from your cloned course repository; it uses the same fixtures.
 
-```bash
-uname -s; cat /etc/os-release | head -6; sleep 10 & pid=$!; ps -o pid,ppid,stat,comm -p "$pid"; wait "$pid"
-```
+   ```bash
+   whoami
+   command -v oslab
+   oslab doctor
+   ```
 
-Before continuing: Which output describes installed software, and which describes a live instance?
+3. Start the lab and **enter its directory**. `oslab start` preserves existing work and does not change the current directory. If resuming, inspect existing files before running commands that write to them.
+
+   ```bash
+   export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"
+   oslab start lab1
+   cd "$OSLAB_WORKSPACE/lab1"
+   pwd
+   mkdir -p evidence
+   find . -maxdepth 3 -type f
+   ```
+
+4. Compare your files with the starting tree. `.oslab-managed.json` identifies the managed workspace; leave it intact. `evidence/` was created in step 3. If `tree` is installed, `tree -a -L 3` can display the same structure.
+
+   ```text
+   lab1/
+   ├── .oslab-managed.json
+   ├── process.txt       # short process-observation reminder
+   └── evidence/         # selected command records
+   ```
+
+The workspace is for experiments. Your personal course Git repository holds the final submission; you will copy selected files there at the end. VM work and privileged commands are never performed on the shared server.
+
+## Task 1 — Operating System Identification: Guided Example (10–25)
+
+1. Ask the kernel for its name and release. Run each command separately so you can identify which field produced each result.
+
+   ```bash
+   uname -s
+   uname -r
+   uname -m
+   ```
+
+   On Ubuntu, the kernel name is usually `Linux`; the release and architecture depend on the server. A distribution release and a kernel release are different facts.
+
+2. Read the distribution's identification file.
+
+   ```bash
+   cat /etc/os-release
+   ```
+
+   Find `NAME` and `VERSION_ID`. Record their values; do not assume the server uses the same Ubuntu version as your WSL machine.
+
+3. Practise the original lab's file commands in an owned folder.
+
+   ```bash
+   mkdir -p practice
+   printf 'My first OS observation\n' > practice/notes.txt
+   cp -- practice/notes.txt practice/notes-copy.txt
+   ls -l practice
+   cat practice/notes-copy.txt
+   ```
+
+   `>` creates or replaces a file. `>>` appends. For a resumed session, inspect existing files before choosing either operator.
+
+4. Save a compact OS record.
+
+   ```bash
+   {
+     uname -srm
+     grep -E '^(NAME|VERSION_ID)=' /etc/os-release
+   } > evidence/os-info.txt
+   ```
+
+   **Observe:** Which result identifies the running kernel? Which identifies the distribution? Does a filename tell you whether a program is currently running?
 
 ## Prediction (25–35)
 
-On paper or the existing course worksheet, write the expected result **and why** before executing the investigation. Keep the original sentence visible; later add a correction beneath it. Initial accuracy is lightly weighted; an evidence-based correction earns credit.
+Before starting the process investigation, write: **If I run `sleep 30` twice, will the two instances have the same PID? Will either PID necessarily appear after both commands have finished? Explain.** Keep this answer. Spend at most five minutes comparing reasoning with a neighbour, or compare it yourself with the OS information above.
 
-**Predict:** If two `sleep 10` commands start, will they share a PID? Why?
+## Tasks 4–5 — Programs versus Processes and Multitasking (35–70)
 
-Spend at most five minutes comparing reasoning with a neighbour if one is available; otherwise compare against the guided example. Your written prediction remains your own.
+1. Locate the executable and start one short-lived instance.
 
-## Individual investigation (35–70)
+   ```bash
+   command -v sleep
+   sleep 30 &
+   first_pid=$!
+   printf 'first PID=%s\n' "$first_pid"
+   ```
 
-**Starting state:** `~/oslab-work/lab1` after `oslab start lab1`. **Goal:** Start two bounded `sleep` processes in your account. Record PID, PPID and state while alive, then check after `wait`. Explain which observations establish process identity and which only identify the executable.
+   `&` starts a background job. `$!` is the PID of the most recently started background command in this shell; capture it immediately.
 
-Inspect the fixture files with `find . -maxdepth 3 -type f` before editing.
+2. Start a second instance and inspect both before 30 seconds elapse.
 
-**Suggested sequence:** Record `uname -r` and `ps` headings first. Start the two processes with `&`, capture each `$!` immediately, inspect before `wait`, then compare after both exit.
+   ```bash
+   sleep 30 &
+   second_pid=$!
+   printf 'second PID=%s\n' "$second_pid"
+   ps -o pid,ppid,stat,comm -p "$first_pid,$second_pid" | tee evidence/processes.txt
+   jobs -l
+   ```
 
-**Boundaries and editable files:** Only signal your own PID. Do not install packages or alter the shared server. Create or edit only files in your owned workspace and your own submission directory. Treat supplied fixture files as data unless the task asks you to change a copy. Completion means you can show the intended behaviour and explain the mechanism, even if you reached it by a different valid command.
+   `PID` identifies each process, `PPID` identifies its parent, `STAT` reports a sampled state, and `COMM` names its command. An `S` sleeping state is normal for `sleep`. Write your observed IDs into `evidence/processes.txt` while they are alive.
 
-You may use AI during investigation and testing. Ask it for a hypothesis or alternative command, then inspect the command, test it on owned data, and take responsibility for the result. AI is optional; the example, three hints below, manual pages and lecture notes are enough. Record at most one useful suggestion and how you verified it. Do not submit chat history.
+3. Wait for only those two jobs, then sample again.
 
-## Test, interpret, and explain (70–85)
+   ```bash
+   wait "$first_pid"
+   wait "$second_pid"
+   ps -o pid,ppid,stat,comm -p "$first_pid,$second_pid" | tee -a evidence/processes.txt
+   ```
 
-Run once normally and once with `sleep 1`; check both while live and after exit. A missed snapshot does not prove the process never existed.
+   A header with no matching rows is expected after exit. `ps` may then return a nonzero status. Explain why the executable still exists even though these process instances have ended.
 
-For two selected tests, record: **claim**, **result that would contradict it**, **observed result**, and **what remains unproven**. `oslab check lab1` gives public fixture feedback only; it is not grading and cannot establish your understanding. Save concise terminal text rather than repetitive screenshots.
+4. Make one choice independently: repeat with a different short duration (1–10 seconds) and decide when to sample so you can capture a running instance. Record what a late sample would miss. Do not start large numbers of jobs or inspect another student's processes as your own evidence.
 
-## Individual changed-case checkpoint (85–100)
+**Complete when:** you can identify the OS/kernel and show two distinct execution instances followed by their completion. AI may help interpret fields during this stage; verify its interpretation against `man ps` and your actual sample.
 
-Close AI and peer help. The instructor gives this question on paper or via the existing course mechanism; answer in short structured form even if your earlier build is incomplete:
+**Progressive hints:** (1) distinguish executable file from instance; (2) compare `$!` with `ps` PID/PPID columns; (3) use a longer bounded duration if your observation was too late.
 
-> A script starts `sleep 1` twice in the background. Predict how many PIDs can be captured and whether `ps` must show both after two seconds.
+## Tests and Feedback (70–85)
 
-State the result, reason, and one observation or command that could check it. Keep this answer separate from your investigation notes until collection.
+| Case | Commands/observation | Claim to assess |
+|---|---|---|
+| Normal | Two `sleep 30` instances sampled before exit | One executable can have two distinct live PIDs |
+| Edge | `sleep 1`, sampled immediately and again after `wait` | A later missing row reflects lifetime, not missing software |
 
-## Correction, cleanup, and submission (100–120)
+For each record, state the expected result, a contradictory result, what happened and what the snapshot cannot prove. A process state is a momentary observation, not a complete scheduling history.
 
-Compare prediction with evidence and preserve both original and corrected versions. Explain the OS concept in 3–5 sentences. Save your script or command transcript, two selected test records, and a short `README.md` using [the shared report template](../REPORT-TEMPLATE.md). If you used AI, add one sentence about a verified suggestion. Use `oslab status lab1` and leave the workspace for review; `oslab clean lab1` removes only the managed working copy after you have saved your submission. Never run reset or clean on another student's account.
+**Troubleshooting:** If `ps` shows nothing, check timing rather than reinstalling software. If login failed, verify the announced host and your own username; the host is supplied by the instructor, not hard-coded here. See [Week 1 notes](../../lectures/notes/week01-introduction-to-os.md), `man uname`, and `man ps`.
 
-The rubric totals 10 points: working behaviour 3, tests/diagnosis 2, conceptual explanation and corrected prediction 2, independent checkpoint 2, concise evidence 1. Equivalent valid solutions earn credit. The checkpoint is assessed separately from AI-assisted work.
 
-## Progressive help and troubleshooting
+## Individual Changed-case Checkpoint (85–100 minutes)
 
-1. Concept: A process is an execution instance
-2. Observation: inspect `$!` and `ps`
-3. Partial approach: shorten duration and collect evidence promptly.
+Close AI tools and peer help. Answer the instructor's short question on paper or the existing course worksheet. Your earlier implementation need not be complete to answer it.
 
-If `oslab` is missing, check `command -v oslab` and ask for the published script path. If a tool is absent, use the stated fallback or consult the instructor; do not install system packages yourself. If permissions fail, inspect ownership and parent directory traversal in your own workspace. If a process or cron observation is late, use a bounded repeat and record the limit.
+> A shell starts two `sleep 1` commands in the background and captures both `$!` values. It waits two seconds before running `ps`. Predict the captured PID values relative to one another and whether `ps` must still show the processes.
 
-**Reference:** [Week 1 notes](../../lectures/notes/week01-introduction-to-os.md) and `man ps`. Read the relevant example or manual section when you need a command; you do not need a paid AI account.
+Give the result or diagnosis, the mechanism, and one observation that could check it. The instructor collects this answer before discussing the public key; the public question is practice, so a graded session may use a fresh private variant.
 
-## Optional extensions
+## Explanation and Correction (100–110 minutes)
 
-APT package management in a disposable VM; hypervisor detection; compare `top` and `ps`. See [extension tasks](extensions.md) for concrete follow-up work. These extensions are for additional practice after the required route, using only environments and permissions stated above. They are not required for the 120-minute submission.
+Keep your original prediction visible. Under it, write **confirmed** or **corrected**, cite the relevant test, and explain the OS mechanism in 3–5 sentences. Initial prediction accuracy is lightly weighted; a reasoned attempt and evidence-based correction earn credit.
+
+Answer: (a) Why do both process rows name `sleep`? (b) What does the PPID tell you? (c) Why can `ps` alone not reconstruct every event?
+
+## Cleanup and Final Submission (110–120 minutes)
+
+Confirm both captured jobs finished with `wait`. Keep the workspace until your evidence is saved. If you stop a demonstration early, signal only the PID you captured in this shell, immediately verify its identity, and wait for it; otherwise let the bounded sleep end normally.
+
+1. Set `SUBMISSION_REPO` to the **absolute path of your existing personal course repository**. Replace the example ID/path below with your own; do not copy another student's repository.
+
+   ```bash
+   SUBMISSION_REPO="$HOME/os-se-YOUR_ID/os-lab-YOUR_ID"
+   mkdir -p "$SUBMISSION_REPO/lab1/evidence"
+   ```
+
+2. Use [this lab's README template](README.md). Copy the listed artifacts and **two selected test records**, rather than every terminal output. Check the final tree below before submitting.
+
+   ```bash
+   cp -- evidence/os-info.txt evidence/processes.txt "$SUBMISSION_REPO/lab1/evidence/"
+   ```
+
+   ```text
+   lab1/
+   ├── README.md
+   └── evidence/
+       ├── os-info.txt
+       └── processes.txt     # live/finished observations and chosen short case
+   ```
+
+3. Write your own explanations. The prediction must have been captured before execution on paper or the existing course mechanism; copying it into the README afterwards is only a record, not proof of timing. The independent checkpoint is collected separately.
+4. Inspect your course repository with `git status --short`, add only your lab files, and commit/push using the normal course submission procedure. Do not include passwords, personal shell configuration, generated binaries or disk images.
+
+## Grading Criteria (10 points)
+
+| Evidence mapped to lab objectives | Points |
+|---|---:|
+| OS/kernel identification and two owned-process observations (objectives 1–3) | 3 |
+| Live/finished and short-duration tests, with timing diagnosis | 2 |
+| Explain executable versus instance, PID/PPID and sampled state; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Equivalent valid commands, filenames and approaches earn credit if the evidence meets the objectives. A naming difference is penalized only when it actually breaks execution. AI is permitted during investigation and tests, optional throughout, and excluded from the initial prediction and individual checkpoint. If used, note one helpful suggestion and its verification; no paid tool, chat history or AI detector is required.
+
+## Help, References and Optional Work
+
+Use the progressive hints in the task sections before requesting a full solution. See [the extension guide](extensions.md) for follow-up tasks with their own environment requirements. Existing visual guides are background references and may show the older broader sequence; this Markdown instruction defines the current required core.

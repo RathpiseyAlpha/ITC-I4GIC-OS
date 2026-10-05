@@ -1,66 +1,78 @@
-# Instructor plan — OS Lab 4: Pipelines, redirection and owned processes
+# Instructor plan — OS Lab 4 — Linux I/O Redirection, Pipelines & Process Management (Hands-on)
 
-**Public repository notice:** this file and its answers are public. A folder called `instructor` does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository. Do not use this public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
 
-## Preparation and environment
+## Objectives and Original-task Mapping
 
-- Confirm 25–30 individual accounts, Python 3.8+, the `oslab` installation, quota, and shared Ubuntu account.
-- Run `oslab doctor`, `oslab start lab4`, and `oslab check lab4` as an ordinary test account. Verify no symlink or ownership surprises.
-- Review prerequisites: Lab 2, `grep`, `cut`, `awk` basics. Prepare paper prediction and checkpoint slips; collect the checkpoint before showing the key.
-- Keep VM snapshots, compiler, FUSE and cron availability topic-specific. Do not add sudo to student accounts to make a task work.
+1. Use redirection and pipelines while distinguishing stdout, stderr and exit status.
+2. Filter and aggregate a CSV fixture, checking intermediate stages.
+3. Diagnose incorrect selection/aggregation using normal and changed-input tests.
 
-## Exact timetable
+Original Tasks 1–3 redirection/pipelines/data analysis form the core. Tasks 4–5 process tools and orphan/zombie observations are extensions with bounded owned processes.
+
+Read the [student instruction](../../../labs/lab4/lab4-instruction.md), [report template](../../../labs/lab4/README.md) and [optional extensions](../../../labs/lab4/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+
+## Before Class
+
+- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `grep`, `cut`, `awk`, `wc`, `printf`, `ps`, `sleep`. No student sudo or privileged execution of student code.
+- Check grep/cut/awk availability. Prepare normal, no-match and extra-record fixtures; do not install a data-science stack.
+- In an ordinary test account run `oslab doctor`, `oslab start lab4`, then `cd "$OSLAB_WORKSPACE/lab4"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
+- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
+- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+
+## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |
 |---|---|
-| 0–10 | Opening question and safety/setup; circulate and collect a sample of evidence |
-| 10–25 | Guided example; circulate and collect a sample of evidence |
-| 25–35 | Prediction on paper; five-minute optional peer comparison; circulate and collect a sample of evidence |
-| 35–70 | Individual investigation or build; AI optional; circulate and collect a sample of evidence |
-| 70–85 | Normal and edge tests; feedback pause; circulate and collect a sample of evidence |
-| 85–100 | Individual changed case, supervised; no AI or peers; circulate and collect a sample of evidence |
-| 100–110 | Evidence-based correction and concept explanation; circulate and collect a sample of evidence |
-| 110–120 | Cleanup and concise submission; circulate and collect a sample of evidence |
+| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
+| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
+| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
+| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
+| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
+| 85–100 | Collect individual changed-case answer; no AI or peer help |
+| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
+| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
 
-## Expected observations and alternatives
+## Expected Results and Public Model
 
-Guided example: `printf 'ok,3\nfail,2\n' | grep '^ok,' | cut -d, -f2; printf 'error\n' >&2`. Ask: Which stream enters the next pipeline command?
+Normal total is 8; no-ok is 0; changed total is 15; missing input is nonzero on stderr. Use the public report model below. The fixture is simple CSV, not a general quoted-field parser.
 
-Investigation goal: The report says `ok total: 8`, but a flawed pipeline selects only one row or wrong fields. Build a pipeline that counts all `ok` values from `events.csv`, store output in your workspace, and explain each stage.
+Public complete model: [report_solution.sh](report_solution.sh). Invoke with `bash report_solution.sh /absolute/path/to/events.csv`; test normal 8, no-match 0, changed 15 and missing-input failure.
 
-**Model solution or acceptable alternative:** Filter `^ok,`, extract the numeric second field, and sum all selected values with `awk -F, '$1=="ok" {s+=$2} END {print s+0}' data/events.csv`. Accept a correct grep/cut/awk pipeline too.
+Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
 
-The model sketch is public preparation material. Use a fresh private variant if this checkpoint is graded.
+## Checkpoint Key and Quick Marking
 
-Expected core evidence: an owned artifact or transcript; two tests including one edge case; a preserved prediction and evidence-based correction; a 3–5 sentence mechanism explanation. Accept equivalent commands and programs if they meet the invariant. Do not grade exact filenames unless a tool genuinely depends on them.
+Practice question: The original fixture gains `ok,7` and `fail,20`. Predict the report total. A student uses `wc -l` after filtering; identify why their answer would measure a different quantity.
 
-## Checkpoint key and quick marking
+Key: New total is 15 (3+5+7); fail,20 is excluded. wc -l counts matching records (three), not the sum of their second fields. Accept a staged pipeline or an exact first-field awk filter.
 
-Question: Add a row `ok,7`. Predict the new total, then identify which stage needs no change.
+Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
 
-Key: Total becomes 15; filter and field extraction remain valid. Credit explanations of aggregation.
+## Misconceptions and Progressive Support
 
-Of the checkpoint's two points, give one for a defensible result or diagnosis and one for mechanism plus a suitable verification observation. Partial credit applies if the result is wrong but the reasoning identifies a relevant mechanism. A student with unfinished earlier implementation can still earn both points.
+Students count rows, keep the first value, match not-ok as ok, or confuse stderr with pipeline input. Inspect the selected records and numeric field before aggregation.
 
-## Misconceptions, hints, support
+Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
 
-- Common mistake: treating one successful run as universal proof or confusing a displayed output with the underlying OS mechanism. Use anonymized errors during debrief.
-- Progressive hints: Check row selection; inspect fields with `cut`; sum only after validating intermediate output.
-- For students behind pace: provide a clean fixture copy, narrow the investigation to one test, and preserve the independent checkpoint. Do not complete their artifact for them.
-- Peer exchange is five minutes maximum and optional; an individual can compare with the guided example. No public random questioning or one-by-one oral examination is required.
+Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
 
-## Extensions, outage fallback, cleanup
+## Capability Fallback and Cleanup
 
-Extension: Redirection combinations; process tree; bounded orphan/zombie observation in a disposable local environment.
+Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
 
-If the server is unavailable, use local Linux/WSL for unprivileged work and a printed trace for the checkpoint. For machine-specific tasks, use a disposable VM only; a teacher-only VM demonstration does not establish each student's recovery competence. At finish, confirm bounded processes have exited, any lab-owned cron marker is removed, and only owned workspace artifacts remain. `oslab clean lab4` is optional after submission and must never target unrelated files.
+The core creates no background job. Finish any owned-process extension with its captured `wait` and keep selected evidence. Do not kill processes by name.
 
-## Rubric (10 points)
+After evidence is saved, `oslab clean lab4` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
 
-| Evidence | Points |
+## Topic Rubric (10 points)
+
+| Evidence mapped to lab objectives | Points |
 |---|---:|
-| Working behaviour against stated constraints | 3 |
-| Tests and diagnosis, including a failure or edge case | 2 |
-| Concept explanation and evidence-based correction | 2 |
-| Independent changed-case checkpoint | 2 |
-| Concise, attributable evidence | 1 |
+| Correct report selection/aggregation and clear stdout/stderr handling (objectives 1–3) | 3 |
+| No-match, changed-count and missing-input diagnosis | 2 |
+| Explain each pipeline stage and the claim each test supports; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.

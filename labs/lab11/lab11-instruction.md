@@ -1,96 +1,239 @@
-# OS Lab 11 — Regular-file disk images and filesystem evidence (bonus) (optional bonus)
+# OS Extra Lab 11 (Bonus) — Linux Disk Management Utilities (Hands-on)
 
-| | |
+| Item | Details |
 |---|---|
-| Duration | 120 minutes |
-| Work | Individual solution and submission; peer exchange is optional and bounded |
-| Primary environment | shared Ubuntu account for image files; FUSE optional |
-| Practice fallback | Local Linux or WSL for unprivileged work; see topic constraints |
-| Prerequisites | Lab 2 and storage lecture |
-| Required core | Guided example, prediction, one investigation, tests, changed case, concise report |
-| Optional extensions | See below; they do not replace the core |
+| Course | Operating Systems, Institute of Technology of Cambodia |
+| Duration | 120 minutes; installation and VM preparation happen before class |
+| Ownership | Individual work and submission; optional short peer exchange |
+| Primary environment | Shared Ubuntu server with an individual account for each student |
+| Prerequisites | Lab 2 paths, storage lecture, regular file versus block-device distinction |
+| Required tools | `truncate`, `stat`, `du`, `df`; `mkfs.ext4`, `dumpe2fs` for formatting; FUSE optional |
+| Practice fallback | Local Linux/WSL for unprivileged tasks; disposable VM for boot/system administration |
+| Core versus extensions | Follow the core below; [optional extensions](extensions.md) retain wider original coverage |
 
-## Observable learning targets
+> **Scenario:** QuantumTech’s build server is running low on storage. Rehearse safe capacity measurements on your own regular image files, distinguishing apparent length from allocated blocks before considering mounting or resizing.
 
-1. Distinguish file size from allocated blocks.
-2. Create and inspect a regular image.
-3. Explain filesystem metadata from safe evidence.
+## Lab Objectives
 
-## 120-minute route
+After the required core, you should be able to:
+
+1. Read filesystem capacity and per-file allocation without confusing `df`, `du` and apparent size.
+2. Create a bounded sparse regular image and explain the difference between length and allocation.
+3. Format/inspect only an owned regular image when tools exist, or interpret a supplied metadata trace with a stated limitation.
+
+**Extension objectives:** FUSE mount/unmount, image checking/growing, a small diagnostic utility, and storage threshold interpretation. These retain the original lab's wider topics; they are not required to finish the two-hour core. This entire lab is optional bonus work; skipping it carries no penalty.
+
+## Task Overview and 120-minute Timetable
 
 | Minutes | Activity |
 |---|---|
-| 0–10 | Opening question and safety/setup |
-| 10–25 | Guided example |
-| 25–35 | Prediction on paper; five-minute optional peer comparison |
-| 35–70 | Individual investigation or build; AI optional |
-| 70–85 | Normal and edge tests; feedback pause |
-| 85–100 | Individual changed case, supervised; no AI or peers |
-| 100–110 | Evidence-based correction and concept explanation |
-| 110–120 | Cleanup and concise submission |
+| 0–10 | Introduction, objectives and setup |
+| 10–25 | Guided example: commands and observations |
+| 25–35 | Written prediction; optional five-minute peer comparison |
+| 35–70 | Numbered individual investigation tasks; AI optional |
+| 70–85 | Normal and edge tests; instructor feedback |
+| 85–100 | Individual changed-case checkpoint; no AI or peers |
+| 100–110 | Correction and conceptual explanation |
+| 110–120 | Cleanup and submission |
 
-## Setup and guided example (0–25)
+The whole lab remains optional bonus. Original Levels 0–3 inventory/usage/image/metadata form its two-hour route. Levels 4–7 mount/utility/maintenance/capstone remain optional extensions, with cleanup always required.
 
-Log in with your own account. Run `oslab doctor`, then `oslab start lab11`; `oslab status lab11` shows the workspace. The first start creates editable copies of the public fixtures in your own `~/oslab-work/lab11`. Repeating start preserves your edits. If `oslab` is not installed, create an owned directory and use the commands below with your own paths; the instructor can supply the public fixtures. Keep your submission in your own course repository.
+## Lab Setup (0–10 minutes)
 
-Run or adapt this small example in your own workspace:
+1. Log in to the Ubuntu server using **your own account**. All commands below run as that ordinary user in Bash. Use only your own files and processes.
+2. Check the helper. If it is unavailable, follow [the local setup guide](../SETUP.md) to define `oslab` from your cloned course repository; it uses the same fixtures.
 
-```bash
-truncate -s 32M "$HOME/oslab-work/lab11/images/scratch.img"; ls -lh "$HOME/oslab-work/lab11/images/scratch.img"; du -h "$HOME/oslab-work/lab11/images/scratch.img"
-```
+   ```bash
+   whoami
+   command -v oslab
+   oslab doctor
+   ```
 
-Before continuing: Why can apparent size and allocated space differ?
+3. Start the lab and **enter its directory**. `oslab start` preserves existing work and does not change the current directory. If resuming, inspect existing files before running commands that write to them.
+
+   ```bash
+   export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"
+   oslab start lab11
+   cd "$OSLAB_WORKSPACE/lab11"
+   pwd
+   mkdir -p evidence
+   find . -maxdepth 3 -type f
+   ```
+
+4. Compare your files with the starting tree. `.oslab-managed.json` identifies the managed workspace; leave it intact. `evidence/` was created in step 3. If `tree` is installed, `tree -a -L 3` can display the same structure.
+
+   ```text
+   lab11/
+   ├── .oslab-managed.json
+   ├── images/
+   │   └── README.txt    # regular-image reminder
+   └── evidence/
+   ```
+
+The workspace is for experiments. Your personal course Git repository holds the final submission; you will copy selected files there at the end. VM work and privileged commands are never performed on the shared server.
+
+## Levels 0–1 — Storage Inventory and Usage: Guided Example (10–25)
+
+1. Observe capacity without accessing raw devices or other students' directories.
+
+   ```bash
+   df -hT "$PWD"
+   lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+   ```
+
+   `df` reports the containing mounted filesystem's capacity. `lsblk` describes visible devices; WSL/container views may differ. These are read-only observations, not permission to format any listed device.
+
+2. Compare two small regular files in your owned folder.
+
+   ```bash
+   truncate -s 8M images/demo-sparse.img
+   dd if=/dev/zero of=images/demo-written.img bs=1M count=8 status=none
+   ls -lh images/demo-*.img
+   du -h images/demo-*.img
+   stat -c '%n length=%s blocks=%b block-unit=%B' images/demo-*.img
+   ```
+
+   `/dev/zero` is a read-only byte source here; the output paths are the owned regular files. Both apparent lengths are 8 MiB. The sparse file normally uses fewer allocated blocks; compression/deduplication and the host filesystem may affect exact figures.
+
+3. Compute allocated bytes as `%b × %B`, then compare with the `%s` length. **Observe:** Does `df` show one file's allocation? Would `du` have to equal `ls -l` for a sparse file?
 
 ## Prediction (25–35)
 
-On paper or the existing course worksheet, write the expected result **and why** before executing the investigation. Keep the original sentence visible; later add a correction beneath it. Initial accuracy is lightly weighted; an evidence-based correction earns credit.
+Write: **A 32 MiB file is created with `truncate` without writing all its bytes. Predict its apparent size and whether its allocated space must also be 32 MiB. Explain what holes represent.** No AI; optional five-minute peer exchange is allowed.
 
-**Predict:** For a sparse 32 MiB image, will `du` necessarily show 32 MiB? Why?
+## Level 2 — Create and Inspect a Virtual Disk Image (35–50)
 
-Spend at most five minutes comparing reasoning with a neighbour if one is available; otherwise compare against the guided example. Your written prediction remains your own.
+1. Create the core image at the specified bounded size, then inspect its type and path.
 
-## Individual investigation (35–70)
+   ```bash
+   truncate -s 32M images/scratch.img
+   test -f images/scratch.img && test ! -L images/scratch.img
+   readlink -f images/scratch.img
+   stat -c '%F %n length=%s blocks=%b block-unit=%B' images/scratch.img
+   du -h images/scratch.img
+   ```
 
-**Starting state:** `~/oslab-work/lab11` after `oslab start lab11`. **Goal:** Create a regular 32 MiB sparse image under `images/`; compare `ls -l`, `du`, and `stat`. If `mkfs.ext4` and `dumpe2fs` are installed, format only that regular file and inspect its superblock. Explain how formatting changes allocation.
+   Confirm it is a **regular file inside your workspace** before any filesystem-creation command. Never substitute a `/dev/*` destination, partition or mountpoint.
 
-Inspect the fixture files with `find . -maxdepth 3 -type f` before editing.
+2. Record apparent and allocated bytes in `evidence/sizes.txt`. Compare the new image with the two guided files and explain why a file's length is not the same as reserved physical space.
 
-**Suggested sequence:** Confirm the target path is a regular file under `images/`. Compare byte length and allocated blocks on a sparse image. If formatting tools exist, run them only on that checked file and inspect metadata again.
+   ```bash
+   {
+     stat -c '%n length=%s blocks=%b block-unit=%B' images/*.img
+     du -h images/*.img
+     df -hT "$PWD"
+   } > evidence/sizes.txt
+   ```
 
-**Boundaries and editable files:** Never name `/dev/*` or a block device as a target. Check `test -f` and `readlink -f` before formatting. No sudo or loop mounting. Create or edit only files in your owned workspace and your own submission directory. Treat supplied fixture files as data unless the task asks you to change a copy. Completion means you can show the intended behaviour and explain the mechanism, even if you reached it by a different valid command.
+## Level 3 — Format and Inspect Filesystem Metadata (50–70)
 
-You may use AI during investigation and testing. Ask it for a hypothesis or alternative command, then inspect the command, test it on owned data, and take responsibility for the result. AI is optional; the example, three hints below, manual pages and lecture notes are enough. Record at most one useful suggestion and how you verified it. Do not submit chat history.
+1. Check tool availability first.
 
-## Test, interpret, and explain (70–85)
+   ```bash
+   command -v mkfs.ext4
+   command -v dumpe2fs
+   ```
 
-Inspect empty sparse image and formatted image; compare apparent and allocated sizes. FUSE mounting is optional and requires local capability checks.
+2. If both exist, format only the already checked regular image. This replaces its current contents; do it only once on a fresh owned image, never on work you need to retain.
 
-For two selected tests, record: **claim**, **result that would contradict it**, **observed result**, and **what remains unproven**. `oslab check lab11` gives public fixture feedback only; it is not grading and cannot establish your understanding. Save concise terminal text rather than repetitive screenshots.
+   ```bash
+   if test -f images/scratch.img && test ! -L images/scratch.img; then
+       mkfs.ext4 -F images/scratch.img
+   fi
+   dumpe2fs -h images/scratch.img > evidence/filesystem.txt 2>&1
+   stat -c '%n length=%s blocks=%b block-unit=%B' images/scratch.img
+   du -h images/scratch.img
+   ```
 
-## Individual changed-case checkpoint (85–100)
+   `-F` permits formatting a regular image; it is not a safety check. The fixed owned path and pre-check are essential. Formatting writes metadata and may change block allocation even though length remains 32 MiB.
+3. Identify filesystem UUID, block count, free blocks and block size from the header. Estimate filesystem bytes from block count × block size; explain why not all filesystem blocks are available for user data.
+4. If tools are unavailable, use this **illustrative header excerpt**, not a claim about your local image. Save it in `evidence/filesystem.txt`, including its label, and state **metadata interpretation only; formatting not executed** in your report. Sparse-file creation/measurement and the independent checkpoint still work.
 
-Close AI and peer help. The instructor gives this question on paper or via the existing course mechanism; answer in short structured form even if your earlier build is incomplete:
+   ```bash
+   cat > evidence/filesystem.txt <<'TRACE'
+   Illustrative ext4 header excerpt; not measured on this machine.
+   Filesystem UUID: 11111111-2222-3333-4444-555555555555
+   Block count: 32768
+   Free blocks: 25830
+   Block size: 1024
+   TRACE
+   ```
 
-> A second image is created with `dd if=/dev/zero ...` and fully written. Predict `du` relative to a sparse image of equal apparent length.
+   The numbers describe a 32 MiB filesystem with some space used or reserved; the excerpt does not establish the precise metadata layout or actual local free space.
 
-State the result, reason, and one observation or command that could check it. Keep this answer separate from your investigation notes until collection.
+**Complete when:** measurements distinguish capacity/length/allocation, the image stays bounded and regular, and metadata claims match either an actual header or a clearly identified supplied trace.
 
-## Correction, cleanup, and submission (100–120)
+**Hints:** (1) separate three meanings of size; (2) compare `stat` fields before/after format; (3) multiply block count by block size, then account for metadata/reserved space.
 
-Compare prediction with evidence and preserve both original and corrected versions. Explain the OS concept in 3–5 sentences. Save your script or command transcript, two selected test records, and a short `README.md` using [the shared report template](../REPORT-TEMPLATE.md). If you used AI, add one sentence about a verified suggestion. Use `oslab status lab11` and leave the workspace for review; `oslab clean lab11` removes only the managed working copy after you have saved your submission. Never run reset or clean on another student's account.
+## Tests and Feedback (70–85)
 
-The rubric totals 10 points: working behaviour 3, tests/diagnosis 2, conceptual explanation and corrected prediction 2, independent checkpoint 2, concise evidence 1. Equivalent valid solutions earn credit. The checkpoint is assessed separately from AI-assisted work.
+| Case | Evidence | Claim/limit |
+|---|---|---|
+| Sparse versus fully written 8 MiB | Length/allocated-block comparison | Allocation depends on content and host filesystem |
+| Fresh versus formatted 32 MiB | Before/after size and superblock header | Formatting adds metadata; does not establish FUSE support |
+| Capacity observation | `df` for containing filesystem | Reports whole filesystem, not just the image |
 
-## Progressive help and troubleshooting
+Append the formatted-image allocation observation to `evidence/sizes.txt`. If using a trace, label it as supplied evidence rather than a local successful formatting test.
 
-1. Concept: Check file type
-2. Observation: compare `stat -c '%s %b %B'`
-3. Partial approach: use `dumpe2fs -h` only after formatting.
+**Troubleshooting:** FUSE availability is irrelevant to this core, which does not mount. A 2 MB `oslab reset` archive limit will refuse large image files; save evidence and remove only your unmounted image files before reset, or keep the workspace. See [Week 12 notes](../../lectures/notes/week12-file-systems.md), `man du`, and `man mkfs.ext4`.
 
-If `oslab` is missing, check `command -v oslab` and ask for the published script path. If a tool is absent, use the stated fallback or consult the instructor; do not install system packages yourself. If permissions fail, inspect ownership and parent directory traversal in your own workspace. If a process or cron observation is late, use a bounded repeat and record the limit.
 
-**Reference:** [Week 12 notes](../../lectures/notes/week12-file-systems.md), `man du`, and `man mkfs.ext4`. Read the relevant example or manual section when you need a command; you do not need a paid AI account.
+## Individual Changed-case Checkpoint (85–100 minutes)
 
-## Optional extensions
+Close AI tools and peer help. Answer the instructor's short question on paper or the existing course worksheet. Your earlier implementation need not be complete to answer it.
 
-FUSE mount with `fuse2fs` only if available and permitted; resize and e2fsck on an unmounted regular image; custom diagnostic script. See [extension tasks](extensions.md) for concrete follow-up work. These extensions are for additional practice after the required route, using only environments and permissions stated above. They are not required for the 120-minute submission.
+> Two files have equal apparent length. One was created sparsely with `truncate`; the other was fully written with zero bytes. Predict how their allocated blocks may differ and identify a command/field that checks your claim. Why is `df` insufficient to attribute usage to either file?
+
+Give the result or diagnosis, the mechanism, and one observation that could check it. The instructor collects this answer before discussing the public key; the public question is practice, so a graded session may use a fresh private variant.
+
+## Explanation and Correction (100–110 minutes)
+
+Keep your original prediction visible. Under it, write **confirmed** or **corrected**, cite the relevant test, and explain the OS mechanism in 3–5 sentences. Initial prediction accuracy is lightly weighted; a reasoned attempt and evidence-based correction earn credit.
+
+Answer: (a) Why can a 32 MiB image occupy fewer allocated bytes? (b) Why does formatting change allocation? (c) What was observed locally and what requires real FUSE/server validation?
+
+## Cleanup and Final Submission (110–120 minutes)
+
+The core creates no mount. If you completed a FUSE extension, unmount it and verify it is unmounted before cleanup; never recursively clean a mounted directory. Save evidence, then remove only your own demo/image files if reclaiming quota. No real devices or loop mounts are used.
+
+1. Set `SUBMISSION_REPO` to the **absolute path of your existing personal course repository**. Replace the example ID/path below with your own; do not copy another student's repository.
+
+   ```bash
+   SUBMISSION_REPO="$HOME/os-se-YOUR_ID/os-lab-YOUR_ID"
+   mkdir -p "$SUBMISSION_REPO/lab11/evidence"
+   ```
+
+2. Use [this lab's README template](README.md). Copy the listed artifacts and **two selected test records**, rather than every terminal output. Check the final tree below before submitting.
+
+   ```bash
+   cp -- evidence/sizes.txt evidence/filesystem.txt "$SUBMISSION_REPO/lab11/evidence/"
+   ```
+
+   ```text
+   lab11/
+   ├── README.md
+   └── evidence/
+       ├── sizes.txt
+       └── filesystem.txt  # actual header or explicitly labelled supplied trace
+   ```
+
+   Keep large image files in the workspace; they are not submission artifacts.
+
+3. Write your own explanations. The prediction must have been captured before execution on paper or the existing course mechanism; copying it into the README afterwards is only a record, not proof of timing. The independent checkpoint is collected separately.
+4. Inspect your course repository with `git status --short`, add only your lab files, and commit/push using the normal course submission procedure. Do not include passwords, personal shell configuration, generated binaries or disk images.
+
+## Grading Criteria (10 points — bonus)
+
+| Evidence mapped to lab objectives | Points |
+|---|---:|
+| Correct bounded regular-image measurements and metadata interpretation (objectives 1–3) | 3 |
+| Sparse/written and fresh/formatted comparisons, with capability limits | 2 |
+| Explain df versus du versus length and filesystem metadata; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Equivalent valid commands, filenames and approaches earn credit if the evidence meets the objectives. A naming difference is penalized only when it actually breaks execution. AI is permitted during investigation and tests, optional throughout, and excluded from the initial prediction and individual checkpoint. If used, note one helpful suggestion and its verification; no paid tool, chat history or AI detector is required.
+
+## Help, References and Optional Work
+
+Use the progressive hints in the task sections before requesting a full solution. See [the extension guide](extensions.md) for follow-up tasks with their own environment requirements. Existing visual guides are background references and may show the older broader sequence; this Markdown instruction defines the current required core.

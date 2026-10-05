@@ -1,66 +1,90 @@
-# Instructor plan — OS Lab 3: Links and user-local libraries
+# Instructor plan — OS Lab 3 — Wildcards, Links, GRUB & Shared Libraries (Hands-on)
 
-**Public repository notice:** this file and its answers are public. A folder called `instructor` does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository. Do not use this public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
 
-## Preparation and environment
+## Objectives and Original-task Mapping
 
-- Confirm 25–30 individual accounts, Python 3.8+, the `oslab` installation, quota, and shared Ubuntu account; disposable VM only for GRUB extension.
-- Run `oslab doctor`, `oslab start lab3`, and `oslab check lab3` as an ordinary test account. Verify no symlink or ownership surprises.
-- Review prerequisites: Lab 2, basic C compiler for library extension. Prepare paper prediction and checkpoint slips; collect the checkpoint before showing the key.
-- Keep VM snapshots, compiler, FUSE and cron availability topic-specific. Do not add sudo to student accounts to make a task work.
+1. Select files with a wildcard and explain shell expansion versus a literal name.
+2. Create and inspect hard links and symbolic links using inode and target-path evidence.
+3. Predict and diagnose the effects of renaming or replacing a link target.
 
-## Exact timetable
+Original Task 1 wildcards introduces selection; Task 2 links is the central investigation. Original Tasks 3–5 GRUB/shared-library work are optional and keep their specific environment requirements.
+
+Read the [student instruction](../../../labs/lab3/lab3-instruction.md), [report template](../../../labs/lab3/README.md) and [optional extensions](../../../labs/lab3/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+
+## Before Class
+
+- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `ln`, `ls`, `readlink`, `stat`, `mv`; compiler only for library extension. No student sudo or privileged execution of student code.
+- Verify ln/readlink and internal/broken-link lifecycle behavior. Compiler only for the optional library; GRUB needs a pretested disposable VM snapshot/console.
+- In an ordinary test account run `oslab doctor`, `oslab start lab3`, then `cd "$OSLAB_WORKSPACE/lab3"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
+- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
+- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+
+## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |
 |---|---|
-| 0–10 | Opening question and safety/setup; circulate and collect a sample of evidence |
-| 10–25 | Guided example; circulate and collect a sample of evidence |
-| 25–35 | Prediction on paper; five-minute optional peer comparison; circulate and collect a sample of evidence |
-| 35–70 | Individual investigation or build; AI optional; circulate and collect a sample of evidence |
-| 70–85 | Normal and edge tests; feedback pause; circulate and collect a sample of evidence |
-| 85–100 | Individual changed case, supervised; no AI or peers; circulate and collect a sample of evidence |
-| 100–110 | Evidence-based correction and concept explanation; circulate and collect a sample of evidence |
-| 110–120 | Cleanup and concise submission; circulate and collect a sample of evidence |
+| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
+| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
+| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
+| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
+| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
+| 85–100 | Collect individual changed-case answer; no AI or peer help |
+| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
+| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
 
-## Expected observations and alternatives
+## Expected Results and Public Model
 
-Guided example: `cd "$HOME/oslab-work/lab3/links"; ln source.txt hard.txt; ln -s source.txt soft.txt; ls -li source.txt hard.txt soft.txt; readlink soft.txt`. Ask: Which links name the same inode, and which stores a path?
+Before rename source and hard have equal inode numbers. Renaming source leaves hard usable but soft, pointing at the old name, dangling. Retarget soft to moved.txt. A newly created source name has a distinct inode/bytes; the hard link still names the old inode.
 
-Investigation goal: Inspect `source.txt`, a hard link and a symlink in your own workspace. Rename the source, observe both links, then repair the symlink without replacing the hard link. Record inode and path evidence.
+```bash
+cd "$OSLAB_WORKSPACE/lab3/links"
+ln source.txt hard.txt
+ln -s source.txt soft.txt
+mv source.txt moved.txt
+cat hard.txt
+cat soft.txt   # intentional missing target
+ln -sfn moved.txt soft.txt
+printf 'version 2\n' > source.txt
+ls -li source.txt moved.txt hard.txt soft.txt
+cat hard.txt source.txt soft.txt
+```
+The model rewrites only the known owned symlink entry.
 
-**Model solution or acceptable alternative:** `ln source.txt hard.txt` shares an inode; `ln -s source.txt soft.txt` stores a path. After rename, hard.txt still reads the old bytes. Recreate soft.txt with a target path that exists from the symlink's directory.
+Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
 
-The model sketch is public preparation material. Use a fresh private variant if this checkpoint is graded.
+## Checkpoint Key and Quick Marking
 
-Expected core evidence: an owned artifact or transcript; two tests including one edge case; a preserved prediction and evidence-based correction; a 3–5 sentence mechanism explanation. Accept equivalent commands and programs if they meet the invariant. Do not grade exact filenames unless a tool genuinely depends on them.
+Practice question: A symbolic link inside `lab3/links/` stores `../source.txt`. Only `lab3/links/source.txt` exists. Resolve the stored path and explain why the link fails; give a suitable target for the existing file.
 
-## Checkpoint key and quick marking
+Key: The stored ../source.txt resolves relative to links/, therefore to lab3/source.txt, which is absent. For links/source.txt use source.txt (or its actual absolute path). Symbolic paths are not relative to the invoking shell.
 
-Question: A symlink points to `../source.txt` from inside `links/`. Predict where it resolves and explain whether it works.
+Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
 
-Key: It resolves from the symlink's directory to the workspace root's `source.txt`, which is absent in the fixture. Credit correct relative resolution.
+## Misconceptions and Progressive Support
 
-Of the checkpoint's two points, give one for a defensible result or diagnosis and one for mechanism plus a suitable verification observation. Partial credit applies if the result is wrong but the reasoning identifies a relevant mechanism. A student with unfinished earlier implementation can still earn both points.
+Students confuse equal content with equal inode, or interpret a symlink relative to pwd. Draw directory entries and stored target strings. Do not treat one inode number as globally unique across filesystems.
 
-## Misconceptions, hints, support
+Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
 
-- Common mistake: treating one successful run as universal proof or confusing a displayed output with the underlying OS mechanism. Use anonymized errors during debrief.
-- Progressive hints: Compare inodes; inspect `readlink`; draw the path relative to the symlink's directory.
-- For students behind pace: provide a clean fixture copy, narrow the investigation to one test, and preserve the independent checkpoint. Do not complete their artifact for them.
-- Peer exchange is five minutes maximum and optional; an individual can compare with the guided example. No public random questioning or one-by-one oral examination is required.
+Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
 
-## Extensions, outage fallback, cleanup
+## Capability Fallback and Cleanup
 
-Extension: Wildcard selection; build a shared object with `gcc -fPIC -shared` and use a user-local loader path; GRUB observation and recovery only in a snapshot-backed disposable VM with instructor supervision.
+Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
 
-If the server is unavailable, use local Linux/WSL for unprivileged work and a printed trace for the checkpoint. For machine-specific tasks, use a disposable VM only; a teacher-only VM demonstration does not establish each student's recovery competence. At finish, confirm bounded processes have exited, any lab-owned cron marker is removed, and only owned workspace artifacts remain. `oslab clean lab3` is optional after submission and must never target unrelated files.
+Save evidence before optional cleanup. If you later run `oslab clean lab3`, only the managed directory is removed; internal links are removed as entries and external links are refused. No boot configuration changes occur in the core.
 
-## Rubric (10 points)
+After evidence is saved, `oslab clean lab3` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
 
-| Evidence | Points |
+## Topic Rubric (10 points)
+
+| Evidence mapped to lab objectives | Points |
 |---|---:|
-| Working behaviour against stated constraints | 3 |
-| Tests and diagnosis, including a failure or edge case | 2 |
-| Concept explanation and evidence-based correction | 2 |
-| Independent changed-case checkpoint | 2 |
-| Concise, attributable evidence | 1 |
+| Correct wildcard explanation and working hard/symbolic links (objectives 1–3) | 3 |
+| Rename failure, repair and recreated-name evidence | 2 |
+| Explain inode identity and relative symbolic-target resolution; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.

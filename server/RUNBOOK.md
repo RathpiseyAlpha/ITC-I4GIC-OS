@@ -14,6 +14,8 @@ From the repository root, create a private copy of `server/students.example.txt`
 
 ```bash
 python3 -m py_compile server/oslab.py server/lab10_cron.py
+python3 tools/validate_revision.py
+python3 tools/build_lab_revision.py --check
 bash -n server/install.sh server/initialize-students.sh
 sudo bash server/install.sh --dry-run --allowlist=/secure/path/students.txt
 sudo bash server/initialize-students.sh --dry-run --allowlist=/secure/path/students.txt
@@ -29,6 +31,8 @@ The install is rerunnable and replaces only the managed helper. Initializing aga
 ## Before class and cleanup
 
 Check each student can run `oslab doctor`, `start`, `status`, `hint`, and `check` without sudo. Check ownership and space, topic tools, cron availability and timezone (`date '+%F %T %Z'`), and VM snapshot/fallback materials. Set class date/time in the course announcement; `lab10-cron install` adds an observable one-minute practice entry with a unique marker, not a hard-coded future date. `lab10-cron status` checks it and `lab10-cron remove` removes only that entry. Cron's ordinary five fields have no year field. The scenario helper creates no processes; students should wait for their own bounded jobs to exit, not kill by name or reuse stale PID files. Optional `oslab clean labN` removes only the marked current fixture; saved attempts remain for manual inspection.
+
+Lab 3 requires internal symbolic links, including temporarily dangling targets. The helper permits links resolving inside the managed lab and never follows them during cleanup; links escaping that tree are refused. It also refuses detected mountpoints: unmount optional FUSE images before lifecycle operations. Recheck these behaviors after updating an existing helper installation.
 
 ## Rollback and uninstall
 

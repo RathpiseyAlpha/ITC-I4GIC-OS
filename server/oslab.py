@@ -55,12 +55,24 @@ def workspace():
     return base
 
 
-def safe_tree(path):
+def safe_tree(path, root=None):
+    if root is None:
+        if path.is_symlink():
+            fail(f"managed root is a symlink: {path}")
+        root = path.resolve()
     if path.is_symlink():
-        fail(f"symlink is not managed: {path}")
+        try:
+            resolved = path.resolve(strict=False)
+        except RuntimeError:
+            fail(f"symbolic-link cycle: {path}")
+        if resolved != root and root not in resolved.parents:
+            fail(f"symbolic link escapes workspace: {path}")
+        return  # inspect the link destination; never traverse it during cleanup
     if path.is_dir():
+        if os.path.ismount(path):
+            fail(f"unmount before managing this directory: {path}")
         for child in path.iterdir():
-            safe_tree(child)
+            safe_tree(child, root)
     elif path.exists() and not path.is_file():
         fail(f"special file is not managed: {path}")
 
@@ -102,7 +114,7 @@ def archive(base, lab):
     target = base / lab
     safe_tree(target)
     marker(target, lab)
-    size = sum(p.stat().st_size for p in target.rglob("*") if p.is_file())
+    size = sum(p.lstat().st_size for p in target.rglob("*") if p.is_file() or p.is_symlink())
     if size > MAX_BYTES:
         fail("work exceeds 2 MB archive limit; save it yourself before reset")
     parent = base / ".attempts"

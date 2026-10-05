@@ -1,66 +1,86 @@
-# Instructor plan — OS Lab 6: Permissions and access decisions
+# Instructor plan — OS Lab 6 — Linux Security, Users, Groups & File Permissions (Hands-on)
 
-**Public repository notice:** this file and its answers are public. A folder called `instructor` does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository. Do not use this public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
 
-## Preparation and environment
+## Objectives and Original-task Mapping
 
-- Confirm 25–30 individual accounts, Python 3.8+, the `oslab` installation, quota, and shared Ubuntu account.
-- Run `oslab doctor`, `oslab start lab6`, and `oslab check lab6` as an ordinary test account. Verify no symlink or ownership surprises.
-- Review prerequisites: octal permissions, Lab 2 paths. Prepare paper prediction and checkpoint slips; collect the checkpoint before showing the key.
-- Keep VM snapshots, compiler, FUSE and cron availability topic-specific. Do not add sudo to student accounts to make a task work.
+1. Interpret owner/group/other mode bits and symbolic versus octal notation.
+2. Set least-privilege modes on owned files/directories and explain directory traversal.
+3. Diagnose an access failure using path/mode evidence, distinguishing observed access from a hypothetical peer decision.
 
-## Exact timetable
+Original Task 3 file/directory permissions is the required investigation. Tasks 1–2 account/group administration and Tasks 4–5 special bits/ACLs are optional with prepared permissions.
+
+Read the [student instruction](../../../labs/lab6/lab6-instruction.md), [report template](../../../labs/lab6/README.md) and [optional extensions](../../../labs/lab6/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+
+## Before Class
+
+- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `id`, `stat`, `chmod`, `ls`; `namei` recommended, ACL tools optional. No student sudo or privileged execution of student code.
+- Test as an ordinary account: root bypasses many denials. If ACL/group extension is used, prepare only a narrow directory and designated identities, never broad home access.
+- In an ordinary test account run `oslab doctor`, `oslab start lab6`, then `cd "$OSLAB_WORKSPACE/lab6"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
+- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
+- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+
+## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |
 |---|---|
-| 0–10 | Opening question and safety/setup; circulate and collect a sample of evidence |
-| 10–25 | Guided example; circulate and collect a sample of evidence |
-| 25–35 | Prediction on paper; five-minute optional peer comparison; circulate and collect a sample of evidence |
-| 35–70 | Individual investigation or build; AI optional; circulate and collect a sample of evidence |
-| 70–85 | Normal and edge tests; feedback pause; circulate and collect a sample of evidence |
-| 85–100 | Individual changed case, supervised; no AI or peers; circulate and collect a sample of evidence |
-| 100–110 | Evidence-based correction and concept explanation; circulate and collect a sample of evidence |
-| 110–120 | Cleanup and concise submission; circulate and collect a sample of evidence |
+| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
+| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
+| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
+| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
+| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
+| 85–100 | Collect individual changed-case answer; no AI or peer help |
+| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
+| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
 
-## Expected observations and alternatives
+## Expected Results and Public Model
 
-Guided example: `mkdir -p "$HOME/oslab-work/lab6/demo"; printf 'x\n' > "$HOME/oslab-work/lab6/demo/a"; chmod 700 "$HOME/oslab-work/lab6/demo"; stat -c '%A %n' "$HOME/oslab-work/lab6/demo"`. Ask: Which permission controls entering a directory?
+Typical policy: private directory 700, private file 600, notice directory 755 and file 644, while the managed workspace remains private. The notice is therefore not empirically public here. In demo/sealed mode 600, plain names may list but opening the child fails; restoring 700 permits read.
 
-Investigation goal: Inspect `private/record.txt` and `shared/notice.txt`; set and justify modes for owner-only record edits and read-only notice in your owned tree. Use `namei -l` if available to explain traversal.
+```bash
+cd "$OSLAB_WORKSPACE/lab6"
+chmod 700 private
+chmod 600 private/record.txt
+chmod 755 shared
+chmod 644 shared/notice.txt
+namei -l "$PWD/shared/notice.txt"
+```
+The private workspace/home parents still limit peer traversal. Do not widen them for this model.
 
-**Model solution or acceptable alternative:** A private file can use 600 inside a searchable owner-only directory 700. A notice can use 644 only if every parent allows intended readers to traverse; avoid widening home permissions on the shared server.
+Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
 
-The model sketch is public preparation material. Use a fresh private variant if this checkpoint is graded.
+## Checkpoint Key and Quick Marking
 
-Expected core evidence: an owned artifact or transcript; two tests including one edge case; a preserved prediction and evidence-based correction; a 3–5 sentence mechanism explanation. Accept equivalent commands and programs if they meet the invariant. Do not grade exact filenames unless a tool genuinely depends on them.
+Practice question: A prepared shared directory is 711 and its file is 600, owned by another student. You know the filename. Explain whether you can traverse the directory, list names, and read the file.
 
-## Checkpoint key and quick marking
+Key: For a peer with no overriding ACL/capability: directory 711 allows known-name traversal but denies name listing; file 600 owned by another student denies file read. All earlier parent components must also be searchable.
 
-Question: Directory is 711 and file 600. A peer knows the filename. Can they read it? Which mode is decisive?
+Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
 
-Key: They can traverse directory but cannot read file. Credit distinction between directory search and file read.
+## Misconceptions and Progressive Support
 
-Of the checkpoint's two points, give one for a defensible result or diagnosis and one for mechanism plus a suitable verification observation. Partial credit applies if the result is wrong but the reasoning identifies a relevant mechanism. A student with unfinished earlier implementation can still earn both points.
+Students conflate file execute with directory search, use chmod -R broadly, or claim a 644 notice overrides a 700 parent. Ask for full-path namei and separate observed/hypothetical claims.
 
-## Misconceptions, hints, support
+Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
 
-- Common mistake: treating one successful run as universal proof or confusing a displayed output with the underlying OS mechanism. Use anonymized errors during debrief.
-- Progressive hints: Check every parent directory; use `stat`/`namei`; change only one permission at a time.
-- For students behind pace: provide a clean fixture copy, narrow the investigation to one test, and preserve the independent checkpoint. Do not complete their artifact for them.
-- Peer exchange is five minutes maximum and optional; an individual can compare with the guided example. No public random questioning or one-by-one oral examination is required.
+Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
 
-## Extensions, outage fallback, cleanup
+## Capability Fallback and Cleanup
 
-Extension: ACLs, groups, sticky bit, and narrowly prepared two-account testing on a disposable VM or administrator-approved directory.
+Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
 
-If the server is unavailable, use local Linux/WSL for unprivileged work and a printed trace for the checkpoint. For machine-specific tasks, use a disposable VM only; a teacher-only VM demonstration does not establish each student's recovery competence. At finish, confirm bounded processes have exited, any lab-owned cron marker is removed, and only owned workspace artifacts remain. `oslab clean lab6` is optional after submission and must never target unrelated files.
+Restore the demo directory to 700 and keep private files at your stated policy. No new accounts/groups or jobs were created. Do not change home access or another student’s files.
 
-## Rubric (10 points)
+After evidence is saved, `oslab clean lab6` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
 
-| Evidence | Points |
+## Topic Rubric (10 points)
+
+| Evidence mapped to lab objectives | Points |
 |---|---:|
-| Working behaviour against stated constraints | 3 |
-| Tests and diagnosis, including a failure or edge case | 2 |
-| Concept explanation and evidence-based correction | 2 |
-| Independent changed-case checkpoint | 2 |
-| Concise, attributable evidence | 1 |
+| Modes match the owned-file policy and full-path reasoning (objectives 1–3) | 3 |
+| Owner-access and directory-search failure/repair tests | 2 |
+| Explain rwx/octal interpretation and the limits of peer-access claims; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.

@@ -1,96 +1,235 @@
-# OS Lab 7 — Bash arguments and safe paths
+# OS Lab 7 — Bash Scripting, Permissions & Server Automation (Hands-on)
 
-| | |
+| Item | Details |
 |---|---|
-| Duration | 120 minutes |
-| Work | Individual solution and submission; peer exchange is optional and bounded |
-| Primary environment | shared Ubuntu account |
-| Practice fallback | Local Linux or WSL for unprivileged work; see topic constraints |
-| Prerequisites | Lab 2, Bash basics |
-| Required core | Guided example, prediction, one investigation, tests, changed case, concise report |
-| Optional extensions | See below; they do not replace the core |
+| Course | Operating Systems, Institute of Technology of Cambodia |
+| Duration | 120 minutes; installation and VM preparation happen before class |
+| Ownership | Individual work and submission; optional short peer exchange |
+| Primary environment | Shared Ubuntu server with an individual account for each student |
+| Prerequisites | Basic Bash variables, file commands and paths |
+| Required tools | `bash`, `wc`, `printf`, `chmod`, `cmp` |
+| Practice fallback | Local Linux/WSL for unprivileged tasks; disposable VM for boot/system administration |
+| Core versus extensions | Follow the core below; [optional extensions](extensions.md) retain wider original coverage |
 
-## Observable learning targets
+> **Scenario:** Build a personal TechCorp command that can inspect files in your own server neighborhood. It must preserve argument boundaries before any cross-user automation is considered.
 
-1. Quote arguments containing spaces.
-2. Handle a filename beginning with `-`.
-3. Explain how script arguments map to files.
+## Lab Objectives
 
-## 120-minute route
+After the required core, you should be able to:
+
+1. Create and invoke a Bash script with understood arguments and execution permissions.
+2. Handle spaces, leading-dash filenames and missing input without unintended word splitting.
+3. Test a reusable command and explain its exit status and safe filename handling.
+
+**Extension objectives:** Use personal PATH entries, login-message previews and an owned outbox; cross-user mailbox/feedback requires a narrow prepared shared directory. These retain the original lab's wider topics; they are not required to finish the two-hour core.
+
+## Task Overview and 120-minute Timetable
 
 | Minutes | Activity |
 |---|---|
-| 0–10 | Opening question and safety/setup |
-| 10–25 | Guided example |
-| 25–35 | Prediction on paper; five-minute optional peer comparison |
-| 35–70 | Individual investigation or build; AI optional |
-| 70–85 | Normal and edge tests; feedback pause |
-| 85–100 | Individual changed case, supervised; no AI or peers |
-| 100–110 | Evidence-based correction and concept explanation |
-| 110–120 | Cleanup and concise submission |
+| 0–10 | Introduction, objectives and setup |
+| 10–25 | Guided example: commands and observations |
+| 25–35 | Written prediction; optional five-minute peer comparison |
+| 35–70 | Numbered individual investigation tasks; AI optional |
+| 70–85 | Normal and edge tests; instructor feedback |
+| 85–100 | Individual changed-case checkpoint; no AI or peers |
+| 100–110 | Correction and conceptual explanation |
+| 110–120 | Cleanup and submission |
 
-## Setup and guided example (0–25)
+Original Task 1 script basics and Task 2 command lookup introduce a safe personal automation command. Original Tasks 3–8 login/outbox/mailbox tasks remain extensions; SUID work is a prepared-VM concept activity.
 
-Log in with your own account. Run `oslab doctor`, then `oslab start lab7`; `oslab status lab7` shows the workspace. The first start creates editable copies of the public fixtures in your own `~/oslab-work/lab7`. Repeating start preserves your edits. If `oslab` is not installed, create an owned directory and use the commands below with your own paths; the instructor can supply the public fixtures. Keep your submission in your own course repository.
+## Lab Setup (0–10 minutes)
 
-Run or adapt this small example in your own workspace:
+1. Log in to the Ubuntu server using **your own account**. All commands below run as that ordinary user in Bash. Use only your own files and processes.
+2. Check the helper. If it is unavailable, follow [the local setup guide](../SETUP.md) to define `oslab` from your cloned course repository; it uses the same fixtures.
 
-```bash
-bash -c 'printf "argc=%s\n" "$#"; for item in "$@"; do printf "<%s>\n" "$item"; done' _ 'one file.txt' '-dash.txt'
-```
+   ```bash
+   whoami
+   command -v oslab
+   oslab doctor
+   ```
 
-Before continuing: What changes if `$@` is unquoted?
+3. Start the lab and **enter its directory**. `oslab start` preserves existing work and does not change the current directory. If resuming, inspect existing files before running commands that write to them.
+
+   ```bash
+   export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"
+   oslab start lab7
+   cd "$OSLAB_WORKSPACE/lab7"
+   pwd
+   mkdir -p evidence
+   find . -maxdepth 3 -type f
+   ```
+
+4. Compare your files with the starting tree. `.oslab-managed.json` identifies the managed workspace; leave it intact. `evidence/` was created in step 3. If `tree` is installed, `tree -a -L 3` can display the same structure.
+
+   ```text
+   lab7/
+   ├── .oslab-managed.json
+   ├── count_words.sh      # editable starter skeleton
+   ├── input/
+   │   ├── one file.txt     # two words
+   │   └── -dash.txt        # one word
+   └── evidence/
+   ```
+
+The workspace is for experiments. Your personal course Git repository holds the final submission; you will copy selected files there at the end. VM work and privileged commands are never performed on the shared server.
+
+## Task 1 — Script Basics: Guided Example (10–25)
+
+1. Create a complete argument viewer. The quoted heredoc delimiter prevents your interactive shell from expanding the script's variables while writing the file.
+
+   ```bash
+   cat > show_args.sh <<'SH'
+   #!/usr/bin/env bash
+   printf 'argument count=%s\n' "$#"
+   for argument in "$@"; do
+       printf '<%s>\n' "$argument"
+   done
+   SH
+   bash show_args.sh 'one file.txt' '-dash.txt'
+   ```
+
+   Expected output is a count of 2 followed by two angle-bracketed arguments. `"$@"` expands each argument separately while preserving spaces inside it.
+
+2. Compare interpreter invocation with direct execution.
+
+   ```bash
+   chmod u+x show_args.sh
+   ./show_args.sh 'one file.txt' '-dash.txt'
+   ```
+
+   The shebang chooses an interpreter for direct execution. `./` explicitly locates a command in the current directory; it need not be on PATH.
+
+3. Introduce safe utility operands without revealing the final loop.
+
+   ```bash
+   wc -w -- 'input/one file.txt'
+   wc -w -- 'input/-dash.txt'
+   ```
+
+   The expected counts are 2 and 1. `--` ends option parsing for `wc`. A path beginning `input/` is already not a leading-dash operand, so the changed-case test later also checks `-dash.txt` from inside `input/`.
+
+   **Observe:** Why is the filename with a space one argument? What might `for argument in $@` do differently?
 
 ## Prediction (25–35)
 
-On paper or the existing course worksheet, write the expected result **and why** before executing the investigation. Keep the original sentence visible; later add a correction beneath it. Initial accuracy is lightly weighted; an evidence-based correction earns credit.
+Write: **A script receives `'one file.txt'` as one argument but loops over unquoted `$@`. What pieces might the loop see? Why might a file named `-dash.txt` cause a different problem?** No AI for the prediction; optional peer comparison is five minutes.
 
-**Predict:** If a script receives `one file.txt` as one argument, what happens with `for x in $@`? Why?
+## Task 2 — Build Your Personal File Command (35–70)
 
-Spend at most five minutes comparing reasoning with a neighbour if one is available; otherwise compare against the guided example. Your written prediction remains your own.
+1. Inspect the supplied skeleton and input before editing.
 
-## Individual investigation (35–70)
+   ```bash
+   cat count_words.sh
+   cat 'input/one file.txt' 'input/-dash.txt'
+   ```
 
-**Starting state:** `~/oslab-work/lab7` after `oslab start lab7`. **Goal:** Build a Bash script that prints a labeled word count for each file argument, including `input/one file.txt` and `input/-dash.txt`. Reject missing inputs with a useful exit status. Use `--` where a utility parses filenames as options.
+2. Implement `count_words.sh` using the guided argument loop. Requirements:
+   - With no arguments, print a usage message to stderr and exit nonzero.
+   - For each regular file, print its word count and original path on one labeled line.
+   - For a missing/nonregular input, print a useful stderr message, continue with other arguments, and return nonzero overall.
+   - Preserve argument boundaries and pass utility operands safely. Do not use `eval`.
+3. Start with one valid file, then two valid files. Verify each before adding error handling.
 
-Use `count_words.sh` as a starting skeleton. Try `bash count_words.sh 'input/one file.txt' 'input/-dash.txt'`.
+   ```bash
+   bash count_words.sh 'input/one file.txt'
+   bash count_words.sh 'input/one file.txt' 'input/-dash.txt'
+   ```
 
-**Suggested sequence:** Print each argument inside angle brackets before counting words. Loop over `"$@"`, check that each path is a regular file, and pass it after `--` to `wc`.
+4. Decide how to keep an error status while continuing through later arguments. Use a variable initialized to zero and change it when an input fails; return it at the end.
+5. Make the script owner executable, run it as `./count_words.sh`, and compare its behavior with `bash count_words.sh`.
 
-**Boundaries and editable files:** Edit scripts and fixture copies in your workspace; avoid `eval`, unquoted expansion and SUID helpers. Create or edit only files in your owned workspace and your own submission directory. Treat supplied fixture files as data unless the task asks you to change a copy. Completion means you can show the intended behaviour and explain the mechanism, even if you reached it by a different valid command.
+**Complete when:** both normal counts are correct, names remain intact, missing inputs are diagnosed, and the final status communicates whether any input failed. Different reasonable output labels are accepted.
 
-You may use AI during investigation and testing. Ask it for a hypothesis or alternative command, then inspect the command, test it on owned data, and take responsibility for the result. AI is optional; the example, three hints below, manual pages and lecture notes are enough. Record at most one useful suggestion and how you verified it. Do not submit chat history.
+**Hints:** (1) quote each expanded path; (2) display arguments with the viewer when a filename is split; (3) test `[[ -f "$path" ]]` and put `--` before filename operands.
 
-## Test, interpret, and explain (70–85)
+## Tests and Feedback (70–85)
 
-Test one file, both files, a missing file, and a path with spaces. Inspect exit status and output labels.
+1. Save the normal two-file invocation and output in `evidence/normal.txt`.
 
-For two selected tests, record: **claim**, **result that would contradict it**, **observed result**, and **what remains unproven**. `oslab check lab7` gives public fixture feedback only; it is not grading and cannot establish your understanding. Save concise terminal text rather than repetitive screenshots.
+   ```bash
+   bash count_words.sh 'input/one file.txt' 'input/-dash.txt' | tee evidence/normal.txt
+   ```
+2. Run with a missing file followed by a valid file. Immediately inspect the status:
 
-## Individual changed-case checkpoint (85–100)
+   ```bash
+   {
+     bash count_words.sh missing.txt 'input/one file.txt'
+     printf 'status=%s\n' "$?"
+   } > evidence/edge.txt 2>&1
+   cat evidence/edge.txt
+   ```
 
-Close AI and peer help. The instructor gives this question on paper or via the existing course mechanism; answer in short structured form even if your earlier build is incomplete:
+   Expected: diagnostic for the first input, a valid result for the second, and nonzero status overall. Save this in `evidence/edge.txt`.
+3. Run from inside the input directory so the leading dash is an actual operand problem:
 
-> A filename is `-dash.txt` in the current directory. Explain why `wc -w -dash.txt` may fail and give a safe invocation.
+   ```bash
+   cd input
+   bash ../count_words.sh '-dash.txt' 'one file.txt'
+   cd ..
+   ```
 
-State the result, reason, and one observation or command that could check it. Keep this answer separate from your investigation notes until collection.
+4. Test no arguments and an empty file of your own. An empty regular file has a word count of zero; it is different from a missing file.
 
-## Correction, cleanup, and submission (100–120)
+**Troubleshooting:** Permission denied on direct execution may be a missing execute bit or a `noexec` filesystem; `bash script.sh` is the permitted fallback. Diagnose quoting with `show_args.sh`. See [the Bash manual](https://www.gnu.org/software/bash/manual/bash.html) and `man wc`.
 
-Compare prediction with evidence and preserve both original and corrected versions. Explain the OS concept in 3–5 sentences. Save your script or command transcript, two selected test records, and a short `README.md` using [the shared report template](../REPORT-TEMPLATE.md). If you used AI, add one sentence about a verified suggestion. Use `oslab status lab7` and leave the workspace for review; `oslab clean lab7` removes only the managed working copy after you have saved your submission. Never run reset or clean on another student's account.
 
-The rubric totals 10 points: working behaviour 3, tests/diagnosis 2, conceptual explanation and corrected prediction 2, independent checkpoint 2, concise evidence 1. Equivalent valid solutions earn credit. The checkpoint is assessed separately from AI-assisted work.
+## Individual Changed-case Checkpoint (85–100 minutes)
 
-## Progressive help and troubleshooting
+Close AI tools and peer help. Answer the instructor's short question on paper or the existing course worksheet. Your earlier implementation need not be complete to answer it.
 
-1. Concept: Print argument boundaries
-2. Observation: use `"$@"`
-3. Partial approach: test `--` and `./` for leading dash names.
+> Current directory contains a file literally named `-dash.txt`. Explain why `wc -w -dash.txt` may be misinterpreted and give a safe command. Then explain why quoting alone does not end option parsing.
 
-If `oslab` is missing, check `command -v oslab` and ask for the published script path. If a tool is absent, use the stated fallback or consult the instructor; do not install system packages yourself. If permissions fail, inspect ownership and parent directory traversal in your own workspace. If a process or cron observation is late, use a bounded repeat and record the limit.
+Give the result or diagnosis, the mechanism, and one observation that could check it. The instructor collects this answer before discussing the public key; the public question is practice, so a graded session may use a fresh private variant.
 
-**Reference:** [Bash manual](https://www.gnu.org/software/bash/manual/bash.html) and `man wc`. Read the relevant example or manual section when you need a command; you do not need a paid AI account.
+## Explanation and Correction (100–110 minutes)
 
-## Optional extensions
+Keep your original prediction visible. Under it, write **confirmed** or **corrected**, cite the relevant test, and explain the OS mechanism in 3–5 sentences. Initial prediction accuracy is lightly weighted; a reasoned attempt and evidence-based correction earn credit.
 
-PATH configuration, message scripts, narrowly prepared shared directories; cross-user automation only with instructor setup. See [extension tasks](extensions.md) for concrete follow-up work. These extensions are for additional practice after the required route, using only environments and permissions stated above. They are not required for the 120-minute submission.
+Answer: (a) What does `"$@"` preserve? (b) Which problem does `--` solve? (c) How does your script communicate one failed input while processing the next?
+
+## Cleanup and Final Submission (110–120 minutes)
+
+No cron jobs or background processes are created. Leave personal PATH or shell startup changes to the optional extension; do not copy entire shell configuration into the submission.
+
+1. Set `SUBMISSION_REPO` to the **absolute path of your existing personal course repository**. Replace the example ID/path below with your own; do not copy another student's repository.
+
+   ```bash
+   SUBMISSION_REPO="$HOME/os-se-YOUR_ID/os-lab-YOUR_ID"
+   mkdir -p "$SUBMISSION_REPO/lab7/evidence"
+   ```
+
+2. Use [this lab's README template](README.md). Copy the listed artifacts and **two selected test records**, rather than every terminal output. Check the final tree below before submitting.
+
+   ```bash
+   cp -- count_words.sh "$SUBMISSION_REPO/lab7/"
+   cp -- evidence/normal.txt evidence/edge.txt "$SUBMISSION_REPO/lab7/evidence/"
+   ```
+
+   ```text
+   lab7/
+   ├── README.md
+   ├── count_words.sh
+   └── evidence/
+       ├── normal.txt
+       └── edge.txt
+   ```
+
+3. Write your own explanations. The prediction must have been captured before execution on paper or the existing course mechanism; copying it into the README afterwards is only a record, not proof of timing. The independent checkpoint is collected separately.
+4. Inspect your course repository with `git status --short`, add only your lab files, and commit/push using the normal course submission procedure. Do not include passwords, personal shell configuration, generated binaries or disk images.
+
+## Grading Criteria (10 points)
+
+| Evidence mapped to lab objectives | Points |
+|---|---:|
+| Safe arguments, correct counts and aggregate failure status (objectives 1–3) | 3 |
+| Space/leading-dash/missing/empty input tests | 2 |
+| Explain quoting, option boundaries, execution mode and status; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Equivalent valid commands, filenames and approaches earn credit if the evidence meets the objectives. A naming difference is penalized only when it actually breaks execution. AI is permitted during investigation and tests, optional throughout, and excluded from the initial prediction and individual checkpoint. If used, note one helpful suggestion and its verification; no paid tool, chat history or AI detector is required.
+
+## Help, References and Optional Work
+
+Use the progressive hints in the task sections before requesting a full solution. See [the extension guide](extensions.md) for follow-up tasks with their own environment requirements. Existing visual guides are background references and may show the older broader sequence; this Markdown instruction defines the current required core.

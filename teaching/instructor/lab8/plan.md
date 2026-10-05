@@ -1,66 +1,78 @@
-# Instructor plan — OS Lab 8: Stock race and complete critical section
+# Instructor plan — OS Lab 8 - Secure Bash Scripting, Race Conditions & File Locking (Hands-on)
 
-**Public repository notice:** this file and its answers are public. A folder called `instructor` does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository. Do not use this public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
 
-## Preparation and environment
+## Objectives and Original-task Mapping
 
-- Confirm 25–30 individual accounts, Python 3.8+, the `oslab` installation, quota, and shared Ubuntu account; `flock`.
-- Run `oslab doctor`, `oslab start lab8`, and `oslab check lab8` as an ordinary test account. Verify no symlink or ownership surprises.
-- Review prerequisites: Bash conditionals and bounded background jobs. Prepare paper prediction and checkpoint slips; collect the checkpoint before showing the key.
-- Keep VM snapshots, compiler, FUSE and cron availability topic-specific. Do not add sudo to student accounts to make a task work.
+1. Validate bounded purchase quantities and test rejection without changing stock.
+2. Reproduce and explain a read-check-write race using stock plus logged sale quantities.
+3. Protect the complete transaction with a bounded file lock and test the invariant.
 
-## Exact timetable
+Original Levels 0–2 warm-up/validation/logging introduce the store. Levels 3–4 exploit and lock repair are the required investigation. Cross-user permission/drop-zone/log-management levels are optional.
+
+Read the [student instruction](../../../labs/lab8/lab8-instruction.md), [report template](../../../labs/lab8/README.md) and [optional extensions](../../../labs/lab8/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+
+## Before Class
+
+- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `bash`, `flock` (util-linux), `timeout`, `awk`. No student sudo or privileged execution of student code.
+- Pretest flock semantics on the real filesystem (some network filesystems differ). Run only two buyers with owned files and timeout. The shell example does not offer crash-atomic stock-plus-log transactions.
+- In an ordinary test account run `oslab doctor`, `oslab start lab8`, then `cd "$OSLAB_WORKSPACE/lab8"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
+- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
+- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+
+## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |
 |---|---|
-| 0–10 | Opening question and safety/setup; circulate and collect a sample of evidence |
-| 10–25 | Guided example; circulate and collect a sample of evidence |
-| 25–35 | Prediction on paper; five-minute optional peer comparison; circulate and collect a sample of evidence |
-| 35–70 | Individual investigation or build; AI optional; circulate and collect a sample of evidence |
-| 70–85 | Normal and edge tests; feedback pause; circulate and collect a sample of evidence |
-| 85–100 | Individual changed case, supervised; no AI or peers; circulate and collect a sample of evidence |
-| 100–110 | Evidence-based correction and concept explanation; circulate and collect a sample of evidence |
-| 110–120 | Cleanup and concise submission; circulate and collect a sample of evidence |
+| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
+| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
+| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
+| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
+| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
+| 85–100 | Collect individual changed-case answer; no AI or peer help |
+| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
+| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
 
-## Expected observations and alternatives
+## Expected Results and Public Model
 
-Guided example: `( flock -x -w 2 9 && printf 'lock acquired\n' ) 9>"$HOME/oslab-work/lab8/store/stock.lock"`. Ask: Does locking only the final write protect a preceding stock check?
+Flawed two buyers of 4 against stock 5 can both log sold 4 while final stock is 1. Locked case accepts exactly one, rejects the other and leaves 1. Invalid quantity fails without a sale; held lock gives bounded timeout. Models use STORE QTY rather than the student QTY-only wrapper.
 
-Investigation goal: Create a purchase script in your lab8 workspace. It reads stock, rejects invalid or excessive quantities, updates stock and appends a sale log. Use a short teaching delay between read and write to observe a race, then protect the full read-check-write-log sequence with `flock -w 2`. Remove the delay for final version.
+Public [flawed model](buy_flawed.sh) and [full-lock model](buy_solution.sh) take `STORE QTY`. Use a fresh owned store, reset test stock to 5 between cases, and run at most two buyers under `timeout 5`; wait for both saved PIDs. Expect the full-lock section to cover stock validation/read/check/write and log append, not just the last writes.
 
-**Model solution or acceptable alternative:** Validate `^[1-9][0-9]*$`, open a dedicated lock descriptor, `flock -x -w 2` before reading stock, and keep read, sufficiency check, write and sale log inside the same scope. Compare two requests for four units from stock five: exactly one may succeed.
+Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
 
-See `buy_flawed.sh` and `buy_solution.sh` in this directory. The first deliberately demonstrates a stale-read race with a one-second teaching delay; the second locks the entire update.
+## Checkpoint Key and Quick Marking
 
-Expected core evidence: an owned artifact or transcript; two tests including one edge case; a preserved prediction and evidence-based correction; a 3–5 sentence mechanism explanation. Accept equivalent commands and programs if they meet the invariant. Do not grade exact filenames unless a tool genuinely depends on them.
+Practice question: Stock is 3 and two buyers request 2 each. Under correct transaction locking, predict how many purchases are accepted, final stock, and total logged units. Explain why nonnegative stock alone is an insufficient test.
 
-## Checkpoint key and quick marking
+Key: Exactly one purchase of 2 is accepted from stock 3, leaving 1 and logging 2 sold units. Check initial stock = final stock + accepted sold units, not log line count or nonnegativity alone. Locking only the write leaves a stale read/check outside the critical section; all cooperating writers must lock before read through log append.
 
-Question: Stock becomes 3. Two buyers request 2. Predict number of accepted purchases under correct locking and final stock.
+Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
 
-Key: One accepted, one rejected, final stock 1. Credit an invariant-based explanation.
+## Misconceptions and Progressive Support
 
-Of the checkpoint's two points, give one for a defensible result or diagnosis and one for mechanism plus a suitable verification observation. Partial credit applies if the result is wrong but the reasoning identifies a relevant mechanism. A student with unfinished earlier implementation can still earn both points.
+Students count transactions as units, lock only printf, delete lock files, or claim a single good run proves correctness. Draw the full read-check-write-log critical section and check conservation.
 
-## Misconceptions, hints, support
+Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
 
-- Common mistake: treating one successful run as universal proof or confusing a displayed output with the underlying OS mechanism. Use anonymized errors during debrief.
-- Progressive hints: Write the invariant; place lock before read; keep validation and update inside one lock scope.
-- For students behind pace: provide a clean fixture copy, narrow the investigation to one test, and preserve the independent checkpoint. Do not complete their artifact for them.
-- Peer exchange is five minutes maximum and optional; an individual can compare with the guided example. No public random questioning or one-by-one oral examination is required.
+Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
 
-## Extensions, outage fallback, cleanup
+## Capability Fallback and Cleanup
 
-Extension: Audit log design; red-team review of a classmate's test only by consent; permission setup on prepared accounts.
+Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
 
-If the server is unavailable, use local Linux/WSL for unprivileged work and a printed trace for the checkpoint. For machine-specific tasks, use a disposable VM only; a teacher-only VM demonstration does not establish each student's recovery competence. At finish, confirm bounded processes have exited, any lab-owned cron marker is removed, and only owned workspace artifacts remain. `oslab clean lab8` is optional after submission and must never target unrelated files.
+Wait for only the two captured buyer jobs to finish. Save both test records, then leave lock/data files for review. Never delete an active lock file or kill unrelated processes.
 
-## Rubric (10 points)
+After evidence is saved, `oslab clean lab8` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
 
-| Evidence | Points |
+## Topic Rubric (10 points)
+
+| Evidence mapped to lab objectives | Points |
 |---|---:|
-| Working behaviour against stated constraints | 3 |
-| Tests and diagnosis, including a failure or edge case | 2 |
-| Concept explanation and evidence-based correction | 2 |
-| Independent changed-case checkpoint | 2 |
-| Concise, attributable evidence | 1 |
+| Validated purchase behavior and full transaction lock (objectives 1–3) | 3 |
+| Flawed/locked concurrency and invalid-input evidence | 2 |
+| Explain stale reads, lock scope and the units-sold inventory invariant; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.

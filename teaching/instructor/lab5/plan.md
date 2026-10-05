@@ -1,66 +1,78 @@
-# Instructor plan — OS Lab 5: Processes, threads and joins
+# Instructor plan — OS Lab 5 — Threads, Kernel Workers & Process Signals (Hands-on)
 
-**Public repository notice:** this file and its answers are public. A folder called `instructor` does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository. Do not use this public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
 
-## Preparation and environment
+## Objectives and Original-task Mapping
 
-- Confirm 25–30 individual accounts, Python 3.8+, the `oslab` installation, quota, and shared Ubuntu account; C compiler.
-- Run `oslab doctor`, `oslab start lab5`, and `oslab check lab5` as an ordinary test account. Verify no symlink or ownership surprises.
-- Review prerequisites: process basics, C source reading. Prepare paper prediction and checkpoint slips; collect the checkpoint before showing the key.
-- Keep VM snapshots, compiler, FUSE and cron availability topic-specific. Do not add sudo to student accounts to make a task work.
+1. Create POSIX threads and check API return codes.
+2. Join each worker before consuming its result and explain shared versus separate address spaces.
+3. Use a bounded execution trace to diagnose missing completion synchronization.
 
-## Exact timetable
+Original Task 1 processes/threads introduces memory ownership; Task 2 thread interaction and joining is the core. Task 3 kernel mapping and Task 4 signals remain extensions.
+
+Read the [student instruction](../../../labs/lab5/lab5-instruction.md), [report template](../../../labs/lab5/README.md) and [optional extensions](../../../labs/lab5/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+
+## Before Class
+
+- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `gcc` with pthread support, `timeout`, `ps`; instructor provides trace fallback if compiler is unavailable. No student sudo or privileged execution of student code.
+- Confirm gcc -pthread and timeout before class. Without a compiler, supply the annotated source/trace for diagnosis and mark executable implementation as unverified.
+- In an ordinary test account run `oslab doctor`, `oslab start lab5`, then `cd "$OSLAB_WORKSPACE/lab5"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
+- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
+- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+
+## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |
 |---|---|
-| 0–10 | Opening question and safety/setup; circulate and collect a sample of evidence |
-| 10–25 | Guided example; circulate and collect a sample of evidence |
-| 25–35 | Prediction on paper; five-minute optional peer comparison; circulate and collect a sample of evidence |
-| 35–70 | Individual investigation or build; AI optional; circulate and collect a sample of evidence |
-| 70–85 | Normal and edge tests; feedback pause; circulate and collect a sample of evidence |
-| 85–100 | Individual changed case, supervised; no AI or peers; circulate and collect a sample of evidence |
-| 100–110 | Evidence-based correction and concept explanation; circulate and collect a sample of evidence |
-| 110–120 | Cleanup and concise submission; circulate and collect a sample of evidence |
+| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
+| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
+| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
+| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
+| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
+| 85–100 | Collect individual changed-case answer; no AI or peer help |
+| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
+| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
 
-## Expected observations and alternatives
+## Expected Results and Public Model
 
-Guided example: `printf 'thread,step\nA,read\nB,read\nA,write\nB,write\n' | column -s, -t 2>/dev/null || cat "$HOME/oslab-work/lab5/threads/trace.csv"`. Ask: Can the trace alone prove the program was race-free?
+Guided worker produces 42 after join. Joined A (id 2, three steps) gives 6; B (id 3, four steps) gives 12, then B with two steps gives 6. A zero-step worker produces 0 and still needs a join. Print order may vary; accept no deterministic ordering claim.
 
-Investigation goal: Use the provided trace to mark overlapping steps; write a minimal pthread program with two workers and joins in your workspace, and compare observed order to your prediction. Explain why joins ensure completion but do not protect a shared counter.
+Public complete model: [two_workers_solution.c](two_workers_solution.c). Compile `gcc -Wall -Wextra -Werror -pthread two_workers_solution.c -o /tmp/YOUR_OWN_UNIQUE_OUTPUT` in an owned temporary directory; run with `timeout 5`. Edit B steps to 2 and then 0 for changed tests. The model joins any already-created threads even if a later create fails.
 
-**Model solution or acceptable alternative:** Check each `pthread_create` result and join both thread IDs before consuming results. Joins establish completion; add a mutex or atomic operation only if the workers share mutable data.
+Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
 
-The model sketch is public preparation material. Use a fresh private variant if this checkpoint is graded.
+## Checkpoint Key and Quick Marking
 
-Expected core evidence: an owned artifact or transcript; two tests including one edge case; a preserved prediction and evidence-based correction; a 3–5 sentence mechanism explanation. Accept equivalent commands and programs if they meet the invariant. Do not grade exact filenames unless a tool genuinely depends on them.
+Practice question: Main joins worker A but not worker B, then reads B’s result. Explain what remains unestablished and identify the minimal synchronization change. Would that change alone protect a counter updated concurrently by both workers?
 
-## Checkpoint key and quick marking
+Key: Joining A does not establish B completion; join B before reading B.result. A quick observed finish cannot replace the synchronization guarantee. Workers owning separate result fields avoid a shared-counter race in this core.
 
-Question: Main joins only worker A. Can worker B's result be safely read? Explain the minimal change.
+Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
 
-Key: No completion guarantee for B; join B before reading its result. Credit discussion of synchronization.
+## Misconceptions and Progressive Support
 
-Of the checkpoint's two points, give one for a defensible result or diagnosis and one for mechanism plus a suitable verification observation. Partial credit applies if the result is wrong but the reasoning identifies a relevant mechanism. A student with unfinished earlier implementation can still earn both points.
+Students assume sleep or a successful run ensures completion, read B early, or report errno for pthread calls. Check their direct return codes and exactly which joins occur before reads.
 
-## Misconceptions, hints, support
+Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
 
-- Common mistake: treating one successful run as universal proof or confusing a displayed output with the underlying OS mechanism. Use anonymized errors during debrief.
-- Progressive hints: Separate completion from mutual exclusion; inspect `pthread_create` return values; join each created thread.
-- For students behind pace: provide a clean fixture copy, narrow the investigation to one test, and preserve the independent checkpoint. Do not complete their artifact for them.
-- Peer exchange is five minutes maximum and optional; an individual can compare with the guided example. No public random questioning or one-by-one oral examination is required.
+Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
 
-## Extensions, outage fallback, cleanup
+## Capability Fallback and Cleanup
 
-Extension: Kernel worker observation with `ps`; owned-process signals; compare processes and threads using `/proc`.
+Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
 
-If the server is unavailable, use local Linux/WSL for unprivileged work and a printed trace for the checkpoint. For machine-specific tasks, use a disposable VM only; a teacher-only VM demonstration does not establish each student's recovery competence. At finish, confirm bounded processes have exited, any lab-owned cron marker is removed, and only owned workspace artifacts remain. `oslab clean lab5` is optional after submission and must never target unrelated files.
+All core executions use a five-second timeout and joined workers; confirm the executable ended. Copy source, not binaries, into the submission. Kernel workers are observed only, never signalled.
 
-## Rubric (10 points)
+After evidence is saved, `oslab clean lab5` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
 
-| Evidence | Points |
+## Topic Rubric (10 points)
+
+| Evidence mapped to lab objectives | Points |
 |---|---:|
-| Working behaviour against stated constraints | 3 |
-| Tests and diagnosis, including a failure or edge case | 2 |
-| Concept explanation and evidence-based correction | 2 |
-| Independent changed-case checkpoint | 2 |
-| Concise, attributable evidence | 1 |
+| Correct worker creation, joins and result use (objectives 1–3) | 3 |
+| Normal and changed-step/zero-step evidence with build diagnosis | 2 |
+| Explain thread memory, completion and mutual-exclusion differences; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.

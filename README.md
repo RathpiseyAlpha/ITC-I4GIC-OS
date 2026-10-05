@@ -2,12 +2,12 @@
 
 Institute of Technology of Cambodia, Department of Information and Communication Engineering. This repository contains lecture resources, class activities, 11 lab instructions (Lab 11 is an optional bonus), and the existing course web application and exam functionality.
 
-The first lab revision uses **120 minutes per lab**, individual solutions, a short optional peer exchange, and an independent changed-case checkpoint. AI is permitted for investigation and testing, but not for the initial prediction or checkpoint. The shared Ubuntu server is primary; local Linux/WSL is an unprivileged fallback. GRUB recovery needs a snapshot-backed disposable VM. Do not run system-wide administrative commands on the shared server.
+The revised labs use **120 minutes per lab**, individual solutions, a short optional peer exchange, and an independent changed-case checkpoint. Each instruction restores explicit objectives, the original topic/task progression, numbered guided commands, expected observations, starting and submission trees, and topic-specific evidence. AI is permitted for investigation and testing, but not for the initial prediction or checkpoint. The primary environment is a shared Ubuntu server with an individual account for each student; local Linux/WSL is an unprivileged fallback. GRUB recovery needs a disposable VM with a snapshot.
 
 ## Start here
 
 - [Course outline](course-outline.md), [exam briefing](EXAM-BRIEFING.md), [lecture notes](lectures/notes/README.md), [class activities](lectures/class-activity/README.md), and [visualizations](lectures/visualizations/README.md)
-- [Shared lab report template](labs/REPORT-TEMPLATE.md)
+- [Environment setup](labs/SETUP.md), [complete lab index](labs/INDEX.md), and [shared lab report template](labs/REPORT-TEMPLATE.md)
 - [Per-lab audit](teaching/REVISION-AUDIT.md), [implementation record](teaching/IMPLEMENTATION-PLAN.md), [validation](teaching/VALIDATION.md)
 - [Server deployment runbook](server/RUNBOOK.md) and [per-user scenario helper](server/oslab.py)
 
@@ -25,7 +25,7 @@ The first lab revision uses **120 minutes per lab**, individual solutions, a sho
 | 10 | Backup retention and scoped scheduling | [Lab 10](labs/lab10/lab10-instruction.md) |
 | 11 (bonus) | Regular-file disk images and filesystem evidence (bonus) | [Lab 11](labs/lab11/lab11-instruction.md) |
 
-Students work in their own repositories and save only concise artifacts, selected tests, prediction/correction, and conceptual explanation. The common 10-point rubric appears in every instruction; the checkpoint is collected separately. Optional extensions preserve broader original topics without turning the core into a three-hour exercise.
+Students work in their own repositories and save only concise artifacts, selected tests, prediction/correction, and conceptual explanation. Each instruction maps its 10-point rubric to that lab's objectives; the checkpoint is collected separately. Optional extension guides give procedures for the broader original topics. Older slides/HTML guides remain background references; the Markdown instructions define the current required route.
 
 Instructor files in this public repository are also public. Prepare fresh graded variants and keep confidential keys in a private distribution system. Public scenario checks give feedback, not secure grading.
 

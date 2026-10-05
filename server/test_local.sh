@@ -23,6 +23,13 @@ printf 'unrelated\n' > "$OSLAB_WORKSPACE/unrelated.txt"
 "${tool[@]}" clean lab2
 test -e "$OSLAB_WORKSPACE/unrelated.txt"
 test ! -e "$OSLAB_WORKSPACE/lab2"
+ln -s source.txt "$OSLAB_WORKSPACE/lab3/links/good.txt"
+ln -s missing.txt "$OSLAB_WORKSPACE/lab3/links/dangling.txt"
+"${tool[@]}" start lab3
+"${tool[@]}" status lab3
+"${tool[@]}" reset lab3
+test -L "$OSLAB_WORKSPACE/.attempts"/lab3-*/links/good.txt
+test -L "$OSLAB_WORKSPACE/.attempts"/lab3-*/links/dangling.txt
 ln -s "$tmp" "$OSLAB_WORKSPACE/lab3/escape"
 if "${tool[@]}" clean lab3 2>/dev/null; then echo 'symlink guard failed' >&2; exit 1; fi
 test -e "$OSLAB_WORKSPACE/lab3/.oslab-managed.json"

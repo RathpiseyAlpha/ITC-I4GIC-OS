@@ -1,66 +1,85 @@
-# Instructor plan — OS Lab 1: OS inspection and owned processes
+# Instructor plan — OS Lab 1 — Introduction to Operating Systems (Hands-on)
 
-**Public repository notice:** this file and its answers are public. A folder called `instructor` does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository. Do not use this public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
 
-## Preparation and environment
+## Objectives and Original-task Mapping
 
-- Confirm 25–30 individual accounts, Python 3.8+, the `oslab` installation, quota, and shared Ubuntu account.
-- Run `oslab doctor`, `oslab start lab1`, and `oslab check lab1` as an ordinary test account. Verify no symlink or ownership surprises.
-- Review prerequisites: login, terminal, basic commands. Prepare paper prediction and checkpoint slips; collect the checkpoint before showing the key.
-- Keep VM snapshots, compiler, FUSE and cron availability topic-specific. Do not add sudo to student accounts to make a task work.
+1. Identify the distribution and running kernel using command output, explaining the difference.
+2. Create and inspect files in an owned directory using basic Linux commands.
+3. Start two instances of one program and distinguish their PIDs, parent PID, state and lifetime.
 
-## Exact timetable
+Core: Task 1 OS identification, a short Task 2 file warm-up, and Tasks 4–5 program/process investigation. Original Task 3 package changes and Task 6 virtualization work are extensions.
+
+Read the [student instruction](../../../labs/lab1/lab1-instruction.md), [report template](../../../labs/lab1/README.md) and [optional extensions](../../../labs/lab1/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+
+## Before Class
+
+- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `bash`, `uname`, `cat`, `ps`, `sleep`, `find`. No student sudo or privileged execution of student code.
+- Check login, ps and sleep. No compiler or package install is needed. Prepare one live/finished transcript for an outage.
+- In an ordinary test account run `oslab doctor`, `oslab start lab1`, then `cd "$OSLAB_WORKSPACE/lab1"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
+- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
+- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+
+## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |
 |---|---|
-| 0–10 | Opening question and safety/setup; circulate and collect a sample of evidence |
-| 10–25 | Guided example; circulate and collect a sample of evidence |
-| 25–35 | Prediction on paper; five-minute optional peer comparison; circulate and collect a sample of evidence |
-| 35–70 | Individual investigation or build; AI optional; circulate and collect a sample of evidence |
-| 70–85 | Normal and edge tests; feedback pause; circulate and collect a sample of evidence |
-| 85–100 | Individual changed case, supervised; no AI or peers; circulate and collect a sample of evidence |
-| 100–110 | Evidence-based correction and concept explanation; circulate and collect a sample of evidence |
-| 110–120 | Cleanup and concise submission; circulate and collect a sample of evidence |
+| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
+| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
+| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
+| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
+| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
+| 85–100 | Collect individual changed-case answer; no AI or peer help |
+| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
+| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
 
-## Expected observations and alternatives
+## Expected Results and Public Model
 
-Guided example: `uname -s; cat /etc/os-release | head -6; sleep 10 & pid=$!; ps -o pid,ppid,stat,comm -p "$pid"; wait "$pid"`. Ask: Which output describes installed software, and which describes a live instance?
+Distribution comes from /etc/os-release; uname describes the running kernel. Live sleep processes have different PIDs, normally the same shell PPID, and disappear after wait. Accept output differences due to WSL/container kernels.
 
-Investigation goal: Start two bounded `sleep` processes in your account. Record PID, PPID and state while alive, then check after `wait`. Explain which observations establish process identity and which only identify the executable.
+```bash
+sleep 10 & a=$!
+sleep 10 & b=$!
+ps -o pid,ppid,stat,comm -p "$a,$b"
+wait "$a"; wait "$b"
+ps -o pid,stat,comm -p "$a,$b"
+```
+The final `ps` can return nonzero because neither process exists.
 
-**Model solution or acceptable alternative:** Capture each `$!` immediately, inspect with `ps -p`, then `wait` each PID. Distinct process instances have distinct PIDs while alive; a later `ps` may miss exited processes.
+Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
 
-The model sketch is public preparation material. Use a fresh private variant if this checkpoint is graded.
+## Checkpoint Key and Quick Marking
 
-Expected core evidence: an owned artifact or transcript; two tests including one edge case; a preserved prediction and evidence-based correction; a 3–5 sentence mechanism explanation. Accept equivalent commands and programs if they meet the invariant. Do not grade exact filenames unless a tool genuinely depends on them.
+Practice question: A shell starts two `sleep 1` commands in the background and captures both `$!` values. It waits two seconds before running `ps`. Predict the captured PID values relative to one another and whether `ps` must still show the processes.
 
-## Checkpoint key and quick marking
+Key: Two distinct PIDs are captured for the two live instances (barring PID reuse after an already exited process). After the delay ps may show neither: the jobs are only one second long. The captured IDs establish creation; a late sample does not reconstruct lifetime.
 
-Question: A script starts `sleep 1` twice in the background. Predict how many PIDs can be captured and whether `ps` must show both after two seconds.
+Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
 
-Key: Two distinct PIDs can be captured; after two seconds both may already have exited. Award for timing reasoning.
+## Misconceptions and Progressive Support
 
-Of the checkpoint's two points, give one for a defensible result or diagnosis and one for mechanism plus a suitable verification observation. Partial credit applies if the result is wrong but the reasoning identifies a relevant mechanism. A student with unfinished earlier implementation can still earn both points.
+Students mistake a program name for identity or an empty ps result for never having run. Ask them to compare $! immediately with a delayed sample.
 
-## Misconceptions, hints, support
+Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
 
-- Common mistake: treating one successful run as universal proof or confusing a displayed output with the underlying OS mechanism. Use anonymized errors during debrief.
-- Progressive hints: A process is an execution instance; inspect `$!` and `ps`; shorten duration and collect evidence promptly.
-- For students behind pace: provide a clean fixture copy, narrow the investigation to one test, and preserve the independent checkpoint. Do not complete their artifact for them.
-- Peer exchange is five minutes maximum and optional; an individual can compare with the guided example. No public random questioning or one-by-one oral examination is required.
+Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
 
-## Extensions, outage fallback, cleanup
+## Capability Fallback and Cleanup
 
-Extension: APT package management in a disposable VM; hypervisor detection; compare `top` and `ps`.
+Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
 
-If the server is unavailable, use local Linux/WSL for unprivileged work and a printed trace for the checkpoint. For machine-specific tasks, use a disposable VM only; a teacher-only VM demonstration does not establish each student's recovery competence. At finish, confirm bounded processes have exited, any lab-owned cron marker is removed, and only owned workspace artifacts remain. `oslab clean lab1` is optional after submission and must never target unrelated files.
+Confirm both captured jobs finished with `wait`. Keep the workspace until your evidence is saved. If you stop a demonstration early, signal only the PID you captured in this shell, immediately verify its identity, and wait for it; otherwise let the bounded sleep end normally.
 
-## Rubric (10 points)
+After evidence is saved, `oslab clean lab1` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
 
-| Evidence | Points |
+## Topic Rubric (10 points)
+
+| Evidence mapped to lab objectives | Points |
 |---|---:|
-| Working behaviour against stated constraints | 3 |
-| Tests and diagnosis, including a failure or edge case | 2 |
-| Concept explanation and evidence-based correction | 2 |
-| Independent changed-case checkpoint | 2 |
-| Concise, attributable evidence | 1 |
+| OS/kernel identification and two owned-process observations (objectives 1–3) | 3 |
+| Live/finished and short-duration tests, with timing diagnosis | 2 |
+| Explain executable versus instance, PID/PPID and sampled state; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.

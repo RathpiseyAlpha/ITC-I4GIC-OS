@@ -1,66 +1,78 @@
-# Instructor plan — OS Lab 9: Deadlock diagnosis and recovery
+# Instructor plan — OS Lab 9 - Vault Deadlock, Resource Ordering & Recovery (Hands-on)
 
-**Public repository notice:** this file and its answers are public. A folder called `instructor` does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository. Do not use this public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
 
-## Preparation and environment
+## Objectives and Original-task Mapping
 
-- Confirm 25–30 individual accounts, Python 3.8+, the `oslab` installation, quota, and shared Ubuntu account; `flock`.
-- Run `oslab doctor`, `oslab start lab9`, and `oslab check lab9` as an ordinary test account. Verify no symlink or ownership surprises.
-- Review prerequisites: Lab 8 locking. Prepare paper prediction and checkpoint slips; collect the checkpoint before showing the key.
-- Keep VM snapshots, compiler, FUSE and cron availability topic-specific. Do not add sudo to student accounts to make a task work.
+1. Draw holdings and requests that form a circular wait.
+2. Reproduce a coordinated two-worker conflict with bounded waits and interpret timeout recovery.
+3. Apply one global lock order and explain why it removes the cycle.
 
-## Exact timetable
+Original Levels 1–3 workspace/naive scripts/local deadlock form the core, followed by Levels 5–6 ordering/timeout. Partner Level 4 is optional; Level 7 cleanup stays required.
+
+Read the [student instruction](../../../labs/lab9/lab9-instruction.md), [report template](../../../labs/lab9/README.md) and [optional extensions](../../../labs/lab9/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+
+## Before Class
+
+- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `bash`, `flock`, `timeout`, `ps`. No student sudo or privileged execution of student code.
+- Pretest two bounded workers, fresh readiness markers and flock. Confirm all held resources are on the same filesystem path/inode. No mandatory partner.
+- In an ordinary test account run `oslab doctor`, `oslab start lab9`, then `cd "$OSLAB_WORKSPACE/lab9"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
+- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
+- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+
+## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |
 |---|---|
-| 0–10 | Opening question and safety/setup; circulate and collect a sample of evidence |
-| 10–25 | Guided example; circulate and collect a sample of evidence |
-| 25–35 | Prediction on paper; five-minute optional peer comparison; circulate and collect a sample of evidence |
-| 35–70 | Individual investigation or build; AI optional; circulate and collect a sample of evidence |
-| 70–85 | Normal and edge tests; feedback pause; circulate and collect a sample of evidence |
-| 85–100 | Individual changed case, supervised; no AI or peers; circulate and collect a sample of evidence |
-| 100–110 | Evidence-based correction and concept explanation; circulate and collect a sample of evidence |
-| 110–120 | Cleanup and concise submission; circulate and collect a sample of evidence |
+| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
+| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
+| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
+| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
+| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
+| 85–100 | Collect individual changed-case answer; no AI or peer help |
+| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
+| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
 
-## Expected observations and alternatives
+## Expected Results and Public Model
 
-Guided example: `( flock -x -w 2 9 && printf 'Alpha acquired\n' ) 9>"$HOME/oslab-work/lab9/vault/alpha.lock"`. Ask: What happens if both workers hold one lock and request the other?
+Opposite case logs both first holdings then at least one second-lock timeout. One timeout releases its first lock so the other may finish. Ordered mode has no rendezvous barrier and both complete. Model interface is VAULT ROLE MODE; students derive vault from their script path.
 
-Investigation goal: Write two short scripts that acquire owned Alpha/Beta lock files in opposite order, with a coordination barrier or documented teaching delay. Use `flock -w 2` for every acquisition. Capture a wait trace, then change both scripts to Alpha-before-Beta and explain why the cycle disappears.
+Public [worker model](worker_solution.sh) takes `VAULT A|B opposite|ordered`. Remove only `coord/A.ready` and `coord/B.ready` after both workers exit, before a new opposite-mode case. Bound each worker with `timeout 6`. Ordered mode must omit the rendezvous barrier.
 
-**Model solution or acceptable alternative:** A holds Alpha and waits for Beta while B holds Beta and waits for Alpha. Draw both edges. Timeouts bound the demonstration. In the repair, both workers acquire Alpha then Beta; no cycle can form.
+Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
 
-See `worker_solution.sh` in this directory. Its barrier coordinates opposite-order acquisition; every wait is bounded. In ordered mode the barrier is skipped so both workers can complete.
+## Checkpoint Key and Quick Marking
 
-Expected core evidence: an owned artifact or transcript; two tests including one edge case; a preserved prediction and evidence-based correction; a 3–5 sentence mechanism explanation. Accept equivalent commands and programs if they meet the invariant. Do not grade exact filenames unless a tool genuinely depends on them.
+Practice question: A third worker needs only Beta. Must it also acquire Alpha to follow the global-order policy? Explain. Separately, identify whether timeout is prevention or recovery in the opposite-order example.
 
-## Checkpoint key and quick marking
+Key: A worker needing only Beta does not need Alpha; order applies among resources actually requested. Opposite-mode timeout breaks an existing hold-and-wait cycle (recovery), whereas consistent alpha-before-beta ordering prevents this modeled cycle.
 
-Question: A third worker needs Beta only. Does global Alpha-before-Beta require it to lock Alpha? Why?
+Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
 
-Key: No: one-lock work has no order conflict. Credit explanation of cycle prevention.
+## Misconceptions and Progressive Support
 
-Of the checkpoint's two points, give one for a defensible result or diagnosis and one for mechanism plus a suitable verification observation. Partial credit applies if the result is wrong but the reasoning identifies a relevant mechanism. A student with unfinished earlier implementation can still earn both points.
+Students expect both to timeout, retain a barrier in ordered mode, or remove a lock pathname while held. Explain release after exit and why the ordered barrier would itself block progress.
 
-## Misconceptions, hints, support
+Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
 
-- Common mistake: treating one successful run as universal proof or confusing a displayed output with the underlying OS mechanism. Use anonymized errors during debrief.
-- Progressive hints: Draw holdings and requests; verify both processes reached the barrier; use consistent acquisition order.
-- For students behind pace: provide a clean fixture copy, narrow the investigation to one test, and preserve the independent checkpoint. Do not complete their artifact for them.
-- Peer exchange is five minutes maximum and optional; an individual can compare with the guided example. No public random questioning or one-by-one oral examination is required.
+Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
 
-## Extensions, outage fallback, cleanup
+## Capability Fallback and Cleanup
 
-Extension: Partner site-to-site scenario only in a narrowly prepared shared directory; timeout recovery policy.
+Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
 
-If the server is unavailable, use local Linux/WSL for unprivileged work and a printed trace for the checkpoint. For machine-specific tasks, use a disposable VM only; a teacher-only VM demonstration does not establish each student's recovery competence. At finish, confirm bounded processes have exited, any lab-owned cron marker is removed, and only owned workspace artifacts remain. `oslab clean lab9` is optional after submission and must never target unrelated files.
+Wait for the two captured workers; all waits are bounded. After both exit, remove only their two readiness markers. Leave lock files in place and never kill by a broad name match.
 
-## Rubric (10 points)
+After evidence is saved, `oslab clean lab9` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
 
-| Evidence | Points |
+## Topic Rubric (10 points)
+
+| Evidence mapped to lab objectives | Points |
 |---|---:|
-| Working behaviour against stated constraints | 3 |
-| Tests and diagnosis, including a failure or edge case | 2 |
-| Concept explanation and evidence-based correction | 2 |
-| Independent changed-case checkpoint | 2 |
-| Concise, attributable evidence | 1 |
+| Bounded conflict reproduction and consistent global ordering (objectives 1–3) | 3 |
+| Opposite/ordered and missing-participant diagnosis | 2 |
+| Explain circular wait, barrier role and timeout recovery; original prediction and evidence-based correction | 2 |
+| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
+| Concise, attributable evidence and required artifacts | 1 |
+
+Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.

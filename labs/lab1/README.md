@@ -1,15 +1,34 @@
-# Lab 1 submission template
+# Lab 1 — Introduction to Operating Systems: individual report
 
-Copy [the shared report template](../REPORT-TEMPLATE.md) into your own submission repository as `lab1/README.md`, then fill it with your own evidence. Follow the current [Lab 1 instructions](lab1-instruction.md). The supervised changed-case answer is collected separately by the instructor.
+Copy this template to `lab1/README.md` in your own course repository. Follow [the instructions](lab1-instruction.md).
 
-Student ID:
-Environment:
-Artifact filename or link:
-Original prediction and reason:
-Corrected prediction and evidence:
-Normal test and contradictory result:
-Edge/failure test and contradictory result:
-OS mechanism explanation (3–5 sentences):
-Optional AI suggestion and verification:
+- Student name/ID:
+- Ubuntu username and environment:
+- Artifact paths (turn these into links after copying to your submission): `evidence/os-info.txt`, `evidence/processes.txt`
 
-Use at most two decisive text excerpts or screenshots. The core rubric is 10 points and is shown in the instructions. No partner artifact, prescribed script name, or long chat transcript is required.
+## Original Prediction
+
+Copy the prediction you wrote before execution and its reason. State how/when it was captured (paper or the course worksheet).
+
+## Test Evidence
+
+Link to two short records under `evidence/`. Include enough command/input/output context to interpret them.
+
+| Test | Claim | Result that would contradict it | Observed result | What remains unproven |
+|---|---|---|---|---|
+| two live instances | | | | |
+| short duration and post-exit sample | | | | |
+
+## Explanation and Correction
+
+Explain distribution versus kernel, program versus process, and why timing changes the sample.
+
+Keep the original prediction above and add a correction supported by one observed result.
+
+## AI Note (optional)
+
+One useful suggestion and the test you used to verify it. If you did not use AI, leave this section out.
+
+## Cleanup
+
+State which owned processes/jobs/mounts you cleaned up or why none were created. The supervised changed-case answer is collected separately; do not reconstruct it after collection.
