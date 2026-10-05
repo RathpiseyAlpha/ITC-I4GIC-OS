@@ -38,3 +38,7 @@ By the end of the course, students will be able to:
 | **12** | File Systems | - Explain structure and access methods<br>- Analyze security (ACLs, encryption) | | |
 
 ---
+
+## Revised lab route
+
+All labs use a 120-minute individual core route. The lecture-week table above is a topic guide, not a one-to-one lab schedule. See the [lab index](README.md#start-here) for all 11 current instructions, including optional bonus Lab 11. Class dates, deadlines, and server availability are announced separately in Asia/Phnom_Penh time.

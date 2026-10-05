@@ -4,9 +4,9 @@
 const CONFIG = {
     // GitHub repository (used to dynamically fetch file tree)
     github: {
-        owner: 'RathpiseyAlpha',
-        repo: 'ITC-OS-2026',
-        branch: 'main',
+        owner: (window.__ENV && window.__ENV.githubOwner) || 'RathpiseyAlpha',
+        repo: (window.__ENV && window.__ENV.githubRepo) || 'ITC-I4GIC-OS',
+        branch: (window.__ENV && window.__ENV.githubBranch) || 'main',
         // Set to a GitHub personal access token for higher rate limits (5000/hr vs 60/hr)
         // Leave empty to use unauthenticated requests
         token: ''
@@ -41,7 +41,7 @@ const CONFIG = {
         institution: 'Institute of Technology of Cambodia',
         department: 'Department of Information and Communication Engineering',
         instructor: 'Heng Rathpisey',
-        repoUrl: 'https://github.com/RathpiseyAlpha/ITC-OS-2026'
+        repoUrl: 'https://github.com/' + ((window.__ENV && window.__ENV.githubOwner) || 'RathpiseyAlpha') + '/' + ((window.__ENV && window.__ENV.githubRepo) || 'ITC-I4GIC-OS')
     },
 
     // Lecture schedule mapping: week number → { file, title }
@@ -61,17 +61,9 @@ const CONFIG = {
         { week: 12, file: 'lectures/files/ch12.pdf', title: 'File Systems' }
     ],
 
-    // Lab submission deadlines (ISO 8601, local timezone)
-    // penalty: points deducted per calendar day late
-    deadlines: [
-        { lab: 'lab1', due: '2026-02-22T23:59:00', penalty: 5 },
-        { lab: 'lab2', due: '2026-03-08T23:59:00', penalty: 5 },
-        { lab: 'lab3', due: '2026-03-22T23:59:00', penalty: 5 },
-        { lab: 'lab4', due: '2026-04-05T23:59:00', penalty: 5 },
-        { lab: 'lab5', due: '2026-04-19T23:59:00', penalty: 5 },
-        { lab: 'lab6', due: '2026-05-31T23:59:00', penalty: 5 },
-        { lab: 'activity7', due: '2026-06-25T23:59:00', penalty: 5 }
-    ],
+    // Publish current dates in env.js only after the timetable is confirmed.
+    // ISO 8601 with +07:00 expresses the Asia/Phnom_Penh teaching timezone.
+    deadlines: (window.__ENV && window.__ENV.deadlines) || [],
 
     // Cache duration for GitHub API responses (ms). Kept long because the repo
     // tree changes rarely and the unauthenticated GitHub API allows only 60

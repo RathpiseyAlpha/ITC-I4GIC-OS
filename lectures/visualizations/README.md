@@ -26,46 +26,6 @@ Each one has two modes:
 
 ---
 
-## Option 1 — Live now (no setup): htmlpreview
+## Open the visualizations
 
-These links render the pages immediately through `htmlpreview.github.io`:
-
-- **Semaphores — Producer/Consumer** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/producer-consumer.html
-- **RAG / Deadlock** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/rag-deadlock.html
-- **Banker's Algorithm** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/bankers-algorithm.html
-- **Multi-Instance Deadlock Detection** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/deadlock-detection.html
-- **Paging & Address Translation** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/paging-translation.html
-- **TLB (Translation Look-Aside Buffer)** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/tlb.html
-- **Page Replacement (FIFO/LRU/OPT)** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/page-replacement.html
-- **Demand Paging & Virtual Memory** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/demand-paging.html
-- **Contiguous Allocation & Fit Algorithms** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/contiguous-allocation.html
-- **Effective Access Time (EAT)** → https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/eat-calculator.html
-
-## Option 2 — Clean URLs: GitHub Pages (recommended)
-
-Enable once, then the pages are served from your own domain.
-
-**To enable (one time):**
-
-1. Go to the repo on GitHub → **Settings** → **Pages**.
-2. Under **Build and deployment → Source**, choose **Deploy from a branch**.
-3. Set **Branch = `main`**, **Folder = `/ (root)`**, then **Save**.
-4. Wait ~1 minute for the first build.
-
-**Then the visualizations live at:**
-
-- Menu → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/
-- Semaphores — Producer/Consumer → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/producer-consumer.html
-- RAG / Deadlock → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/rag-deadlock.html
-- Banker's Algorithm → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/bankers-algorithm.html
-- Multi-Instance Deadlock Detection → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/deadlock-detection.html
-- Paging & Address Translation → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/paging-translation.html
-- TLB (Translation Look-Aside Buffer) → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/tlb.html
-- Page Replacement (FIFO/LRU/OPT) → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/page-replacement.html
-- Demand Paging & Virtual Memory → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/demand-paging.html
-- Contiguous Allocation & Fit Algorithms → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/contiguous-allocation.html
-- Effective Access Time (EAT) → https://rathpiseyalpha.github.io/ITC-OS-2026/lectures/visualizations/eat-calculator.html
-
-## Option 3 — Local
-
-Download/clone the repo and double-click any `.html` file, or open it in VS Code with the *Live Server* extension.
+Open [the visualization index](index.html) on the course site or download/clone the repository and open any HTML file locally. GitHub shows HTML source rather than running the animation. If this repository is published with GitHub Pages, the same relative links above work on that site. Configure the destination repository and Pages URL before advertising a hosted address.

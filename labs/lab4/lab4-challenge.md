@@ -1,5 +1,7 @@
 # Lab 4 Post-Lab Challenge: Find the Suspicious Client
 
+**Optional extension only.** The instructor supplies the log dataset in your own account before this challenge. Keep all work inside that assigned directory; the path shown below is an example and may differ on the shared server. This challenge is separate from the required 120-minute [Lab 4 core](lab4-instruction.md).
+
 ## Overview
 
 You are given a small challenge folder in your home directory. Inside it are several files, including one log file and some decoy files.

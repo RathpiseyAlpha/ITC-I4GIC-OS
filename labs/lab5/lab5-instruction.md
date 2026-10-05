@@ -1,484 +1,96 @@
-# OS Lab 5 — Threads, Kernel Workers & Process Signals (Hands-on)
+# OS Lab 5 — Processes, threads and joins
 
 | | |
 |---|---|
-| **Course** | Operating Systems |
-| **Lab Title** | Thread Models, Kernel Workers & Basic Process Signals |
-| **Chapter** | Threads & Concurrency, Process Management |
-| **Duration** | 3 Hours |
-| **Lab Type** | Individual |
+| Duration | 120 minutes |
+| Work | Individual solution and submission; peer exchange is optional and bounded |
+| Primary environment | shared Ubuntu account; C compiler |
+| Practice fallback | Local Linux or WSL for unprivileged work; see topic constraints |
+| Prerequisites | process basics, C source reading |
+| Required core | Guided example, prediction, one investigation, tests, changed case, concise report |
+| Optional extensions | See below; they do not replace the core |
 
----
+## Observable learning targets
 
-> ⚠️ **IMPORTANT — READ EVERYTHING FIRST**
->
-> **Before you type a single command, read through this ENTIRE document from top to bottom.** Scan every section — the tasks, the challenges, the deliverables, the folder structure, and the README template. Understand the full scope of what is expected **before** you start working.
->
-> **Document structure:**
-> 1. **Lab Objectives** — What you'll learn
-> 2. **Task Overview** — Summary of all tasks at a glance
-> 3. **Lab Setup** — Repository and folder preparation
-> 4. **Quick Reference Tables** — Command and API cheat sheets
-> 5. **Tasks 1–4 (Required)** — Threads vs Processes, Thread Interaction, Visualizing Threads, Process Signals
-> 6. **Deliverables & Submission** — Folder structure, README template, git push
-> 7. **Screenshot Checklist** — Every screenshot you need, in one place
+1. Distinguish process and thread address spaces.
+2. Explain why joining matters.
+3. Diagnose a missing join from a trace.
 
----
+## 120-minute route
 
-## Lab Objectives
+| Minutes | Activity |
+|---|---|
+| 0–10 | Opening question and safety/setup |
+| 10–25 | Guided example |
+| 25–35 | Prediction on paper; five-minute optional peer comparison |
+| 35–70 | Individual investigation or build; AI optional |
+| 70–85 | Normal and edge tests; feedback pause |
+| 85–100 | Individual changed case, supervised; no AI or peers |
+| 100–110 | Evidence-based correction and concept explanation |
+| 110–120 | Cleanup and concise submission |
 
-After completing this lab, students will be able to:
+## Setup and guided example (0–25)
 
-1. Understand the difference between processes and threads in Linux.
-2. Use POSIX threads (`pthreads`) to create, manage, and join threads in C.
-3. Visualize the 1:1 thread model mapping user threads to kernel-level threads (LWPs).
-4. Visualize and distinguish between user threads and kernel worker threads using tools like `ps`, `top`, and `htop`.
-5. Understand the limits of interacting with kernel threads.
-6. Send, receive, and handle POSIX signals (`SIGINT`, `SIGTERM`, `SIGKILL`) in C programs (a recall and extension from Lab 4).
-7. Apply learned concepts to solve synchronization and signal handling challenges.
+Log in with your own account. Run `oslab doctor`, then `oslab start lab5`; `oslab status lab5` shows the workspace. The first start creates editable copies of the public fixtures in your own `~/oslab-work/lab5`. Repeating start preserves your edits. If `oslab` is not installed, create an owned directory and use the commands below with your own paths; the instructor can supply the public fixtures. Keep your submission in your own course repository.
 
-> **Scenario:** You are **Alex**, still building your systems engineering skills at **TechCorp Inc.** Your manager says: *"Our backend applications are becoming too slow because they process tasks sequentially. I need you to learn how to make them multithreaded. Also, you need to understand how the Linux kernel maps user threads to kernel threads, manages its own worker threads, and how to safely write code to handle signals when things go wrong."*
-
----
-
-## Task Overview
-
-| Task | Title | Key Commands/APIs | Screenshots Required |
-|:---:|-------|-------------|:-----------:|
-| **1** | Processes vs. Threads | `fork()`, `pthread_create()` | ✅ (Execution output) |
-| **2** | Thread Interaction | `pthread_join()`, `pthread_exit()` | ✅ (Execution output) |
-| **3** | Visualizing Kernel & User Threads | `ps -eLf`, `/proc/`, `htop` | ✅ (ps/proc mapping & htop) |
-| **4** | Recall: Process Signals | `kill`, `signal()`, `SIGINT` | ✅ (Signal handling) |
-
----
-
-## Lab Setup
-
-Navigate into your existing lab submission repository and create the `lab5` directory:
+Run or adapt this small example in your own workspace:
 
 ```bash
-$ cd ~/os-se-<YourStudentID>/os-lab-<YourStudentID>
-$ mkdir lab5
-$ cd lab5
+printf 'thread,step\nA,read\nB,read\nA,write\nB,write\n' | column -s, -t 2>/dev/null || cat "$HOME/oslab-work/lab5/threads/trace.csv"
 ```
 
-### Documenting Your Work
-
-1. **Screenshots:** All tasks in this lab require screenshots to prove successful execution. These are your primary proof of work.
-2. **Save All Images:** Save all screenshots to an `images/` folder in your `lab5` directory.
-
----
-
-## Quick Reference
-
-### Thread API (pthreads)
-
-| Function | Purpose |
-|----------|---------|
-| `pthread_create` | Spawns a new thread executing a specific function |
-| `pthread_join` | Waits for a thread to terminate |
-| `pthread_exit` | Terminates the calling thread |
-| `pthread_self` | Returns the ID of the calling thread |
-
-### Process & Thread Monitoring
-
-| Command | Purpose |
-|---------|---------|
-| `ps -eLf` | Shows all threads (LWP - Light Weight Processes) |
-| `top -H` | Shows threads individually instead of grouping by process |
-| `htop` | Interactive viewer (press `H` to toggle user threads, `K` to toggle kernel threads) |
-| `/proc/[pid]/task/` | Directory containing subdirectories for every thread belonging to a process |
-
-### Common Linux Signals
+Before continuing: Can the trace alone prove the program was race-free?
 
-| Signal | Number | Default Action | Purpose |
-|--------|--------|----------------|---------|
-| `SIGHUP` | 1 | Terminate | Hangup detected on controlling terminal |
-| `SIGINT` | 2 | Terminate | Interrupt from keyboard (`Ctrl+C`) |
-| `SIGKILL` | 9 | Terminate | Kill signal (cannot be caught or ignored) |
-| `SIGTERM` | 15 | Terminate | Termination signal (can be caught/handled) |
-
----
-
-## Task 1 — Processes vs. Threads
-
-**Scenario:** *"Before we write multithreaded code, you need to prove you understand the difference in resource sharing between a process (using `fork`) and a thread."*
-
-**Instructions:**
-
-1. Setup:
-   ```bash
-   $ mkdir -p thread_lab
-   $ cd thread_lab
-   ```
-
-2. Create a C file to demonstrate process memory separation (`process_test.c`):
-   ```c
-   #include <stdio.h>
-   #include <unistd.h>
-   #include <sys/wait.h>
-
-   int global_var = 10;
-
-   int main() {
-       pid_t pid = fork();
-
-       if (pid == 0) { // Child process
-           global_var += 20;
-           printf("Child process: global_var = %d\n", global_var);
-       } else { // Parent process
-           wait(NULL); // Wait for child to finish
-           printf("Parent process: global_var = %d\n", global_var);
-       }
-       return 0;
-   }
-   ```
-
-3. Compile and run:
-   ```bash
-   $ gcc -o process_test process_test.c
-   $ ./process_test
-   ```
-   > **Observe:** The child modifies `global_var`, but the parent's copy remains unchanged because processes do not share memory space.
-   
-   > 📸 **Required Screenshot 1:** Take a screenshot of the `process_test` execution output. Save as `process_vs_thread_1.png`.
-
-4. Create a C file to demonstrate thread memory sharing (`thread_test.c`):
-   ```c
-   #include <stdio.h>
-   #include <pthread.h>
-   #include <unistd.h>
-
-   int global_var = 10;
-
-   void* thread_func(void* arg) {
-       global_var += 20;
-       printf("Thread: global_var = %d\n", global_var);
-       return NULL;
-   }
-
-   int main() {
-       pthread_t thread;
-       pthread_create(&thread, NULL, thread_func, NULL);
-       pthread_join(thread, NULL); // Wait for thread to finish
-
-       printf("Main thread: global_var = %d\n", global_var);
-       return 0;
-   }
-   ```
-
-5. Compile and run (note the `-pthread` flag):
-   ```bash
-   $ gcc -o thread_test thread_test.c -pthread
-   $ ./thread_test
-   ```
-   > **Observe:** The thread modifies `global_var`, and the main thread sees the change because threads share the same memory space.
-
-   > 📸 **Required Screenshot 2:** Take a screenshot of the `thread_test` execution output. Save as `process_vs_thread_2.png`.
-
-6. Return to `lab5`:
-   ```bash
-   $ cd ..
-   ```
-
----
-
-## Task 2 — Thread Interaction
-
-**Scenario:** *"Now that you know threads share memory, let's create multiple threads and have them interact by passing data back and forth."*
-
-**Instructions:**
-
-1. Enter your lab directory:
-   ```bash
-   $ cd thread_lab
-   ```
-
-2. Create `multi_thread.c`:
-   ```c
-   #include <stdio.h>
-   #include <stdlib.h>
-   #include <pthread.h>
-
-   #define NUM_THREADS 3
-
-   void* worker_func(void* thread_id) {
-       long tid = (long)thread_id;
-       printf("Worker thread %ld starting...\n", tid);
-       
-       // Simulate some work
-       long result = tid * 100;
-       
-       printf("Worker thread %ld finishing. Returning %ld\n", tid, result);
-       pthread_exit((void*)result);
-   }
-
-   int main() {
-       pthread_t threads[NUM_THREADS];
-       int rc;
-       long t;
-       void* status;
-
-       for(t = 0; t < NUM_THREADS; t++) {
-           printf("Main: creating thread %ld\n", t);
-           rc = pthread_create(&threads[t], NULL, worker_func, (void*)t);
-           if (rc) {
-               printf("ERROR; return code from pthread_create() is %d\n", rc);
-               exit(-1);
-           }
-       }
-
-       // Wait for all threads to complete and collect their results
-       for(t = 0; t < NUM_THREADS; t++) {
-           rc = pthread_join(threads[t], &status);
-           if (rc) {
-               printf("ERROR; return code from pthread_join() is %d\n", rc);
-               exit(-1);
-           }
-           printf("Main: joined with thread %ld, status: %ld\n", t, (long)status);
-       }
-
-       printf("Main: program completed. Exiting.\n");
-       return 0;
-   }
-   ```
-
-3. Compile and run:
-   ```bash
-   $ gcc -o multi_thread multi_thread.c -pthread
-   $ ./multi_thread
-   ```
-
-   > 📸 **Required Screenshot 3:** Take a screenshot of the `multi_thread` execution output. Save as `thread_interaction.png`.
-
-4. Return to `lab5`:
-   ```bash
-   $ cd ..
-   ```
-
----
-
-## Task 3 — Visualizing Kernel Threads & Userspace Mapping
-
-**Scenario:** *"Linux uses a 1:1 threading model and manages background work using 'Kernel Threads'. I need you to identify the mapping between user threads and kernel threads, and understand why you can't just kill system kernel workers."*
-
-**Instructions:**
-
-1. **Visualize the 1:1 Thread Model (User to Kernel Mapping):**
-   Linux maps every user-level thread directly to one kernel-level thread (known as a Lightweight Process, or LWP). Let's visualize this mapping.
-   We will run a sleeper thread process in the background:
-   
-   Create a quick script `sleeper_threads.c` in `thread_lab`:
-   ```bash
-   $ cd thread_lab
-   $ cat << 'EOF' > sleeper_threads.c
-   #include <pthread.h>
-   #include <unistd.h>
-   void* sleep_func(void* arg) { sleep(60); return NULL; }
-   int main() {
-       pthread_t t1, t2;
-       pthread_create(&t1, NULL, sleep_func, NULL);
-       pthread_create(&t2, NULL, sleep_func, NULL);
-       sleep(60);
-       return 0;
-   }
-   EOF
-   $ gcc -o sleeper_threads sleeper_threads.c -pthread
-   ```
-
-   Run it in the background:
-   ```bash
-   $ ./sleeper_threads &
-   $ MAIN_PID=$!
-   ```
-
-   Now, use `ps -eLf` to see the threads (LWPs) associated with that PID:
-   ```bash
-   $ ps -eLf | grep $MAIN_PID
-   ```
-   > **Observe:** You will see 3 rows for the same PID. The `LWP` column shows the unique kernel thread ID assigned to the main process and its two spawned user threads.
-
-   Explore the `/proc` filesystem to see the threads directly at the kernel level:
-   ```bash
-   $ ls -l /proc/$MAIN_PID/task/
-   ```
-   > Each directory name here corresponds to an LWP (kernel thread) backing your user threads.
-   
-   > 📸 **Required Screenshot 4:** Take a screenshot showing either the `ps -eLf` output or the `/proc` task directory contents, proving the 1:1 mapping of threads. Save as `user_kernel_mapping.png`.
-
-2. **Visualizing Kernel Workers with `htop`:**
-   Kernel threads usually have a PPID (Parent Process ID) of 2 (kthreadd). They run entirely in kernel space to perform system tasks.
-   
-   Open `htop`:
-   ```bash
-   $ htop
-   ```
-   - Press `F2` -> Display options -> check "Show custom thread names" and ensure "Hide kernel threads" is **unchecked**.
-   - Press `K` to toggle kernel threads on/off.
-   - Press `H` to toggle user threads on/off.
-   
-   > 📸 **Required Screenshot 5:** Take a screenshot of `htop` showing kernel threads (look for green bracketed names or use the toggle to highlight them). Save as `htop_kernel_threads.png`.
-   
-   Exit `htop` (press `q`).
-
-3. **Attempting to interact with kernel threads:**
-   Pick a kernel thread PID from `htop` (e.g., `[kworker/...]`). Try to send a stop signal to it (replace `<PID>` with the actual PID).
-   ```bash
-   $ kill -STOP <PID>
-   ```
-   > **Note:** Even as root, interacting with kernel threads is severely restricted. They run in kernel space and are vital for system stability. You usually cannot stop, kill, or trace them like normal user processes.
-
-4. Return to `lab5`:
-   ```bash
-   $ cd ..
-   ```
-
----
-
-## Task 4 — Recall: Process Signals and Handling
-
-**Scenario:** *"In Lab 4, you learned how to send signals to manage processes from the shell. Now, we are going to dive deeper. You must understand how to write C code that actually catches those signals to perform graceful cleanup before exiting."*
-
-**Instructions:**
-
-1. Enter your lab directory:
-   ```bash
-   $ cd thread_lab
-   ```
-
-2. Create a C program that catches signals (`signal_handler.c`):
-   ```c
-   #include <stdio.h>
-   #include <stdlib.h>
-   #include <unistd.h>
-   #include <signal.h>
-
-   void sig_handler(int signo) {
-       if (signo == SIGINT) {
-           printf("\n[Signal Caught] Received SIGINT (Ctrl+C). Performing graceful shutdown...\n");
-           // Simulate cleanup
-           sleep(1);
-           printf("Cleanup complete. Exiting safely.\n");
-           exit(0);
-       } else if (signo == SIGTERM) {
-           printf("\n[Signal Caught] Received SIGTERM (kill). Saving state...\n");
-           exit(0);
-       }
-   }
-
-   int main() {
-       // Register signal handlers
-       if (signal(SIGINT, sig_handler) == SIG_ERR) {
-           printf("Cannot catch SIGINT\n");
-       }
-       if (signal(SIGTERM, sig_handler) == SIG_ERR) {
-           printf("Cannot catch SIGTERM\n");
-       }
-
-       printf("Process running with PID: %d\n", getpid());
-       printf("Try pressing Ctrl+C or sending 'kill %d' from another terminal.\n", getpid());
-       printf("Entering infinite loop...\n");
-
-       while(1) {
-           printf("Working...\n");
-           sleep(2);
-       }
-       return 0;
-   }
-   ```
-
-3. Compile the program:
-   ```bash
-   $ gcc -o signal_handler signal_handler.c
-   ```
-
-4. **Test SIGINT (Ctrl+C):**
-   Run the program, wait a few seconds, then press `Ctrl+C`.
-   ```bash
-   $ ./signal_handler
-   ```
-   > 📸 **Required Screenshot 6:** Take a screenshot showing the output when you press `Ctrl+C` and the program gracefully catches `SIGINT`. Save as `signal_sigint.png`.
-
-5. **Test SIGTERM (kill):**
-   Run the program in the background:
-   ```bash
-   $ ./signal_handler &
-   $ HANDLER_PID=$!
-   ```
-   Send the `SIGTERM` signal:
-   ```bash
-   $ kill -SIGTERM $HANDLER_PID
-   ```
-   Check that it exited gracefully.
-
-6. **Test SIGKILL (kill -9):**
-   `SIGKILL` cannot be caught or ignored. Let's prove it.
-   Modify `signal_handler.c` to try and catch `SIGKILL` by adding:
-   ```c
-       if (signal(SIGKILL, sig_handler) == SIG_ERR) {
-           printf("Warning: Cannot catch SIGKILL\n");
-       }
-   ```
-   Compile and run:
-   ```bash
-   $ gcc -o signal_handler signal_handler.c
-   $ ./signal_handler &
-   $ kill -9 $!
-   ```
-   > You will see the warning that `SIGKILL` cannot be caught, and the process will be instantly killed when `kill -9` is issued without executing your cleanup block.
-
-7. Return to `lab5`:
-   ```bash
-   $ cd ..
-   ```
-
----
-
-## 🧩 Challenge — Multithreading with Signals
-
-**Task:** Create a C program named `challenge.c` in `thread_lab` that combines threads and signals. 
-1. The main program should set up a signal handler for `SIGINT` (`Ctrl+C`).
-2. It should spawn **two** worker threads that continuously print their thread ID and sleep for 1 second in an infinite loop.
-3. When `SIGINT` is received, the signal handler should set a global flag `keep_running = 0`.
-4. The worker threads should check this flag in their loop. If `0`, they should `pthread_exit`.
-5. The main thread should `pthread_join` both threads and then print `"All threads cleanly exited. Goodbye."` before terminating.
-
-Compile it and run it. Press `Ctrl+C` to watch it shut down gracefully.
-> 📸 **Required Screenshot 7:** Take a screenshot of your `challenge.c` execution shutting down gracefully after receiving `Ctrl+C`. Save as `challenge_shutdown.png`.
-
----
-
-## Final Submission
-
-### Required Folder Structure
-
-```
-os-se-<YourStudentID>/
-└── os-lab-<YourStudentID>/
-    └── lab5/
-        ├── README.md                   ← Your documentation
-        ├── thread_lab/
-        │   ├── process_test.c
-        │   ├── thread_test.c
-        │   ├── multi_thread.c
-        │   ├── sleeper_threads.c
-        │   ├── signal_handler.c
-        │   └── challenge.c
-        └── images/
-            ├── process_vs_thread_1.png
-            ├── process_vs_thread_2.png
-            ├── thread_interaction.png
-            ├── user_kernel_mapping.png
-            ├── htop_kernel_threads.png
-            ├── signal_sigint.png
-            └── challenge_shutdown.png
-```
-
-### Git Push
-
-```bash
-$ cd ~/os-se-<YourStudentID>
-$ git add .
-$ git commit -m "Lab 5: Threads, Kernel Workers & Signals"
-$ git push origin main
-```
+## Prediction (25–35)
+
+On paper or the existing course worksheet, write the expected result **and why** before executing the investigation. Keep the original sentence visible; later add a correction beneath it. Initial accuracy is lightly weighted; an evidence-based correction earns credit.
+
+**Predict:** If main returns before joining a worker, must the worker's final print appear? Why?
+
+Spend at most five minutes comparing reasoning with a neighbour if one is available; otherwise compare against the guided example. Your written prediction remains your own.
+
+## Individual investigation (35–70)
+
+**Starting state:** `~/oslab-work/lab5` after `oslab start lab5`. **Goal:** Use the provided trace to mark overlapping steps; write a minimal pthread program with two workers and joins in your workspace, and compare observed order to your prediction. Explain why joins ensure completion but do not protect a shared counter.
+
+Use `threads/starter.c`; compile with `gcc -Wall -Wextra -pthread threads/starter.c -o threads/demo`. Keep the TODO as your own decision point.
+
+**Suggested sequence:** Read the trace and mark where workers overlap. Compile the starter, run it, then add a join for each created worker. Explain separately what would need a mutex if both changed one counter.
+
+**Boundaries and editable files:** Compile and run only your own code, without elevated privileges. Set bounded loop counts and a 10-second timeout. Create or edit only files in your owned workspace and your own submission directory. Treat supplied fixture files as data unless the task asks you to change a copy. Completion means you can show the intended behaviour and explain the mechanism, even if you reached it by a different valid command.
+
+You may use AI during investigation and testing. Ask it for a hypothesis or alternative command, then inspect the command, test it on owned data, and take responsibility for the result. AI is optional; the example, three hints below, manual pages and lecture notes are enough. Record at most one useful suggestion and how you verified it. Do not submit chat history.
+
+## Test, interpret, and explain (70–85)
+
+Run a normal case and a changed loop count; verify both workers finish. A successful run does not prove race absence.
+
+For two selected tests, record: **claim**, **result that would contradict it**, **observed result**, and **what remains unproven**. `oslab check lab5` gives public fixture feedback only; it is not grading and cannot establish your understanding. Save concise terminal text rather than repetitive screenshots.
+
+## Individual changed-case checkpoint (85–100)
+
+Close AI and peer help. The instructor gives this question on paper or via the existing course mechanism; answer in short structured form even if your earlier build is incomplete:
+
+> Main joins only worker A. Can worker B's result be safely read? Explain the minimal change.
+
+State the result, reason, and one observation or command that could check it. Keep this answer separate from your investigation notes until collection.
+
+## Correction, cleanup, and submission (100–120)
+
+Compare prediction with evidence and preserve both original and corrected versions. Explain the OS concept in 3–5 sentences. Save your script or command transcript, two selected test records, and a short `README.md` using [the shared report template](../REPORT-TEMPLATE.md). If you used AI, add one sentence about a verified suggestion. Use `oslab status lab5` and leave the workspace for review; `oslab clean lab5` removes only the managed working copy after you have saved your submission. Never run reset or clean on another student's account.
+
+The rubric totals 10 points: working behaviour 3, tests/diagnosis 2, conceptual explanation and corrected prediction 2, independent checkpoint 2, concise evidence 1. Equivalent valid solutions earn credit. The checkpoint is assessed separately from AI-assisted work.
+
+## Progressive help and troubleshooting
+
+1. Concept: Separate completion from mutual exclusion
+2. Observation: inspect `pthread_create` return values
+3. Partial approach: join each created thread.
+
+If `oslab` is missing, check `command -v oslab` and ask for the published script path. If a tool is absent, use the stated fallback or consult the instructor; do not install system packages yourself. If permissions fail, inspect ownership and parent directory traversal in your own workspace. If a process or cron observation is late, use a bounded repeat and record the limit.
+
+**Reference:** [Week 4 notes](../../lectures/notes/week04-threads-multicore.md) and `man pthread_join`. Read the relevant example or manual section when you need a command; you do not need a paid AI account.
+
+## Optional extensions
+
+Kernel worker observation with `ps`; owned-process signals; compare processes and threads using `/proc`. See [extension tasks](extensions.md) for concrete follow-up work. These extensions are for additional practice after the required route, using only environments and permissions stated above. They are not required for the 120-minute submission.

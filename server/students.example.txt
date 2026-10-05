@@ -1,0 +1,2 @@
+# One existing Ubuntu account per line; no guessed prefixes.
+# Replace with the actual class allowlist before running --apply.

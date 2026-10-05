@@ -6,3 +6,6 @@ moodle-qbanks/
 Bash Script 2*
 labs/lab10/check_cron_tasks.sh
 exam/
+__pycache__/
+*.pyc
+OS_Labs_Revision_Codex_Prompt.md

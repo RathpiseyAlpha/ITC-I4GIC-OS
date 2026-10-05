@@ -2,8 +2,9 @@
 // Fetches the actual file structure from GitHub instead of a hardcoded manifest.
 
 const GitHubAPI = (function () {
-    const CACHE_KEY = 'itc-os-repo-tree-v4';
-    const CACHE_TS_KEY = 'itc-os-repo-tree-ts-v4';
+    const repoIdentity = [CONFIG.github.owner, CONFIG.github.repo, CONFIG.github.branch].join('/');
+    const CACHE_KEY = 'itc-os-repo-tree-v5-' + repoIdentity;
+    const CACHE_TS_KEY = 'itc-os-repo-tree-ts-v5-' + repoIdentity;
 
     // Top-level entries hidden from the file browser (tooling/config/app source).
     const HIDDEN_TOP = ['.claude', '.github', '.vscode', 'app', '.gitignore', '.nojekyll'];
@@ -37,7 +38,11 @@ const GitHubAPI = (function () {
         "lectures/notes/week01-introduction-to-os.md", "lectures/notes/week02-os-structures-interfaces.md", "lectures/notes/week03-processes.md", "lectures/notes/week04-threads-multicore.md", "lectures/notes/week05-cpu-scheduling-1.md", "lectures/notes/week06-cpu-scheduling-2.md",
         "lectures/notes/week07-critical-sections.md", "lectures/notes/week08-semaphores-sync.md", "lectures/notes/week09-deadlocks.md", "lectures/notes/week10-memory-management.md", "lectures/notes/week11-virtual-memory.md", "lectures/notes/week12-file-systems.md",
         "lectures/visualizations/README.md", "lectures/visualizations/bankers-algorithm.html", "lectures/visualizations/deadlock-detection.html", "lectures/visualizations/index.html", "lectures/visualizations/rag-deadlock.html", "tools/create-2026-expanded-qbank.ps1",
-        "tools/fix-linux-tree-prompts.ps1", "tools/preview-moodle-qbank.ps1", "tools/revise-linux-qbank-and-add-lecture-short.ps1"
+        "tools/fix-linux-tree-prompts.ps1", "tools/preview-moodle-qbank.ps1", "tools/revise-linux-qbank-and-add-lecture-short.ps1",
+        "labs/REPORT-TEMPLATE.md", "labs/lab10/README.md", "labs/lab10/lab10-instruction.md", "labs/lab11/README.md", "labs/lab11/lab11-instruction.md",
+        "server/RUNBOOK.md", "server/oslab.py", "server/lab10_cron.py", "teaching/REVISION-AUDIT.md", "teaching/IMPLEMENTATION-PLAN.md", "teaching/VALIDATION.md",
+        "labs/lab1/extensions.md", "labs/lab2/extensions.md", "labs/lab3/extensions.md", "labs/lab4/extensions.md", "labs/lab5/extensions.md", "labs/lab6/extensions.md",
+        "labs/lab7/extensions.md", "labs/lab8/extensions.md", "labs/lab9/extensions.md", "labs/lab10/extensions.md", "labs/lab11/extensions.md"
     ];
 
     // Persisted cache (localStorage so it survives reloads/new tabs, unlike sessionStorage).

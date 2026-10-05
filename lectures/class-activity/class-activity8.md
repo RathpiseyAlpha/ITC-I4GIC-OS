@@ -17,11 +17,11 @@ A coding-only task proves little — an AI can write a page-table translator or 
 
 Use these to **verify** your hand-work — after you have traced it yourself, not before:
 
-- **Paging & Address Translation** (Part 1A / 1C): [open live](https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/paging-translation.html) · [source](../visualizations/paging-translation.html)
-- **TLB (Translation Look-Aside Buffer)** (Part 1B): [open live](https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/tlb.html) · [source](../visualizations/tlb.html)
-- **Effective Access Time (EAT)** (Part 1B — why the TLB matters): [open live](https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/eat-calculator.html) · [source](../visualizations/eat-calculator.html)
-- **Page Replacement — FIFO / LRU / OPT** (Part 2A / 2B, incl. Belady's anomaly): [open live](https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/page-replacement.html) · [source](../visualizations/page-replacement.html)
-- **Contiguous Allocation & Fit Algorithms** (external fragmentation, Part 3 Q1): [open live](https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/contiguous-allocation.html) · [source](../visualizations/contiguous-allocation.html)
+- **Paging & Address Translation** (Part 1A / 1C): [HTML file](../visualizations/paging-translation.html)
+- **TLB (Translation Look-Aside Buffer)** (Part 1B): [HTML file](../visualizations/tlb.html)
+- **Effective Access Time (EAT)** (Part 1B — why the TLB matters): [HTML file](../visualizations/eat-calculator.html)
+- **Page Replacement — FIFO / LRU / OPT** (Part 2A / 2B, incl. Belady's anomaly): [HTML file](../visualizations/page-replacement.html)
+- **Contiguous Allocation & Fit Algorithms** (external fragmentation, Part 3 Q1): [HTML file](../visualizations/contiguous-allocation.html)
 
 Each has a **Build your own** mode — plug in your personalized address, reference string, and TLB hit ratio to check your traces. See [visualizations/README.md](../visualizations/README.md) for GitHub Pages links and offline use.
 

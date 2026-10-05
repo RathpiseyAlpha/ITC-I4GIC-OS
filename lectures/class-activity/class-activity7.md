@@ -17,9 +17,9 @@ You could ask an AI to write a deadlock detector or a Banker's Algorithm impleme
 
 ## 🎬 Interactive Visualizations (your checking tools)
 
-- **Resource Allocation Graph** (single-instance): [open live](https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/rag-deadlock.html) · [source](../visualizations/rag-deadlock.html)
-- **Banker's Algorithm**: [open live](https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/bankers-algorithm.html) · [source](../visualizations/bankers-algorithm.html)
-- **Multi-Instance Deadlock Detection**: [open live](https://htmlpreview.github.io/?https://github.com/RathpiseyAlpha/ITC-OS-2026/blob/main/lectures/visualizations/deadlock-detection.html) · [source](../visualizations/deadlock-detection.html)
+- **Resource Allocation Graph** (single-instance): [HTML file](../visualizations/rag-deadlock.html)
+- **Banker's Algorithm**: [HTML file](../visualizations/bankers-algorithm.html)
+- **Multi-Instance Deadlock Detection**: [HTML file](../visualizations/deadlock-detection.html)
 
 See [visualizations/README.md](../visualizations/README.md) for the GitHub Pages links and offline use.
 
