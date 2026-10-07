@@ -10,6 +10,7 @@ __pycache__/
 *.pyc
 OS_Labs_Revision_Codex_Prompt.md
 students.md
+EXAM-BRIEFING.md
 GIC_Course Spec_OS.pdf
 app/server/roster.json
 app/server/deadlines.json

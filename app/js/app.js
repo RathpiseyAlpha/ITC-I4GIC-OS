@@ -245,6 +245,9 @@
     var authRole = sessionStorage.getItem('authRole') || '';
     var authUser = sessionStorage.getItem('authUser') || '';
 
+    // The final exam screen is shown only when it is switched on in config.js.
+    var examEnabled = !!(CONFIG.features && CONFIG.features.finalExam);
+
     function serverUrl() {
         return (CONFIG.server && CONFIG.server.url) ? CONFIG.server.url.replace(/\/+$/, '') : '';
     }
@@ -262,7 +265,7 @@
         if (gradesNav) gradesNav.style.display = (role === 'user') ? '' : 'none';
         // Show final-exam nav for any authenticated user (student or admin)
         var examNav = document.getElementById('exam-nav');
-        if (examNav) examNav.style.display = (role === 'user' || role === 'admin') ? '' : 'none';
+        if (examNav) examNav.style.display = (examEnabled && (role === 'user' || role === 'admin')) ? '' : 'none';
         updatePresenceVisibility();
     }
 
@@ -289,7 +292,7 @@
         var gradesNav = document.getElementById('grades-nav');
         if (gradesNav) gradesNav.style.display = '';
     }
-    if (authRole === 'admin' || authRole === 'user') {
+    if (examEnabled && (authRole === 'admin' || authRole === 'user')) {
         var examNavR = document.getElementById('exam-nav');
         if (examNavR) examNavR.style.display = '';
     }
@@ -3702,7 +3705,8 @@
         } else if (hash === 'grades') {
             renderStudentGrades();
         } else if (hash === 'exam') {
-            renderExam();
+            if (examEnabled) renderExam();
+            else window.location.hash = 'browse';
         } else if (hash.startsWith('browse/') || hash === 'browse') {
             var path = hash === 'browse' ? '' : hash.slice(7);
             renderExplorer(path);
