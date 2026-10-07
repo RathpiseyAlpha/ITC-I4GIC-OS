@@ -12,7 +12,8 @@ Usage:
 """
 
 import argparse
-import crypt as _crypt  # type: ignore[deprecated]
+import ctypes
+import ctypes.util
 import json
 import math
 import os
@@ -31,6 +32,24 @@ from flask_cors import CORS
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="crypt")
 
+# Python 3.13 removed the `crypt` module; call the system libcrypt directly.
+# It understands every hash scheme in /etc/shadow, including yescrypt.
+try:
+    import crypt as _crypt_module  # type: ignore[deprecated]
+    _crypt_hash = _crypt_module.crypt
+except ImportError:
+    _libcrypt = ctypes.CDLL(ctypes.util.find_library("crypt") or "libcrypt.so.1")
+    _libcrypt.crypt.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    _libcrypt.crypt.restype = ctypes.c_char_p
+    _crypt_lock = threading.Lock()  # crypt(3) returns a static buffer
+
+    def _crypt_hash(password, stored):
+        with _crypt_lock:
+            result = _libcrypt.crypt(
+                password.encode("utf-8"), stored.encode("utf-8")
+            )
+            return result.decode("utf-8") if result else None
+
 # Phnom Penh is UTC+7
 _PPH = timezone(timedelta(hours=7))
 
@@ -39,7 +58,12 @@ _PPH = timezone(timedelta(hours=7))
 CORS_ORIGIN = "*"
 POLL_CACHE_SEC = 5
 WEB_STALE_SEC = 20
-ADMIN_USERS = ["rathpisey"]
+# Comma-separated Linux accounts that see the admin tabs.
+ADMIN_USERS = [
+    name.strip()
+    for name in os.environ.get("ITC_OS_ADMINS", "rathpisey").split(",")
+    if name.strip()
+]
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_WINDOW_SEC = 60
 SESSION_TIMEOUT_SEC = 3600  # 1 hour
@@ -85,39 +109,32 @@ def _debug_log(*parts):
 
 # ── Student Roster ─────────────────────────────────────────────
 
-STUDENTS = {
-    "p20240032": {"name": "CHEA SEAVHONG", "user": "se-chea-seavhong"},
-    "p20240007": {"name": "CHHENG KIMTER", "user": "se-chheng-kimter"},
-    "p20240044": {"name": "CHHENG SOKUNTHEARY", "user": "se-chheng-sokuntheary"},
-    "p20240050": {"name": "CHHI LAYHORNG", "user": "se-chhi-layhorng"},
-    "p20240024": {"name": "CHIN MENGHONG", "user": "se-chin-menghong"},
-    "p20240019": {"name": "CHIV INTHERA", "user": "se-chiv-inthera"},
-    "p20240067": {"name": "CHUM KIMCHHUN", "user": "se-chum-kimchhun"},
-    "p20250002": {"name": "DARA PANHASETH", "user": "se-dara-panhaseth"},
-    "p20240009": {"name": "EANG MENGLY", "user": "se-eang-mengly"},
-    "p20240002": {"name": "HAI MONYOUDOM", "user": "se-hai-monyoudom"},
-    "p20230043": {"name": "HEN CHHORDAVATTEY", "user": "se-hen-chhordavattey"},
-    "p20240001": {"name": "KIV SOVANNLYDA", "user": "se-kiv-sovannlyda"},
-    "p20240063": {"name": "KONG SOPHANHA", "user": "se-kong-sophanha"},
-    "p20240034": {"name": "LOR HENGRITH", "user": "se-lor-hengrith"},
-    "p20240013": {"name": "MI SORAKMONY", "user": "se-mi-sorakmony"},
-    "p20240058": {"name": "NHEM PHADA", "user": "se-nhem-phada"},
-    "p20240033": {"name": "OUK PUTHIRITH", "user": "se-ouk-puthirith"},
-    "p20240047": {"name": "PAV RATANA", "user": "se-pav-ratana"},
-    "p20240045": {"name": "PI SEREYVATHANAK", "user": "se-pi-sereyvathanak"},
-    "p20240004": {"name": "PICH CHANVATANAK", "user": "se-pich-chanvatanak"},
-    "p20240041": {"name": "PONG MENGHEANG", "user": "se-pong-mengheang"},
-    "p20240043": {"name": "RASMEY RITHYSAK", "user": "se-rasmey-rithysak"},
-    "p20240038": {"name": "RITH CHANKOLBOTH", "user": "se-rith-chankolboth"},
-    "p20240003": {"name": "SAO DALI INACO", "user": "se-sao-dali-inaco"},
-    "p20240012": {"name": "SATHYA POCH", "user": "se-sathya-poch"},
-    "p20240046": {"name": "SONG PHENGROTH", "user": "se-song-phengroth"},
-    "p20240023": {"name": "SUON CARO", "user": "se-suon-caro"},
-    "p20240057": {"name": "TEK RITHIREACH", "user": "se-tek-rithireach"},
-    "p20240055": {"name": "THAI MONIKA", "user": "se-thai-monika"},
-    "p20240035": {"name": "THENG VAN HENG", "user": "se-theng-van-heng"},
-    "p20240017": {"name": "THO PAGNASAKAL", "user": "se-tho-pagnasakal"},
-}
+# The roster holds student names, so it lives in a file that is not in git.
+# Copy roster.example.json to roster.json on the server and fill it in.
+_ROSTER_FILE = Path(
+    os.environ.get(
+        "ITC_OS_ROSTER", str(Path(__file__).resolve().parent / "roster.json")
+    )
+)
+
+
+def _load_roster():
+    """Return {student id: {"name": ..., "user": linux account}}; empty if missing."""
+    try:
+        with open(_ROSTER_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        print("[roster] not loaded from", _ROSTER_FILE, "-", exc, flush=True)
+        return {}
+    roster = {}
+    for sid, info in data.items() if isinstance(data, dict) else []:
+        if isinstance(info, dict) and info.get("user") and info.get("name"):
+            roster[str(sid)] = {"name": str(info["name"]), "user": str(info["user"])}
+    print("[roster]", len(roster), "students from", _ROSTER_FILE, flush=True)
+    return roster
+
+
+STUDENTS = _load_roster()
 
 _USER_TO_SID = {v["user"]: k for k, v in STUDENTS.items()}
 
@@ -215,9 +232,8 @@ def verify_password(username, password):
         stored = fields[1]
         if stored in ("!", "*", "!!", "", "x"):
             return False
-        return secrets.compare_digest(
-            _crypt.crypt(password, stored), stored  # type: ignore
-        )
+        computed = _crypt_hash(password, stored)
+        return bool(computed) and secrets.compare_digest(computed, stored)
     except Exception:
         return False
 
@@ -480,212 +496,107 @@ def get_recent_logins(count=20):
 
 # ── Lab Grading Engine ─────────────────────────────────────────
 
+# Required files of each lab's submission tree (see the lab instruction's Submit section).
+# This measures what was handed in, not whether it is correct.
 LAB_SPECS = {
     "lab1": {
         "total_points": 100,
         "files": [
             "README.md",
-            "task1_os_info.txt",
-            "task2_file_commands.txt",
-            "task3_apt_update.txt",
-            "task3_apt_install.txt",
-            "task3_verify_install.txt",
-            "task3_apt_remove.txt",
-            "task3_config_after_remove.txt",
-            "task3_apt_purge.txt",
-            "task3_config_after_purge.txt",
-            "task4_process_list.txt",
-            "task5_app_verify.txt",
-            "task5_multitasking.txt",
-            "task6_virtualization_check.txt",
+            "evidence/os-info.txt",
+            "evidence/processes.txt",
+            "evidence/answers.txt",
+            "evidence/timing.txt",
         ],
-        "dirs": ["task2_files", "images"],
+        "dirs": ["evidence"],
     },
     "lab2": {
         "total_points": 100,
         "files": [
             "README.md",
-            "task1_basic_navigation.txt",
-            "task2_filesystem_exploration.txt",
-            "task3_directory_structure.txt",
-            "task4_navigation_paths.txt",
-            "task5_file_organization.txt",
-            "task6_advanced_listing.txt",
+            "evidence/paths.txt",
+            "evidence/tree.txt",
         ],
-        "dirs": [
-            "images",
-            "techcorp",
-            "techcorp/hr",
-            "techcorp/hr/policies",
-            "techcorp/hr/onboarding",
-            "techcorp/engineering",
-            "techcorp/engineering/frontend",
-            "techcorp/engineering/backend",
-            "techcorp/engineering/devops",
-            "techcorp/marketing",
-            "techcorp/marketing/campaigns",
-            "techcorp/marketing/assets",
-        ],
+        "dirs": ["evidence"],
     },
     "lab3": {
         "total_points": 100,
         "files": [
             "README.md",
-            "task1_wildcards.txt",
-            "task2_links.txt",
-            "task3_grub.txt",
-            "task4_shared_objects.txt",
-            "task5_shared_library.txt",
-            "task_history.txt",
+            "evidence/links.txt",
+            "evidence/replacement.txt",
         ],
-        "dirs": [
-            "images",
-            "wildcard_lab",
-            "csv_archive",
-            "links_lab",
-            "shared_lib_lab",
-        ],
+        "dirs": ["evidence"],
     },
     "lab4": {
         "total_points": 100,
         "files": [
             "README.md",
-            "task1_redirection.txt",
-            "task2_pipelines.txt",
-            "task3_analysis.txt",
-            "task4_processes.txt",
-            "task5_orphan_zombie.txt",
-            "orphan.c",
-            "zombie.c",
-            "access.log",
+            "report.sh",
+            "evidence/normal.txt",
+            "evidence/edge.txt",
         ],
-        "dirs": ["images", "redirect_lab"],
+        "dirs": ["evidence"],
     },
     "lab5": {
         "total_points": 100,
         "files": [
             "README.md",
-            "thread_lab/process_test.c",
-            "thread_lab/thread_test.c",
-            "thread_lab/multi_thread.c",
-            "thread_lab/sleeper_threads.c",
-            "thread_lab/signal_handler.c",
-            "thread_lab/challenge.c",
-            "images/process_vs_thread_1.png",
-            "images/process_vs_thread_2.png",
-            "images/thread_interaction.png",
-            "images/user_kernel_mapping.png",
-            "images/htop_kernel_threads.png",
-            "images/signal_sigint.png",
-            "images/challenge_shutdown.png",
+            "two_workers.c",
+            "evidence/normal.txt",
+            "evidence/changed.txt",
         ],
-        "dirs": ["images", "thread_lab"],
+        "dirs": ["evidence"],
     },
     "lab6": {
         "total_points": 100,
         "files": [
             "README.md",
-            "task1_users.txt",
-            "task2_groups.txt",
-            "task3_permissions.txt",
-            "task3_stat_output.txt",
-            "task4_special_bits.txt",
-            "task5_acl.txt",
-            "security_lab/whoami_suid.c",
-            "images/task1_user_creation.png",
-            "images/task1_user_modify.png",
-            "images/task2_group_setup.png",
-            "images/task2_multi_group.png",
-            "images/task3_dir_permissions.png",
-            "images/task3_access_denied.png",
-            "images/task4_setgid.png",
-            "images/task4_sticky_bit.png",
-            "images/task4_setuid.png",
-            "images/task5_acl_dir.png",
-            "images/task5_acl_test.png",
-            "images/task5_acl_output.png",
+            "evidence/policy.txt",
+            "evidence/traversal.txt",
         ],
-        "dirs": ["images", "security_lab"],
+        "dirs": ["evidence"],
     },
     "lab7": {
         "total_points": 100,
         "files": [
             "README.md",
-            "task1_warmup.txt",
-            "task2_path.txt",
-            "task3_doorstep.txt",
-            "task4_inbox.txt",
-            "task5_broadcaster.txt",
-            "task6_guestbook.txt",
-            "harvest_report.txt",
-            "task8_mailman.txt",
-            "sign_book.c",
-            "scripts/warmup",
-            "scripts/broadcaster",
-            "scripts/harvester",
-            "scripts/mailman",
-            "scripts/sign_book_binary",
-            "images/task1_warmup.png",
-            "images/task2_path.png",
-            "images/task3_doorstep.png",
-            "images/task4_inbox.png",
-            "images/task5_broadcaster.png",
-            "images/task6_guestbook.png",
-            "images/task7_harvester.png",
-            "images/task8_mailman.png",
+            "count_words.sh",
+            "evidence/normal.txt",
+            "evidence/edge.txt",
         ],
-        "dirs": ["images", "scripts"],
+        "dirs": ["evidence"],
     },
     "lab8": {
         "total_points": 100,
         "files": [
             "README.md",
-            "observations.txt",
-            "task0_warmup.txt",
-            "task1_validation.txt",
-            "task2_audit.txt",
-            "task4_mutex.txt",
-            "task5_red_blue.txt",
-            "task6_dropzone.txt",
-            "task7_cleanup.txt",
-            "scripts/arg_viewer",
-            "scripts/quantum_probe",
-            "scripts/buy_widget",
-            "scripts/bot_swarm",
-            "scripts/create_dropzone",
-            "scripts/cleanup",
-            "images/level0_warmup.png",
-            "images/level2_audit.png",
-            "images/level4_mutex.png",
-            "images/level5_red_blue.png",
-            "images/level6_dropzone.png",
-            "images/level7_cleanup.png",
+            "buy.sh",
+            "evidence/trace.txt",
+            "evidence/race.txt",
+            "evidence/locked.txt",
         ],
-        "dirs": ["images", "scripts"],
+        "dirs": ["evidence"],
     },
     "lab9": {
         "total_points": 100,
         "files": [
             "README.md",
-            "task1_vaults.txt",
-            "task2_sync_scripts.txt",
-            "task3_local_deadlock.txt",
-            "task4_cross_deadlock.txt",
-            "task5_ordering_patch.txt",
-            "task6_timeout_recovery.txt",
-            "task7_teardown.txt",
-            "scripts/sync_up",
-            "scripts/sync_down",
-            "scripts/sync_timeout",
-            "scripts/teardown",
-            "images/level1_vaults.png",
-            "images/level3_local_deadlock.png",
-            "images/level4_cross_deadlock.png",
-            "images/level5_ordering_patch.png",
-            "images/level6_timeout_recovery.png",
-            "images/level7_teardown.png",
+            "worker.sh",
+            "evidence/opposite.txt",
+            "evidence/ordered.txt",
         ],
-        "dirs": ["images", "scripts"],
+        "dirs": ["evidence"],
+    },
+    "lab10": {
+        "total_points": 100,
+        "files": [
+            "README.md",
+            "backup.sh",
+            "evidence/restore.txt",
+            "evidence/automation.txt",
+        ],
+        "dirs": ["evidence"],
     },
 }
 

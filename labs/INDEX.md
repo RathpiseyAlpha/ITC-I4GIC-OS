@@ -1,6 +1,6 @@
 # Lab index
 
-Start with [environment setup](SETUP.md). Every route has a 120-minute individual core, objectives, guided commands, starting/submission trees and a topic rubric. Lab 11 is optional bonus work.
+Start with [environment setup](SETUP.md). Every route has a 120-minute individual core, objectives, guided commands, starting/submission trees and a topic rubric. Labs 1, 2 and 8 use the pilot format (personal values, Core / Plus / Challenge, live checkpoint). Lab 11 is optional bonus work.
 
 | Lab | Original topic title | Student files | Instructor preparation |
 |---|---|---|---|

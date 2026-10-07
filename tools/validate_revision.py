@@ -5,6 +5,8 @@ from build_lab_revision import index
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = [(0, 10), (10, 25), (25, 35), (35, 70), (70, 85), (85, 100), (100, 110), (110, 120)]
+# A lab opts in to the pilot format with this row in its metadata table.
+PILOT = "| Lab format | Pilot"
 
 
 def require(condition, message):
@@ -23,6 +25,15 @@ def links(file):
         require(path.exists(), f"Missing link: {file.relative_to(ROOT)} -> {target}")
 
 
+def timetable(file):
+    return [(int(a), int(b)) for a, b in re.findall(r"^\| (\d+)–(\d+) \|", file.read_text(encoding="utf-8"), re.M)]
+
+
+def rubric(file):
+    return [int(x) for x in re.findall(r"^\| [^\n|]+ \| ([1-3]) \|$", file.read_text(encoding="utf-8"), re.M)]
+
+
+pilots = []
 for number in range(1, 12):
     lab = ROOT / "labs" / f"lab{number}"
     student = lab / f"lab{number}-instruction.md"
@@ -34,25 +45,40 @@ for number in range(1, 12):
         text = file.read_text(encoding="utf-8")
         require("shared Ubuntu account" not in text, f"Ambiguous account wording: {file}")
     text = student.read_text(encoding="utf-8")
-    for label in ("## Lab Objectives", "## Lab Setup", "## Prediction", "Guided", "Example", "## Individual Changed-case Checkpoint", "## Cleanup and Final Submission", "## Grading Criteria"):
-        require(label in text, f"Missing {label}: {student}")
-    require(re.search(r"^## .*Tests.*\(70–85\)", text, re.M), f"Missing test/feedback section: {student}")
-    objectives = text.split("## Lab Objectives", 1)[1].split("**Extension objectives:**", 1)[0]
+    objectives = text.split("## Lab Objectives", 1)[1].split("\n## ", 1)[0].split("**Extension objectives:**", 1)[0]
     require(len(re.findall(r"^\d+\. ", objectives, re.M)) == 3, f"Expected three core objectives: {student}")
     require(f'cd "$OSLAB_WORKSPACE/lab{number}"' in text, f"Missing explicit workspace cd: {student}")
     require(len(re.findall(r"^\s*```text$", text, re.M)) >= 2, f"Missing starting/submission trees: {student}")
     require("120 minutes" in text, f"Missing duration: {student}")
     require("3 Hours" not in text and "2026-06" not in text, f"Stale duration/date: {student}")
-    for file in (student, instructor):
-        value = file.read_text(encoding="utf-8")
-        spans = [(int(a), int(b)) for a, b in re.findall(r"^\| (\d+)–(\d+) \|", value, re.M)]
-        require(spans == EXPECTED and sum(b-a for a,b in spans) == 120, f"Bad timetable: {file}")
-        points = [int(x) for x in re.findall(r"^\| [^\n|]+ \| ([1-3]) \|$", value, re.M)]
-        require(points == [3, 2, 2, 2, 1] and sum(points) == 10, f"Bad rubric: {file}: {points}")
     plan = instructor.read_text(encoding="utf-8")
     require("Public repository notice" in plan and "private" in plan and "Key:" in plan, f"Missing public-key/private-variant notice: {instructor}")
+    if PILOT in text:
+        pilots.append(number)
+        for label in ("## Before the Lab", "## Timetable", "## Prediction", "## Core 1", "## Plus", "## Challenge",
+                      "## Live Checkpoint", "## Debrief", "## Submit", "## Grading Criteria"):
+            require(label in text, f"Missing {label}: {student}")
+        for command in ("prelab", "values", "predict", "check", "checkpoint"):
+            require(f"oslab {command} lab{number}" in text, f"Missing oslab {command}: {student}")
+        spans = timetable(student)
+        contiguous = all(a < b for a, b in spans) and all(spans[i][1] == spans[i + 1][0] for i in range(len(spans) - 1))
+        require(spans and spans[0][0] == 0 and spans[-1][1] == 120 and contiguous, f"Bad timetable: {student}")
+        require(timetable(instructor) == spans, f"Instructor timetable differs from the student one: {instructor}")
+        require("oslab-teach" in plan, f"Missing board instructions: {instructor}")
+        for file in (student, instructor):
+            require(rubric(file) == [2, 2, 2, 3, 1], f"Bad rubric: {file}: {rubric(file)}")
+        continue
+    for label in ("## Lab Setup", "## Prediction", "Guided", "Example", "## Individual Changed-case Checkpoint", "## Cleanup and Final Submission", "## Grading Criteria"):
+        require(label in text, f"Missing {label}: {student}")
+    require(re.search(r"^## .*Tests.*\(70–85\)", text, re.M), f"Missing test/feedback section: {student}")
+    for file in (student, instructor):
+        spans = timetable(file)
+        require(spans == EXPECTED and sum(b-a for a,b in spans) == 120, f"Bad timetable: {file}")
+        require(rubric(file) == [3, 2, 2, 2, 1], f"Bad rubric: {file}: {rubric(file)}")
 
-for file in (ROOT / "labs/SETUP.md", ROOT / "labs/INDEX.md", ROOT / "README.md", ROOT / "labs/REPORT-TEMPLATE.md"):
+for file in (ROOT / "labs/SETUP.md", ROOT / "labs/INDEX.md", ROOT / "README.md", ROOT / "labs/REPORT-TEMPLATE.md",
+             ROOT / "teaching/ROADMAP.md"):
     links(file)
 require((ROOT / "labs/INDEX.md").read_text(encoding="utf-8") == index(), "Lab index is stale")
-print("11 authored routes: objectives, setup, file trees, exact 120-minute timetables, 10-point rubrics, public keys and local links PASS")
+print(f"11 authored routes ({len(pilots)} in the pilot format: labs {pilots}): objectives, setup, file trees, "
+      "120-minute timetables, 10-point rubrics, public keys and local links PASS")

@@ -11,7 +11,7 @@ Use your individual account on the shared Ubuntu server for unprivileged tasks. 
 
 1. Inspect names/permissions with `ls -ld / /etc /var /tmp /usr /home` and `pwd`. Do not recursively read private files.
 2. Use `ls /etc | head -n 10` and `ls /usr/bin | head -n 10`. Explain configuration versus executables; a filename alone does not establish a file's contents.
-3. From your own lab root, write an absolute and a relative path to `TechCorp/Finance`. Test both using `ls -ld -- PATH`, replacing `PATH` with each quoted path.
+3. From your own lab root, write an absolute and a relative path to your owner department under `TechCorp/` (`oslab values lab2`). Test both using `ls -ld -- PATH`, replacing `PATH` with each quoted path.
 
 ## B. Larger Company Tree and Audit
 
@@ -27,6 +27,6 @@ Use your individual account on the shared Ubuntu server for unprivileged tasks. 
 
 2. Copy `spec.txt` into an owned archive folder, compare with `cmp`, then rename only the copy. Predict which operation leaves the original in place.
 3. Inspect with `ls -l`, `ls -la`, and `ls -lt`. Explain permissions, hidden names and modification-time order; these are different questions.
-4. Create `TechCorp/Finance/.audit-note`, compare normal versus `-a` listings, then use `find TechCorp -type f -name '*.txt'`. Explain why a shell wildcard normally excludes leading-dot names.
+4. Create `TechCorp/HR/policies/.audit-note`, compare normal versus `-a` listings, then use `find TechCorp -type f -name '*.txt'`. Explain why a shell wildcard normally excludes leading-dot names.
 
-**Evidence:** final company tree plus one justified audit command. Cleanup only the added owned fixtures after saving evidence; the core quarterly reports stay available.
+**Evidence:** final company tree plus one justified audit command. Cleanup only the added owned fixtures after saving evidence; the two core reports stay available.

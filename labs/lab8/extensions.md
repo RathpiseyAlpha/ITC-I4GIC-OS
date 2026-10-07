@@ -7,7 +7,7 @@ Use your individual account on the shared Ubuntu server for unprivileged tasks. 
 
 ## A. Inventory Conservation and Stronger Tests
 
-1. Restore stock to 5 and empty the **owned test** sales log. Run requests for 1 and 2 with your repaired script; record final stock and sold units.
+1. Restore stock to your own starting value (`oslab values lab8`) and empty the **owned test** sales log. Run requests for 1 and 2 with your repaired script; record final stock and sold units.
 2. Compute sold units, rather than merely counting log lines.
 
    ```bash
@@ -15,7 +15,7 @@ Use your individual account on the shared Ubuntu server for unprivileged tasks. 
    cat store/stock.txt
    ```
 
-3. Check `initial stock = final stock + accepted sold units`. Repeat a bounded concurrent pair with quantities whose sum exceeds 5, using the core's saved-PID/wait method. At most two buyers per run; no stress loop on the shared server.
+3. Check `initial stock = final stock + accepted sold units`. Repeat a bounded concurrent pair with quantities whose sum exceeds your stock, using the core's saved-PID/wait method. At most two buyers per run; no stress loop on the shared server.
 4. Inject invalid stock in an owned copy (for example `abc`), then test input validation and confirm no sale is logged. Restore the fixture afterwards.
 5. Explain limits: advisory locks require every writer to participate; a crash between stock and log writes can still break durability. Do not claim this teaching script is a transactional database.
 

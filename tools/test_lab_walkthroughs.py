@@ -13,6 +13,7 @@ import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+PILOTS = (1, 2, 8)  # labs whose fences use personal values and Core sections
 if os.geteuid() == 0:
     raise SystemExit('Run as an ordinary user: root bypasses the permission-denial case.')
 
@@ -58,28 +59,66 @@ with tempfile.TemporaryDirectory(prefix='oslab-walkthrough-') as temp:
     cli = f'python3 {shlex.quote(str(ROOT/"server/oslab.py"))}'
     prefix = f'oslab() {{ {cli} "$@"; }}\n'
     routes = {}
+    values = {}
+
+    def personal(n, code, **override):
+        """Replace the example values in a pilot lab's fences with this test account's own values."""
+        for key, value in dict(values[n], **override).items():
+            code = re.sub(rf'^(\s*){key}=.*$', lambda m: f'{m.group(1)}{key}={shlex.quote(str(value))}', code, flags=re.M)
+        return code
+
+    def section(n, *starts, **override):
+        return personal(n, '\n'.join(code for name, code in routes[n] if name.startswith(tuple(f'## {s}' for s in starts))), **override)
+
     for n in range(1, 12):
         routes[n] = blocks(ROOT/f'labs/lab{n}/lab{n}-instruction.md')
-        setup = '\n'.join(code for section, code in routes[n] if section.startswith('## Lab Setup'))
-        guided = '\n'.join(code for section, code in routes[n] if 'Guided' in section)
-        shell(prefix+setup+guided, home, env, f'Lab {n} guided')
+        if n in PILOTS:
+            listing = shell(prefix+f'oslab values lab{n}\n', home, env, f'Lab {n} values')
+            values[n] = dict(re.findall(r'^\s+(\w+)\s+= (.*)$', listing, re.M))
+            assert values[n], listing
+            shell(prefix+section(n, 'Setup', 'Guided', 'Read and Trace'), home, env, f'Lab {n} setup/guided')
+        else:
+            setup = '\n'.join(code for name, code in routes[n] if name.startswith('## Lab Setup'))
+            guided = '\n'.join(code for name, code in routes[n] if 'Guided' in name)
+            shell(prefix+setup+guided, home, env, f'Lab {n} guided')
         print(f'Lab {n} setup/guided commands PASS', flush=True)
 
     assert 'NAME=' in (base/'lab1/evidence/os-info.txt').read_text()
-    # Exact owned-process block includes bounded sleeps; allow its real timing.
-    shell('\n'.join(code for section, code in routes[1] if section.startswith('## Tasks 4')), base/'lab1', env, 'Lab1 processes')
-    assert 'sleep' in (base/'lab1/evidence/processes.txt').read_text()
+    count = int(values[1]['count'])
+    # The documented first process, then a model of the student-written steps with short bounded sleeps.
+    out = shell(prefix+section(1, 'Setup', seconds=2)+section(1, 'Core 1', seconds=2)+f'''
+pids=("$pid1")
+for i in $(seq 2 {count}); do sleep 4 & pids+=("$!"); done
+list=$(IFS=,; echo "${{pids[*]}}")
+ps -o pid,ppid,stat,comm -p "$list" | tee evidence/processes.txt
+wait "$pid1"
+ps -o pid,ppid,stat,comm -p "$list" | tee -a evidence/processes.txt
+wait
+oslab check lab1
+''', home, env, 'Lab1 processes')
+    assert 'milestones: 3/3' in out, out
 
-    shell('''set -e
-mv -- 'incoming/quarter 1.txt' reports/
-mv -- 'incoming/quarter 2.txt' reports/
-mkdir -p TechCorp/Finance/archive TechCorp/Engineering TechCorp/HR
-cp -- reports/'quarter 1.txt' reports/'quarter 2.txt' TechCorp/Finance/
-cp -- TechCorp/Finance/'quarter 1.txt' TechCorp/Finance/archive/
-cmp -- reports/'quarter 1.txt' TechCorp/Finance/'quarter 1.txt'
-cd TechCorp/HR
-cat '../Finance/quarter 1.txt'
-''', base/'lab2', env, 'Lab2 path/content')
+    out = shell(prefix+section(2, 'Setup')+section(2, 'Core 1')+'''
+cd incoming
+mv -- "$file1" ../reports/
+cd "$OSLAB_WORKSPACE/lab2"
+mv -- "$OSLAB_WORKSPACE/lab2/incoming/$file2" "$OSLAB_WORKSPACE/lab2/reports/"
+cp -- "reports/$file1" "reports/$file2" "TechCorp/$owner/"
+cp -- "reports/$file1" "TechCorp/$owner/archive/first-original.txt"
+cd "TechCorp/$reader"
+cat "../$owner/$file1"
+cat "$OSLAB_WORKSPACE/lab2/TechCorp/$owner/$file1"
+if cat "reports/$file1" 2>/dev/null; then exit 1; fi
+cd "$OSLAB_WORKSPACE/lab2"
+printf '%s\\n' "cat ../$owner/$file1" "cat $OSLAB_WORKSPACE/lab2/TechCorp/$owner/$file1" > evidence/paths.txt
+'''+section(2, 'Core 3')+section(2, 'Plus')+'''
+cd mess/c
+mv -- '../a/b/lost file.txt' found.txt
+cd ../a/b
+cp -- ../../c/found.txt "../../../TechCorp/$third/"
+test -f "$OSLAB_WORKSPACE/lab2/TechCorp/$third/found.txt"
+''', home, env, 'Lab2 path/content')
+    assert 'milestones: 4/4' in out, out
 
     core = [code for section, code in routes[3] if section.startswith('## Task 2')]
     shell(core[0]+core[1]+'rm -- soft.txt\nln -s renamed.txt soft.txt\n'+core[2]+core[3], base/'lab3', env, 'Lab3 rename/repair')
@@ -139,33 +178,37 @@ bash {count} -dash.txt
 ''', base/'lab7', env, 'Lab7 boundaries/errors')
     assert 'one file.txt: 2 words' in out and '-dash.txt: 1 words' in out
 
-    race = '\n'.join(code for section, code in routes[8] if section.startswith('## Level 3'))
-    shell(race, base/'lab8', env, 'Lab8 student race')
-    sales = (base/'lab8/store/sales.log').read_text()
-    assert sales.count('sold 4') == 2 and (base/'lab8/store/stock.txt').read_text() == '1\n'
-    buy = base/'lab8/store/buy.sh'
-    buy.write_text(buy.read_text().replace('# TODO: a bounded lock must protect the complete transaction below.',
-        'exec 9>"$store/stock.lock"\nflock -x -w 2 9 || exit 3').replace(
-        'sleep 1  # teaching delay to widen the stale-read window; remove in final version', ':'))
-    shell("printf '5\\n' > store/stock.txt\n: > store/sales.log\n"+race, base/'lab8', env, 'Lab8 student repaired')
-    assert (base/'lab8/store/sales.log').read_text().count('sold 4') == 1
-    assert (base/'lab8/store/stock.txt').read_text() == '1\n'
-    shell('''set -e
-printf '5\n' > store/stock.txt; : > store/sales.log
+    stock, buyer_a, buyer_b = (int(values[8][key]) for key in ('stock', 'buyer_a', 'buyer_b'))
+    setup8 = prefix+section(8, 'Setup')
+    reset = "printf '%s\\n' \"$stock\" > store/stock.txt\n: > store/sales.log\n"
+    shell(setup8+reset+section(8, 'Core 1'), home, env, 'Lab8 student race')
+    sold = [int(line.split()[1]) for line in (base/'lab8/store/sales.log').read_text().splitlines()]
+    assert sorted(sold) == sorted((buyer_a, buyer_b)), sold
+    assert int((base/'lab8/store/stock.txt').read_text()) in (stock - buyer_a, stock - buyer_b)
+    assert f'start={stock}' in (base/'lab8/evidence/race.txt').read_text()
+    # Core 2 keeps the unsafe copy and tries flock; the Plus block shows a wrong answer still selling twice.
+    shell(setup8+section(8, 'Core 2')+section(8, 'Plus'), home, env, 'Lab8 flock demo and wrong answer')
+    assert len((base/'lab8/try/sales.log').read_text().splitlines()) == 2
+    (base/'lab8/store/buy.sh').write_text((ROOT/'teaching/instructor/lab8/buy_fixed.sh').read_text())
+    out = shell(setup8+reset+section(8, 'Core 1')+'oslab check lab8\n', home, env, 'Lab8 student repaired')
+    sold = [int(line.split()[1]) for line in (base/'lab8/store/sales.log').read_text().splitlines()]
+    assert len(sold) == 1 and sold[0] + int((base/'lab8/store/stock.txt').read_text()) == stock, sold
+    assert 'milestones: 3/3' in out, out
+    shell(setup8+reset+'''set -e
 for bad in 0 -1 abc 0001 1000; do
   if bash store/buy.sh "$bad"; then exit 1; fi
 done
 if bash store/buy.sh; then exit 1; fi
-if bash store/buy.sh 6; then exit 1; fi
-test "$(cat store/stock.txt)" = 5
+if bash store/buy.sh "$((stock + 1))"; then exit 1; fi
+test "$(cat store/stock.txt)" = "$stock"
 test ! -s store/sales.log
 bash store/buy.sh 2
-test "$(cat store/stock.txt)" = 3
-(flock -x 9; touch evidence/held; sleep 3) 9>store/stock.lock & holder=$!
+test "$(cat store/stock.txt)" = "$((stock - 2))"
+(flock -x 9; touch evidence/held; sleep 7) 9>store/stock.lock & holder=$!
 for attempt in {1..30}; do test -f evidence/held && break; sleep 0.1; done
-if timeout 5 bash store/buy.sh 1; then exit 1; else test "$?" -eq 3; fi
+if timeout 8 bash store/buy.sh 1; then exit 1; else test "$?" -eq 3; fi
 wait "$holder"
-''', base/'lab8', env, 'Lab8 validation/lock bound')
+''', home, env, 'Lab8 validation/lock bound')
 
     opposite = '\n'.join(code for section, code in routes[9] if section.startswith('## Levels 2'))
     shell(opposite, base/'lab9', env, 'Lab9 student opposite')

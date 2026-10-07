@@ -1,89 +1,109 @@
 # Instructor plan — OS Lab 2 — Linux Navigation & File Management (Hands-on)
 
-**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan is public, and so is the code that computes every student's values and answers. Personal values stop neighbour copying and force each answer to use the student's own numbers; they are not secret. The live checkpoint is protected by its release time, not by secrecy. Keep anything that must stay private outside this repository.
 
-## Objectives and Original-task Mapping
+This lab uses the pilot format. Read the [student instruction](../../../labs/lab2/lab2-instruction.md) and the [report template](../../../labs/lab2/README.md) first.
 
-1. Navigate with absolute and relative paths and explain `.` and `..`.
-2. Build a company directory tree and move/copy reports while preserving their contents.
-3. Diagnose a path mistake and verify the final organization with directory listings.
+## Objectives
 
-Core retains the original sequence: navigation warm-up → company directory structure → absolute/relative paths → organization. Read-only system exploration and advanced listing remain optional.
-
-Read the [student instruction](../../../labs/lab2/lab2-instruction.md), [report template](../../../labs/lab2/README.md) and [optional extensions](../../../labs/lab2/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+1. Move around with absolute and relative paths, and explain `.` and `..`.
+2. Build a folder tree, then move and copy files without changing their contents.
+3. Find the cause of a path error and prove that a copy is identical.
 
 ## Before Class
 
-- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `pwd`, `ls`, `mkdir`, `cp`, `mv`, `find`, `cmp`. No student sudo or privileged execution of student code.
-- Confirm the two incoming fixtures and a writable workspace. Inspect saved submissions before choosing a reset; the helper preserves existing work.
-- In an ordinary test account run `oslab doctor`, `oslab start lab2`, then `cd "$OSLAB_WORKSPACE/lab2"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
-- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
-- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+- Install or update the helper as in the [runbook](../../../server/RUNBOOK.md). Check that `/var/lib/itc-oslab/inbox` exists with mode `1733` and that `/var/lib/itc-oslab/release/lab2.checkpoint` does **not** exist.
+- As an ordinary test account: `oslab doctor` must say `class inbox: connected`; `oslab start lab2`; `ls incoming` must show two file names with spaces that match `oslab values lab2`; `oslab check lab2` (expect 0/4).
+- Prepare a roster file with one account name per line. All `oslab-teach` commands below take `--roster FILE`.
+- Read the Lab 1 retrospective in the [roadmap](../../ROADMAP.md) and adjust the first five minutes if the `oslab` commands were unclear last week.
 
-## Exact 120-minute Timetable
+## Timetable and What You Do
 
-| Minutes | Teacher action and evidence |
-|---|---|
-| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
-| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
-| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
-| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
-| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
-| 85–100 | Collect individual changed-case answer; no AI or peer help |
-| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
-| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
+Keep `sudo oslab-teach board lab2 --roster FILE --watch 20` open on your own screen. Do not project it: it shows names.
 
-## Expected Results and Public Model
+| Minutes | Students | You |
+|---|---|---|
+| 0–5 | Setup | Check the `started` column. The most common first error is losing the quotes when typing `file1='…'` |
+| 5–20 | Guided: where am I? | Type along on the projector. At step 4, let the unquoted `ls` fail and ask the class to read the error aloud: it names two files that do not exist |
+| 20–30 | Prediction, then class discussion | At minute 25 read the **prediction spread** aloud without names. The `same` question (does `../reports` still work from the lab folder?) is the one to discuss |
+| 30–40 | Core 1: build the company folders | Short. Move on at minute 40 even if some are slow; Core 2 does not depend on the reader and third folders |
+| 40–65 | Core 2: move and copy with your own paths | Nobody is given commands here. Sort your visits by the board: no check yet, then stuck at 1/4. Answer with "run `pwd`; now draw where the file must go" |
+| 65–75 | Core 3: prove it | Check that students compare with `cmp`, not with `ls` |
+| 75–90 | Plus and Challenge (or finish Core) | Work only with students below 4/4 |
+| 90–105 | Live checkpoint | At minute 90 say "close AI tools" and run `sudo oslab-teach release lab2` |
+| 105–115 | Debrief | Use the script below |
+| 115–120 | Submit | Run `sudo oslab-teach export lab2 --roster FILE > lab2.csv` |
 
-Both original report contents remain revenue,120 and revenue,130 after moving into reports and copying into Finance/archive. Moving removes the source name; copying retains it. Accept equivalent hierarchy organization that preserves the specified destinations.
+## Expected Results
+
+Every student has different names; the shape is the same. For a student with `file1='budget 2026.txt'`, `file2='audit notes.txt'`, `owner=Finance`, `reader=HR`:
 
 ```bash
+cd "$OSLAB_WORKSPACE/lab2/incoming"
+mv -- 'budget 2026.txt' ../reports/
 cd "$OSLAB_WORKSPACE/lab2"
-mv -- 'incoming/quarter 1.txt' reports/
-mv -- 'incoming/quarter 2.txt' reports/
-mkdir -p TechCorp/Finance/archive TechCorp/Engineering TechCorp/HR
-cp -- reports/'quarter 1.txt' reports/'quarter 2.txt' TechCorp/Finance/
-cp -- TechCorp/Finance/'quarter 1.txt' TechCorp/Finance/archive/
-cmp -- reports/'quarter 1.txt' TechCorp/Finance/'quarter 1.txt'
+mv -- "$OSLAB_WORKSPACE/lab2/incoming/audit notes.txt" "$OSLAB_WORKSPACE/lab2/reports/"
+cp -- 'reports/budget 2026.txt' 'reports/audit notes.txt' TechCorp/Finance/
+cp -- 'reports/budget 2026.txt' TechCorp/Finance/archive/first-original.txt
 cd TechCorp/HR
-cat '../Finance/quarter 1.txt'
+cat '../Finance/budget 2026.txt'
+cat "$OSLAB_WORKSPACE/lab2/TechCorp/Finance/budget 2026.txt"
 ```
-Use this only on a fresh instructor fixture; it is not a resume/reset command.
 
-Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
+Use this only on a fresh instructor fixture with those values; it is an illustration, not a reset command.
 
-## Checkpoint Key and Quick Marking
+- **Deliberate error (Core 3):** from the reader department, `cat 'reports/budget 2026.txt'` gives "No such file or directory" although the name is right, because `reports` is not a child of the current folder.
+- **Plus:** from `mess/c`, `mv -- '../a/b/lost file.txt' found.txt`. From `mess/a/b`, the copy needs three `..` to reach the lab folder.
+- **Challenge:** a quoted `'*.txt'` is not expanded by the shell, so `cp` looks for a file literally named `*.txt`. An unquoted `*` does not match names that start with a dot.
 
-Practice question: A report is now at `TechCorp/Finance/quarter 1.txt` and your current directory is `TechCorp/HR`. A command tries `cat "Finance/quarter 1.txt"`. Identify the fault and give a working relative path.
+## Checkpoint Key and Marking
 
-Key: From TechCorp/HR, Finance is not a child. Use ../Finance/quarter 1.txt with the entire path quoted. Diagnose current directory separately from the space in the name.
+Key: `sudo oslab-teach key lab2 --roster FILE` prints each student's values and expected answers, including the checkpoint after release. Each student gets one of four start-folder and target pairs. Any relative path that reaches the target is accepted, not only the shortest one. An unquoted name with one space gives `cat` two arguments.
 
-Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
+The checkpoint is worth 3 points:
 
-## Misconceptions and Progressive Support
+| Part | Points | Source |
+|---|---:|---|
+| The three marked answers (all right 1, at least half 0.5) | 1 | `checkpoint_auto_points_of_2` in the export |
+| `evidence/checkpoint.txt` holds the content of the target file | 1 | same column |
+| The sentence says each `..` goes up one folder from the current one | 1 | read `checkpoint_sentence` in the export |
 
-Students add quotes but fail to change the parent path, or check only filenames. Ask for pwd, a component-by-component path and cmp.
+The `flag` column says `rewritten` when a prediction or checkpoint was sent more than once or removed; look at that student's work before marking.
 
-Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
+## Debrief Script (10 minutes)
 
-Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
+1. Show the prediction spread for `same`. Ask a student who answered "yes" what happened when they tried it.
+2. Ask: "The file name was correct. Why did the system say no such file?" Lead to: a relative path is read from the current folder.
+3. Ask who used `ls` and who used `cmp` to prove the copy. What can `ls` not show?
+4. Read two checkpoint sentences without names and let the class improve the weaker one.
 
-## Capability Fallback and Cleanup
+## Misconceptions
 
-Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
+- Adding quotes fixes a path error that is really about the current folder.
+- `mv` leaves the original in place.
+- A matching name in `ls` proves matching contents.
+- `..` means "the home folder" or "the lab folder", not "one level up from here".
 
-No background process or cron job is created. Leave the owned tree for review; do not remove reports before saving evidence.
+Use the hints in order (`oslab hint lab2 1` to `3`). For a student far behind at minute 65, let them finish steps 1–3 of Core 2 only; the checkpoint does not depend on the rest.
 
-After evidence is saved, `oslab clean lab2` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
+## Caveats Moved Out of the Student Text
+
+- `--` stops option parsing; it matters for names that start with a dash and is good habit in scripts.
+- `oslab reset lab2` saves the current attempt and creates a fresh fixture. Do not suggest it for one wrong `mv`; the student can move the file back.
+- `oslab check lab2` compares bytes of the student's files. It reads `evidence/paths.txt` only for the presence of a relative and an absolute path, not for correctness.
+
+## Fallback
+
+Without the class inbox, everything works in practice mode: answers stay in the student's workspace, the checkpoint uses practice values, and you collect predictions by a show of hands. If the server is down, students can do the whole lab in WSL or a local Linux with the [local setup](../../../labs/SETUP.md).
 
 ## Topic Rubric (10 points)
 
-| Evidence mapped to lab objectives | Points |
+| Evidence | Points |
 |---|---:|
-| Correct directory/report organization and preserved contents (objectives 1–3) | 3 |
-| Content comparison and changed-current-directory test | 2 |
-| Explain absolute/relative paths and copy versus move; original prediction and evidence-based correction | 2 |
-| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
-| Concise, attributable evidence and required artifacts | 1 |
+| Correct folders and files: `oslab check lab2` passes the four Core milestones | 2 |
+| Tests: identical copies with `cmp`, and one path error explained | 2 |
+| Prediction saved in time, and an honest confirmed/corrected explanation | 2 |
+| Live checkpoint: answers, the saved output, and the sentence | 3 |
+| Clear, complete evidence files and report | 1 |
 
-Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.
+The export gives you the first and fourth rows almost directly. Read only `paths.txt` and the report's explanation for the rest.

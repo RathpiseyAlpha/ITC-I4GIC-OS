@@ -24,6 +24,7 @@ while IFS= read -r user || [[ -n "$user" ]]; do
   printf '%s: home=%s mode=%s\n' "$user" "$home_dir" "$mode"
   if [[ "$mode" = apply ]]; then
     runuser -u "$user" -- /usr/local/bin/oslab doctor
-    for n in {1..11}; do runuser -u "$user" -- /usr/local/bin/oslab start "lab$n"; done
+    # No inbox here: the instructor board must show "started" only when the student starts the lab in class.
+    for n in {1..11}; do runuser -u "$user" -- env OSLAB_INBOX=/nonexistent /usr/local/bin/oslab start "lab$n"; done
   fi
 done < "$allowlist"

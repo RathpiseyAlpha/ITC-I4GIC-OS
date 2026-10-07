@@ -4,11 +4,13 @@ Institute of Technology of Cambodia, Department of Information and Communication
 
 The revised labs use **120 minutes per lab**, individual solutions, a short optional peer exchange, and an independent changed-case checkpoint. Each instruction restores explicit objectives, the original topic/task progression, numbered guided commands, expected observations, starting and submission trees, and topic-specific evidence. AI is permitted for investigation and testing, but not for the initial prediction or checkpoint. The primary environment is a shared Ubuntu server with an individual account for each student; local Linux/WSL is an unprivileged fallback. GRUB recovery needs a disposable VM with a snapshot.
 
+**Pilot format (Labs 1, 2 and 8).** These three labs give every student different values, save predictions and a late-released checkpoint through `oslab`, offer Core / Plus / Challenge tiers, and give the instructor a live board (`oslab-teach`). The other labs keep the format described above until the pilot has run in class. See the [teaching roadmap](teaching/ROADMAP.md).
+
 ## Start here
 
 - [Course outline](course-outline.md), [exam briefing](EXAM-BRIEFING.md), [lecture notes](lectures/notes/README.md), [class activities](lectures/class-activity/README.md), and [visualizations](lectures/visualizations/README.md)
 - [Environment setup](labs/SETUP.md), [complete lab index](labs/INDEX.md), and [shared lab report template](labs/REPORT-TEMPLATE.md)
-- [Per-lab audit](teaching/REVISION-AUDIT.md), [implementation record](teaching/IMPLEMENTATION-PLAN.md), [validation](teaching/VALIDATION.md)
+- [Teaching roadmap](teaching/ROADMAP.md), [per-lab audit](teaching/REVISION-AUDIT.md), [implementation record](teaching/IMPLEMENTATION-PLAN.md), [validation](teaching/VALIDATION.md)
 - [Server deployment runbook](server/RUNBOOK.md) and [per-user scenario helper](server/oslab.py)
 
 | Lab | Core topic | Instruction |

@@ -2,82 +2,100 @@
 
 | Item | Details |
 |---|---|
-| Course | Operating Systems, Institute of Technology of Cambodia |
-| Duration | 120 minutes; installation and VM preparation happen before class |
-| Ownership | Individual work and submission; optional short peer exchange |
-| Primary environment | Shared Ubuntu server with an individual account for each student |
-| Prerequisites | Lab 1 file commands and quoting |
-| Required tools | `pwd`, `ls`, `mkdir`, `cp`, `mv`, `find`, `cmp` |
-| Practice fallback | Local Linux/WSL for unprivileged tasks; disposable VM for boot/system administration |
-| Core versus extensions | Follow the core below; [optional extensions](extensions.md) retain wider original coverage |
+| Duration | 120 minutes in class, plus a 10-minute pre-lab |
+| Work | Individual. Your file names and folders are different from your neighbour's |
+| Environment | Shared Ubuntu server with an individual account for each student. Local Linux/WSL works for practice ([setup](../SETUP.md)) |
+| Tools | `pwd`, `ls`, `mkdir`, `cp`, `mv`, `find`, `cmp`, `oslab` |
+| Lab format | Pilot: personal values, Core / Plus / Challenge, live checkpoint |
+| Lecture link | [Week 2 notes: OS structures and interfaces](../../lectures/notes/week02-os-structures-interfaces.md) |
 
-> **Scenario:** As Alex at TechCorp, organize incoming quarterly reports in a small company directory tree. Your work should still be understandable when you change the current directory.
+> **Scenario:** Two reports arrived in TechCorp's `incoming` folder. You must put them in the right places in the company's folders, keep their contents unchanged, and be able to reach them from any department.
 
 ## Lab Objectives
 
-After the required core, you should be able to:
+After the Core, you can:
 
-1. Navigate with absolute and relative paths and explain `.` and `..`.
-2. Build a company directory tree and move/copy reports while preserving their contents.
-3. Diagnose a path mistake and verify the final organization with directory listings.
+1. Move around with absolute and relative paths, and explain `.` and `..`.
+2. Build a folder tree, then move and copy files without changing their contents.
+3. Find the cause of a path error and prove that a copy is identical.
 
-**Extension objectives:** Explore read-only system directories and practise size/time sorting and wildcard directory audits. These retain the original lab's wider topics; they are not required to finish the two-hour core.
+## How This Lab Works
 
-## Task Overview and 120-minute Timetable
+| Command | What it does |
+|---|---|
+| `oslab values lab2` | Shows **your** file names and folders. Use them everywhere in this lab |
+| `oslab predict lab2` | Saves your prediction once, before the experiment |
+| `oslab hint lab2 1` | Gives a hint (levels 1, 2, 3). Hints cost no points |
+| `oslab check lab2` | Looks at your folders and shows your milestones |
+| `oslab checkpoint lab2` | Opens when the instructor says so, near the end |
+
+- **Core** is for everyone. **Plus** and **Challenge** are for students who finish early. Full marks need only Core and the checkpoint.
+- AI tools are allowed in Core, Plus and Challenge. They are **not** allowed in the prediction and the checkpoint.
+- In Core 2 nobody gives you the commands. You write every path yourself.
+
+## Before the Lab
+
+Do this before class. It takes about 10 minutes.
+
+```bash
+oslab doctor
+oslab prelab lab2
+```
+
+## Timetable
 
 | Minutes | Activity |
 |---|---|
-| 0–10 | Introduction, objectives and setup |
-| 10–25 | Guided example: commands and observations |
-| 25–35 | Written prediction; optional five-minute peer comparison |
-| 35–70 | Numbered individual investigation tasks; AI optional |
-| 70–85 | Normal and edge tests; instructor feedback |
-| 85–100 | Individual changed-case checkpoint; no AI or peers |
-| 100–110 | Correction and conceptual explanation |
-| 110–120 | Cleanup and submission |
+| 0–5 | Setup |
+| 5–20 | Guided: where am I? |
+| 20–30 | Prediction, then class discussion |
+| 30–40 | Core 1: build the company folders |
+| 40–65 | Core 2: move and copy with your own paths |
+| 65–75 | Core 3: prove it |
+| 75–90 | Plus and Challenge (or finish Core) |
+| 90–105 | Live checkpoint |
+| 105–115 | Debrief |
+| 115–120 | Submit |
 
-Core retains the original sequence: navigation warm-up → company directory structure → absolute/relative paths → organization. Read-only system exploration and advanced listing remain optional.
+## Setup (0–5)
 
-## Lab Setup (0–10 minutes)
-
-1. Log in to the Ubuntu server using **your own account**. All commands below run as that ordinary user in Bash. Use only your own files and processes.
-2. Check the helper. If it is unavailable, follow [the local setup guide](../SETUP.md) to define `oslab` from your cloned course repository; it uses the same fixtures.
-
-   ```bash
-   whoami
-   command -v oslab
-   oslab doctor
-   ```
-
-3. Start the lab and **enter its directory**. `oslab start` preserves existing work and does not change the current directory. If resuming, inspect existing files before running commands that write to them.
+1. Start the lab and go into its folder.
 
    ```bash
    export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"
    oslab start lab2
    cd "$OSLAB_WORKSPACE/lab2"
-   pwd
    mkdir -p evidence
-   find . -maxdepth 3 -type f
+   oslab values lab2
    ```
 
-4. Compare your files with the starting tree. `.oslab-managed.json` identifies the managed workspace; leave it intact. `evidence/` was created in step 3. If `tree` is installed, `tree -a -L 3` can display the same structure.
+2. Type **your** values into shell variables. The values below are only an example. Keep the quotes: your file names have a space in them.
+
+   ```bash
+   file1='budget 2026.txt'
+   file2='audit notes.txt'
+   owner=Finance
+   reader=HR
+   third=Support
+   ```
+
+   If you open a new terminal, run `cd` and set these variables again.
+
+3. Your folder looks like this, with your own two file names:
 
    ```text
    lab2/
-   ├── .oslab-managed.json
    ├── incoming/
-   │   ├── quarter 1.txt
-   │   └── quarter 2.txt
+   │   ├── (your file1)
+   │   └── (your file2)
    ├── reports/
    │   └── README.txt
    └── evidence/
    ```
 
-The workspace is for experiments. Your personal course Git repository holds the final submission; you will copy selected files there at the end. VM work and privileged commands are never performed on the shared server.
+## Guided — Where Am I? (5–20)
 
-## Tasks 1–2 — Navigation Warm-Up: Guided Example (10–25)
-
-1. Identify where you are, then list names with and without metadata.
+1. See where you are and what is here.
 
    ```bash
    pwd
@@ -85,155 +103,176 @@ The workspace is for experiments. Your personal course Git repository holds the 
    ls -la
    ```
 
-   An absolute path begins at `/`; a relative path begins at the current directory. Your home is one directory on the shared server, not the whole filesystem.
+   An **absolute path** starts with `/` and means the same place from anywhere. A **relative path** starts from the folder you are in now.
 
-2. Build a separate practice folder so you do not reveal the report-organizing solution.
+2. Work in a practice folder, so you do not touch the reports yet.
 
    ```bash
    mkdir -p practice/notes
    printf 'orientation\n' > 'practice/welcome note.txt'
    cd practice
    pwd
-   ls -l
    cp -- 'welcome note.txt' notes/
    cat 'notes/welcome note.txt'
    cd ..
+   pwd
    ```
 
-   The quotes keep the space inside one filename. `--` separates options from operands for commands that support it. `cd ..` moves to the parent; verify with `pwd` rather than assuming.
+   `cd ..` goes to the parent folder. Always check with `pwd`.
 
-3. Compare a relative and absolute reference to the same file.
+3. Read one file in two ways.
 
    ```bash
    cat 'practice/welcome note.txt'
    cat "$OSLAB_WORKSPACE/lab2/practice/welcome note.txt"
    ```
 
-   **Observe:** Which command relies on your current directory? Does copying a file remove its original? Read `man cp` or `man mv` if uncertain.
+   Which of the two commands stops working if you `cd` somewhere else?
 
-## Prediction (25–35)
+4. See why the quotes matter. The second command fails. Read its error message.
 
-Write before moving reports: **From `incoming/`, what does `../reports/` mean? If the current directory instead becomes the workspace root, does the same relative path still mean the same destination?** Keep your initial answer. The five-minute peer comparison is optional.
+   ```bash
+   ls -l "incoming/$file1"
+   ls -l incoming/$file1 || true
+   ```
 
-## Task 3 — Build the Company Directory Structure (35–45)
+## Prediction (20–30)
 
-1. Return explicitly to the workspace root and inspect incoming content.
+```bash
+oslab predict lab2
+```
+
+Answer alone, without AI, before the experiment. A wrong prediction costs nothing. The class will look at the spread of answers together.
+
+## Core 1 — Build the Company Folders (30–40)
+
+1. Go back to the lab folder and create the tree for your departments.
 
    ```bash
    cd "$OSLAB_WORKSPACE/lab2"
-   cat 'incoming/quarter 1.txt'
-   cat 'incoming/quarter 2.txt'
+   mkdir -p "TechCorp/$owner/archive" "TechCorp/$reader" "TechCorp/$third"
+   find TechCorp -type d
    ```
 
-   Expected values are `revenue,120` and `revenue,130`. Save these as your content-preservation expectations.
-
-2. Create the owned company tree. This adapts the original company's wider tree to one coherent report workflow.
+2. Read the two incoming reports and write down their contents. You will need them to prove that nothing changed.
 
    ```bash
-   mkdir -p TechCorp/Finance/archive TechCorp/Engineering TechCorp/HR
-   find TechCorp -maxdepth 3 -type d
+   cat "incoming/$file1" "incoming/$file2"
    ```
 
-   ```text
-   TechCorp/
-   ├── Engineering/
-   ├── Finance/
-   │   └── archive/
-   └── HR/
-   ```
+## Core 2 — Move and Copy With Your Own Paths (40–65)
 
-## Tasks 4–5 — Navigate and Organize Reports (45–70)
+Write each command yourself. Run `pwd` before every command that moves or copies. Write every command that worked into `evidence/paths.txt` (use `nano evidence/paths.txt` from the lab folder).
 
-1. Enter `incoming/`. Move the first quarterly file to the supplied `reports/` folder using the relative destination you predicted. Write the command yourself; inspect `pwd` before executing it.
-2. Return to the workspace root. Move the second file to the same destination, this time using absolute paths built from `$OSLAB_WORKSPACE`. Explain why the two commands need different path expressions.
-3. Copy both organized files into `TechCorp/Finance/`. Keep the original organized reports; Finance needs copies, not another move. Copy the first Finance report into `TechCorp/Finance/archive/` as `q1-original.txt`.
-4. From `TechCorp/HR/`, construct a **relative** path to Finance's first report and read it. Then read the same file with an absolute path. Record both commands in `evidence/paths.txt`.
-5. Inspect the result:
+1. Go **into** `incoming/`. Move your first file to `reports/` with a **relative** destination.
+2. Go back to the lab folder. Move your second file to `reports/` with **absolute** paths for both source and destination. Start them with `"$OSLAB_WORKSPACE/lab2/…"`.
+3. Copy both reports from `reports/` into your owner department, `TechCorp/<owner>/`. The originals must stay in `reports/`.
+4. Copy your first report into `TechCorp/<owner>/archive/` with the new name `first-original.txt`.
+5. Go **into** your reader department, `TechCorp/<reader>/`. Without leaving it, read the first report in the owner department: once with a relative path and once with an absolute path.
+6. **Your decision:** for step 3, did you use relative or absolute paths? Write in `evidence/paths.txt` which you chose and when the other kind would be better.
+
+Stuck for more than five minutes? Use `oslab hint lab2 1`, then `2`, then `3`.
+
+## Core 3 — Prove It (65–75)
+
+1. A name in `ls` does not prove the contents are the same. Compare the bytes. `cmp` prints nothing when two files are identical.
 
    ```bash
    cd "$OSLAB_WORKSPACE/lab2"
-   find incoming reports TechCorp -maxdepth 4 -type f | tee evidence/tree.txt
+   cmp -- "reports/$file1" "TechCorp/$owner/$file1"
+   cmp -- "reports/$file2" "TechCorp/$owner/$file2"
+   ```
+
+2. Make one path error on purpose: from your reader department, try to read the report with a path that would only work from the lab folder. Copy the error message into `evidence/paths.txt` and write one line that explains it.
+3. Save the final list of files and check your milestones.
+
+   ```bash
+   cd "$OSLAB_WORKSPACE/lab2"
+   find incoming reports TechCorp -type f | sort | tee evidence/tree.txt
    oslab check lab2
    ```
 
-   The public check only tests report presence. You must still verify content and explain paths yourself.
+**Core is complete when** `oslab check lab2` shows `milestones: 4/4`.
 
-**Complete when:** both filenames exist under `reports/`, Finance has copies, the archive holds the first report, and you can reach a report from HR by both path types.
+## Plus — Find the Lost File (75–90)
 
-**Hints:** (1) draw current and destination folders; (2) count parent steps with `pwd`/`find`; (3) from HR, begin by returning to the shared `TechCorp` parent, then entering Finance.
-
-## Task 6 — Directory Audit and Tests (70–85)
-
-1. Verify file contents and that Finance's copies match the organized originals.
+1. Create a small mess.
 
    ```bash
-   cmp -- 'reports/quarter 1.txt' 'TechCorp/Finance/quarter 1.txt'
-   cmp -- 'reports/quarter 2.txt' 'TechCorp/Finance/quarter 2.txt'
-   ls -l reports TechCorp/Finance
+   cd "$OSLAB_WORKSPACE/lab2"
+   mkdir -p mess/a/b mess/c
+   printf 'lost\n' > 'mess/a/b/lost file.txt'
    ```
 
-   `cmp` returns zero when contents match. A name appearing in `ls` does not prove the bytes match.
+2. Go into `mess/c`. Without any `cd`, move `lost file.txt` into the folder you are in and rename it `found.txt`, with **one** command.
+3. From inside `mess/a/b`, copy `found.txt` into your third department under `TechCorp/`, using only a relative path. How many `..` did you need?
+4. Save both commands and the count in `evidence/plus.txt`.
 
-2. Test one deliberately incorrect path from HR and record the error. Correct it without moving files again. Save the command, current directory and corrected path in `evidence/paths.txt`.
-3. Save the final tree/listing in `evidence/tree.txt`. Record normal content preservation and the changed-directory failure as your two selected tests.
+## Challenge
 
-**Troubleshooting:** A `No such file` message can mean wrong current directory, spelling, missing quotes, or a source already moved. Check `pwd`, then `ls` the parent. Do not reset all work to solve one path error. See [the Lab 2 guide](guides/slides.html), `man mv`, and `man find`.
+Copy every `.txt` file from `reports/` into your third department with **one** command that uses `*`. Then answer in `evidence/challenge.txt`:
 
+- Why does the command fail if you put quotes around `*.txt`?
+- Create `reports/.hidden.txt`. Does your command copy it? Why?
 
-## Individual Changed-case Checkpoint (85–100 minutes)
+## Live Checkpoint (90–105)
 
-Close AI tools and peer help. Answer the instructor's short question on paper or the existing course worksheet. Your earlier implementation need not be complete to answer it.
+Wait until the instructor opens it. Close AI tools. Work alone.
 
-> A report is now at `TechCorp/Finance/quarter 1.txt` and your current directory is `TechCorp/HR`. A command tries `cat "Finance/quarter 1.txt"`. Identify the fault and give a working relative path.
+```bash
+oslab checkpoint lab2
+```
 
-Give the result or diagnosis, the mechanism, and one observation that could check it. The instructor collects this answer before discussing the public key; the public question is practice, so a graded session may use a fresh private variant.
+1. Answer the questions. They use a new starting folder and a new target, made for you at this moment.
+2. Then do what the command prints, and save the output in `evidence/checkpoint.txt`.
+3. Run `oslab check lab2`. A fifth milestone, `checkpoint`, must pass.
 
-## Explanation and Correction (100–110 minutes)
+## Debrief (105–115)
 
-Keep your original prediction visible. Under it, write **confirmed** or **corrected**, cite the relevant test, and explain the OS mechanism in 3–5 sentences. Initial prediction accuracy is lightly weighted; a reasoned attempt and evidence-based correction earn credit.
+Look at your prediction again.
 
-Answer: (a) Why can a correct filename still produce a path error? (b) How did you establish content preservation? (c) What evidence would show you moved instead of copied a report?
+```bash
+cat "$OSLAB_WORKSPACE/.records/lab2-predict.json"
+```
 
-## Cleanup and Final Submission (110–120 minutes)
+In your report, write **confirmed** or **corrected** for each answer, and explain in 3–5 sentences why a correct file name can still give "No such file or directory".
 
-No background process or cron job is created. Leave the owned tree for review; do not remove reports before saving evidence.
+## Submit (115–120)
 
-1. Set `SUBMISSION_REPO` to the **absolute path of your existing personal course repository**. Replace the example ID/path below with your own; do not copy another student's repository.
+1. Copy your work to your course repository. Replace the path with your own.
 
    ```bash
    SUBMISSION_REPO="$HOME/os-se-YOUR_ID/os-lab-YOUR_ID"
    mkdir -p "$SUBMISSION_REPO/lab2/evidence"
-   ```
-
-2. Use [this lab's README template](README.md). Copy the listed artifacts and **two selected test records**, rather than every terminal output. Check the final tree below before submitting.
-
-   ```bash
    cp -- evidence/paths.txt evidence/tree.txt "$SUBMISSION_REPO/lab2/evidence/"
    ```
+
+2. Fill in the [report template](README.md) as `lab2/README.md`. Add `checkpoint.txt`, and `plus.txt` or `challenge.txt` if you did them.
 
    ```text
    lab2/
    ├── README.md
    └── evidence/
-       ├── paths.txt   # current directory, two valid paths and one corrected error
-       └── tree.txt    # organized report and company tree plus content checks
+       ├── paths.txt   # your commands, your decision, and one explained error
+       └── tree.txt    # the final list of files
    ```
 
-3. Write your own explanations. The prediction must have been captured before execution on paper or the existing course mechanism; copying it into the README afterwards is only a record, not proof of timing. The independent checkpoint is collected separately.
-4. Inspect your course repository with `git status --short`, add only your lab files, and commit/push using the normal course submission procedure. Do not include passwords, personal shell configuration, generated binaries or disk images.
+3. Commit and push in the usual way.
 
 ## Grading Criteria (10 points)
 
-| Evidence mapped to lab objectives | Points |
+| Evidence | Points |
 |---|---:|
-| Correct directory/report organization and preserved contents (objectives 1–3) | 3 |
-| Content comparison and changed-current-directory test | 2 |
-| Explain absolute/relative paths and copy versus move; original prediction and evidence-based correction | 2 |
-| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
-| Concise, attributable evidence and required artifacts | 1 |
+| Correct folders and files: `oslab check lab2` passes the four Core milestones | 2 |
+| Tests: identical copies with `cmp`, and one path error explained | 2 |
+| Prediction saved in time, and an honest confirmed/corrected explanation | 2 |
+| Live checkpoint: answers, the saved output, and your sentence | 3 |
+| Clear, complete evidence files and report | 1 |
 
-Equivalent valid commands, filenames and approaches earn credit if the evidence meets the objectives. A naming difference is penalized only when it actually breaks execution. AI is permitted during investigation and tests, optional throughout, and excluded from the initial prediction and individual checkpoint. If used, note one helpful suggestion and its verification; no paid tool, chat history or AI detector is required.
+Plus and Challenge are not needed for full marks. They are noted in your feedback. Your prediction is marked for being made and corrected, not for being right.
 
-## Help, References and Optional Work
+## Help and References
 
-Use the progressive hints in the task sections before requesting a full solution. See [the extension guide](extensions.md) for follow-up tasks with their own environment requirements. Existing visual guides are background references and may show the older broader sequence; this Markdown instruction defines the current required core.
+- `oslab hint lab2 1`, `2`, `3`
+- `man mv`, `man cp`, `man find`
+- Old wider topics (system directory tour, larger company tree, listing options) are in the [optional extensions](extensions.md).

@@ -1,34 +1,37 @@
 # Lab 2 — Linux Navigation and File Management: individual report
 
-Copy this template to `lab2/README.md` in your own course repository. Follow [the instructions](lab2-instruction.md).
+Copy this template to `lab2/README.md` in your own course repository. Follow [the instructions](lab2-instruction.md). Your prediction and checkpoint answers are already saved by `oslab`; do not copy them here.
 
 - Student name/ID:
-- Ubuntu username and environment:
-- Artifact paths (turn these into links after copying to your submission): `evidence/paths.txt`, `evidence/tree.txt`
+- Ubuntu username:
+- My values (`oslab values lab2`): file1 = , file2 = , owner = , reader = , third =
+- Files: `evidence/paths.txt`, `evidence/tree.txt`
 
-## Original Prediction
+## What I Did
 
-Copy the prediction you wrote before execution and its reason. State how/when it was captured (paper or the course worksheet).
+| Step | My command | Current folder when I ran it |
+|---|---|---|
+| Move the first file (relative destination) | | |
+| Move the second file (absolute paths) | | |
+| Read the report from my reader department (relative path) | | |
+| The path error I made on purpose, and its message | | |
 
-## Test Evidence
+## My Prediction: Confirmed or Corrected
 
-Link to two short records under `evidence/`. Include enough command/input/output context to interpret them.
+For each prediction answer, write **confirmed** or **corrected** and the result that shows it.
 
-| Test | Claim | Result that would contradict it | Observed result | What remains unproven |
-|---|---|---|---|---|
-| report copies match originals | | | | |
-| path from a different current directory | | | | |
+## Explanation
 
-## Explanation and Correction
+In 3–5 sentences: why can a correct file name still give "No such file or directory"? What is the difference between `mv` and `cp`, using your own files as the example?
 
-Explain `.`/`..`, absolute versus relative paths, and copy versus move using your own report locations.
+## What My Tests Do Not Prove
 
-Keep the original prediction above and add a correction supported by one observed result.
+One or two sentences. Think about what `ls` shows and what `cmp` shows.
+
+## Plus / Challenge (only if you did them)
+
+Your one-command move and the number of `..`, or your wildcard answers.
 
 ## AI Note (optional)
 
-One useful suggestion and the test you used to verify it. If you did not use AI, leave this section out.
-
-## Cleanup
-
-State which owned processes/jobs/mounts you cleaned up or why none were created. The supervised changed-case answer is collected separately; do not reconstruct it after collection.
+One suggestion an AI tool gave you and the test you used to check it.

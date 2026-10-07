@@ -1,78 +1,99 @@
 # Instructor plan — OS Lab 8 - Secure Bash Scripting, Race Conditions & File Locking (Hands-on)
 
-**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan is public, and so is the code that computes every student's values and answers. Personal values stop neighbour copying and force each answer to use the student's own numbers; they are not secret. The live checkpoint is protected by its release time, not by secrecy. Keep anything that must stay private outside this repository.
 
-## Objectives and Original-task Mapping
+This lab uses the pilot format. Read the [student instruction](../../../labs/lab8/lab8-instruction.md) and the [report template](../../../labs/lab8/README.md) first.
 
-1. Validate bounded purchase quantities and test rejection without changing stock.
-2. Reproduce and explain a read-check-write race using stock plus logged sale quantities.
-3. Protect the complete transaction with a bounded file lock and test the invariant.
+## Objectives
 
-Original Levels 0–2 warm-up/validation/logging introduce the store. Levels 3–4 exploit and lock repair are the required investigation. Cross-user permission/drop-zone/log-management levels are optional.
-
-Read the [student instruction](../../../labs/lab8/lab8-instruction.md), [report template](../../../labs/lab8/README.md) and [optional extensions](../../../labs/lab8/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+1. Read a short script and find its critical section.
+2. Reproduce a race condition and show which rule it breaks.
+3. Protect the whole critical section with a file lock and test it.
 
 ## Before Class
 
-- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `bash`, `flock` (util-linux), `timeout`, `awk`. No student sudo or privileged execution of student code.
-- Pretest flock semantics on the real filesystem (some network filesystems differ). Run only two buyers with owned files and timeout. The shell example does not offer crash-atomic stock-plus-log transactions.
-- In an ordinary test account run `oslab doctor`, `oslab start lab8`, then `cd "$OSLAB_WORKSPACE/lab8"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
-- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
-- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+- Install or update the helper as in the [runbook](../../../server/RUNBOOK.md). Check that `/var/lib/itc-oslab/inbox` exists with mode `1733` and that `/var/lib/itc-oslab/release/lab8.checkpoint` does **not** exist.
+- As an ordinary test account: `oslab doctor` must say `class inbox: connected`. Then `oslab start lab8`, `oslab check lab8` (expect 2/3), copy `teaching/instructor/lab8/buy_fixed.sh` over `store/buy.sh`, `oslab check lab8` (expect 3/3).
+- Test `flock` on the real home filesystem; some network filesystems behave differently. If `flock` is missing, the lab cannot run as written.
+- Prepare a roster file with one account name per line (the same allowlist as for installation). All `oslab-teach` commands below take `--roster FILE`.
+- The evening before, run `sudo oslab-teach board lab8 --roster FILE` and remind students who have no pre-lab entry.
 
-## Exact 120-minute Timetable
+## Timetable and What You Do
 
-| Minutes | Teacher action and evidence |
-|---|---|
-| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
-| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
-| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
-| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
-| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
-| 85–100 | Collect individual changed-case answer; no AI or peer help |
-| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
-| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
+Keep `sudo oslab-teach board lab8 --roster FILE --watch 20` open on your own screen for the whole session. Do not project it: it shows names.
 
-## Expected Results and Public Model
+| Minutes | Students | You |
+|---|---|---|
+| 0–5 | Setup | Check the `started` column fills. Walk to anyone still empty after three minutes |
+| 5–20 | Read and trace the script | Do not explain the bug. Ask individuals: "Which line reads? Which lines write?" |
+| 20–30 | Prediction, then class discussion | At minute 25 read the **prediction spread** aloud without names. Ask one student from each camp to argue. Do not give the answer; the experiment will |
+| 30–50 | Core 1: break it | Visit students whose `checks` column is still empty at minute 45 |
+| 50–75 | Core 2: fix it | Sort your visits by the board: no check yet, then many checks still at 2/3, then high hint level. Leave 3/3 students alone and point them to Plus |
+| 75–90 | Plus and Challenge (or finish Core) | Work only with students below 3/3. Others are occupied |
+| 90–105 | Live checkpoint | At minute 90 say "close AI tools" and run `sudo oslab-teach release lab8`. Watch the `checkpoint` and `task` columns |
+| 105–115 | Debrief | Use the script below |
+| 115–120 | Submit | Run `sudo oslab-teach export lab8 --roster FILE > lab8.csv` |
 
-Flawed two buyers of 4 against stock 5 can both log sold 4 while final stock is 1. Locked case accepts exactly one, rejects the other and leaves 1. Invalid quantity fails without a sale; held lock gives bounded timeout. Models use STORE QTY rather than the student QTY-only wrapper.
+## Expected Results
 
-Public [flawed model](buy_flawed.sh) and [full-lock model](buy_solution.sh) take `STORE QTY`. Use a fresh owned store, reset test stock to 5 between cases, and run at most two buyers under `timeout 5`; wait for both saved PIDs. Expect the full-lock section to cover stock validation/read/check/write and log append, not just the last writes.
+- **Unsafe script, buyers A and B:** both are accepted. `sales.log` shows A + B units, more than the stock. `stock.txt` holds `stock - A` or `stock - B`, whichever buyer wrote last. It is not negative, which is why "stock is not negative" is a useless test.
+- **Unsafe script, two small quantities (Core 1 step 4):** both sales are legitimate, but `stock.txt` is still wrong: one update is lost. This is the result that surprises students most; use it in the debrief.
+- **Repaired script:** exactly one of A and B is accepted, and sold + left = start.
+- **The three AI answers:** `a.sh` locks only the write, so both buyers have already read and decided. `b.sh` uses a lock file named after the process ID, so the two buyers lock different files. `c.sh` takes the lock in a subshell, so it is released before the transaction starts. All three fail the third milestone of `oslab check lab8`.
+- **Challenge, killed buyer:** the kernel releases a `flock` lock when the descriptor is closed, and that happens when the process dies. The next buyer does not wait forever. The data can still be half-updated; a lock is not a transaction.
 
-Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
+[`buy_fixed.sh`](buy_fixed.sh) is the public model in the student's form. [`buy_flawed.sh`](buy_flawed.sh) and [`buy_solution.sh`](buy_solution.sh) take `STORE QTY` and are used by `server/test_local.sh`.
 
-## Checkpoint Key and Quick Marking
+## Checkpoint Key and Marking
 
-Practice question: Stock is 3 and two buyers request 2 each. Under correct transaction locking, predict how many purchases are accepted, final stock, and total logged units. Explain why nonnegative stock alone is an insufficient test.
+Key: `sudo oslab-teach key lab8 --roster FILE` prints each student's values and expected answers, including the checkpoint after release. Three buyers each want `q` units from stock `s`: accepted = `min(3, s // q)`, left = `s - accepted × q`, sold = `accepted × q`. The script change is a per-purchase limit that exits with status 4.
 
-Key: Exactly one purchase of 2 is accepted from stock 3, leaving 1 and logging 2 sold units. Check initial stock = final stock + accepted sold units, not log line count or nonnegativity alone. Locking only the write leaves a stale read/check outside the critical section; all cooperating writers must lock before read through log append.
+The checkpoint is worth 3 points:
 
-Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
+| Part | Points | Source |
+|---|---:|---|
+| The three numeric answers (all right 1, at least half 0.5) | 1 | `checkpoint_auto_points_of_2` in the export |
+| The limit rule passes `oslab check lab8` | 1 | same column |
+| The sentence names the lock line before the read | 1 | read `checkpoint_sentence` in the export; about 10 seconds each |
 
-## Misconceptions and Progressive Support
+A student with an unfinished Core can still earn the first and third points. The `flag` column says `rewritten` when a prediction or checkpoint was sent more than once or removed; look at that student's work before marking.
 
-Students count transactions as units, lock only printf, delete lock files, or claim a single good run proves correctness. Draw the full read-check-write-log critical section and check conservation.
+## Debrief Script (10 minutes)
 
-Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
+1. Show the prediction spread again and ask: "Who changed their mind after Core 1, and what did you see?"
+2. Take the small-quantities case: "Both sales were allowed. Why is the stock still wrong?" Draw read–check–write for two buyers on the board.
+3. Read two checkpoint sentences without names: one that names the lock before the read, one that names only the write. Ask the class which is complete.
+4. Close with the limit of the tool: `oslab check` ran one slow interleaving. Passing it does not prove every interleaving is safe.
 
-Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
+## Misconceptions
 
-## Capability Fallback and Cleanup
+- Counting log lines, not units.
+- "The lock goes around the write." Ask what value the check used.
+- Deleting the lock file to "reset" it. A waiting buyer then locks a different file.
+- "It passed once, so it is correct."
 
-Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
+Use the hints in order (`oslab hint lab8 1` to `3`). Hint 3 gives the syntax but not the place. Do not hand out `buy_fixed.sh` during the lab.
 
-Wait for only the two captured buyer jobs to finish. Save both test records, then leave lock/data files for review. Never delete an active lock file or kill unrelated processes.
+## Caveats Moved Out of the Student Text
 
-After evidence is saved, `oslab clean lab8` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
+- `BUY_DELAY` is a teaching aid that widens the window. It is not part of any fix, and without it the race still exists but is rarely seen.
+- `flock` is advisory. A process that does not ask for the lock is not stopped.
+- The repaired script is not crash-safe: a failure between the stock write and the log write leaves them inconsistent.
+- `oslab check lab8` runs the student's own script as that student in a temporary copy of the store. It never runs with privileges.
+- At most two or three buyers per run. No stress loops on the shared server.
+
+## Fallback
+
+Without the class inbox (`oslab doctor` says `not found`), everything still works in practice mode: answers stay in the student's workspace, the checkpoint uses practice values, and you collect predictions by a show of hands. Local Linux or WSL works the same way.
 
 ## Topic Rubric (10 points)
 
-| Evidence mapped to lab objectives | Points |
+| Evidence | Points |
 |---|---:|
-| Validated purchase behavior and full transaction lock (objectives 1–3) | 3 |
-| Flawed/locked concurrency and invalid-input evidence | 2 |
-| Explain stale reads, lock scope and the units-sold inventory invariant; original prediction and evidence-based correction | 2 |
-| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
-| Concise, attributable evidence and required artifacts | 1 |
+| Working script: `oslab check lab8` passes the three Core milestones | 2 |
+| Tests: unsafe run, own quantities, and the run after repair | 2 |
+| Prediction saved in time, and an honest confirmed/corrected explanation | 2 |
+| Live checkpoint: answers, the change to the script, and the sentence | 3 |
+| Clear, complete evidence files and report | 1 |
 
-Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.
+The export gives you the first and fourth rows almost directly. Read only `race.txt`, `locked.txt` and the report's explanation for the rest.

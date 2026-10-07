@@ -6,6 +6,22 @@ The primary environment is a **shared Ubuntu server with an individual account f
 
 Run the setup commands in your lab. `oslab start labN` creates or preserves your workspace; it does not enter it. You must run `cd` separately. Paths default to `~/oslab-work`, and an instructor may configure `OSLAB_WORKSPACE` to another directory below your home.
 
+## Pilot-format labs (Labs 1, 2 and 8)
+
+These labs give every student different values and collect answers through `oslab`, not on paper.
+
+| Command | When |
+|---|---|
+| `oslab prelab labN` | Before class: three short questions, with explanations |
+| `oslab values labN` | Any time: shows your own numbers, names or folders |
+| `oslab predict labN` | Once, before the experiment. The first answer is kept |
+| `oslab hint labN 1` | When you are stuck (levels 1 to 3). Hints cost no points |
+| `oslab check labN` | As often as you like: shows which milestones pass |
+| `oslab checkpoint labN` | Near the end, after the instructor opens it |
+| `oslab status labN` | Shows what you have already saved |
+
+`oslab doctor` tells you whether the class inbox is connected. On the server it is, and your answers go to the instructor. On your own Linux or WSL it is not: this is **practice mode**. Everything works, your answers stay in `~/oslab-work/.records/`, the checkpoint uses practice numbers, and your values may differ from the ones you get on the server.
+
 ## Local Linux or WSL, or a missing wrapper
 
 These commands use Bash and Python 3.8+ as your ordinary user. First obtain the course repository, or use an existing clone. Do not clone a second copy over existing files.
@@ -54,4 +70,4 @@ Record a short terminal transcript with commands, inputs and decisive output. `t
 
 To review a submitted script, recreate a fresh fixture with `oslab start labN` in a separate practice workspace below your home, then copy the source back to its original workspace location (for example `store/buy.sh`, `vault/worker.sh`, or `backup.sh` next to `project/`). The concise submission intentionally omits binaries and mutable fixture data; do not expect a copied script to find that data merely because it is in the submission folder.
 
-Predictions are written before executing the relevant case on paper or the existing course worksheet. A final README can record that prediction but cannot prove when it was written.
+In Labs 1, 2 and 8, predictions and checkpoint answers are saved by `oslab predict` and `oslab checkpoint`. In the other labs they are written on paper or the existing course worksheet before executing the relevant case; a final README can record that prediction but cannot prove when it was written.

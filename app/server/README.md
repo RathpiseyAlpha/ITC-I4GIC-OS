@@ -26,6 +26,17 @@ python3 app.py --port 8080        # custom port
 python3 app.py --host 127.0.0.1   # localhost only (behind reverse proxy)
 ```
 
+## Server-only Files
+
+These files are read from `app/server/` and are not in git:
+
+| File | Purpose |
+| --- | --- |
+| `roster.json` | Student IDs, names and Linux accounts. Copy `roster.example.json` and fill it in. Without it, logins work but no student sees grades. Restart the service after editing. `ITC_OS_ROSTER` can point to another path |
+| `sessions.json`, `deadlines.json` | Written by the server at run time |
+
+`ITC_OS_ADMINS` is a comma-separated list of Linux accounts that see the admin tabs (default `rathpisey`). The service must be able to read `/etc/shadow` (systemd `SupplementaryGroups=shadow`) and each student's home directory.
+
 ## API Endpoints
 
 | Endpoint | Description |

@@ -2,255 +2,281 @@
 
 | Item | Details |
 |---|---|
-| Course | Operating Systems, Institute of Technology of Cambodia |
-| Duration | 120 minutes; installation and VM preparation happen before class |
-| Ownership | Individual work and submission; optional short peer exchange |
-| Primary environment | Shared Ubuntu server with an individual account for each student |
-| Prerequisites | Lab 7 quoted arguments/exit status, positive-integer checks, background jobs |
-| Required tools | `bash`, `flock` (util-linux), `timeout`, `awk` |
-| Practice fallback | Local Linux/WSL for unprivileged tasks; disposable VM for boot/system administration |
-| Core versus extensions | Follow the core below; [optional extensions](extensions.md) retain wider original coverage |
+| Duration | 120 minutes in class, plus a 10-minute pre-lab |
+| Work | Individual. Your values are different from your neighbour's |
+| Environment | Shared Ubuntu server with an individual account for each student. Local Linux/WSL works for practice ([setup](../SETUP.md)) |
+| Tools | `bash`, `flock`, `oslab` |
+| Lab format | Pilot: personal values, Core / Plus / Challenge, live checkpoint |
+| Lecture link | [Week 7 notes: critical sections](../../lectures/notes/week07-critical-sections.md) and the [semaphore sandbox](../../lectures/visualizations/pc-sandbox.html) |
 
-> **Scenario:** QuantumTech’s widget store must not sell inventory twice. Use a five-unit teaching stock rather than the original 100-unit workload so you can reason about every sale. Inspect the supplied behavior, reproduce a stale read, and protect the complete transaction.
+> **Scenario:** QuantumTech sells widgets with a small Bash script. It works for one buyer. On a busy day, two buyers arrive at the same time and the shop sells widgets it does not have. You will see the problem, explain it, and repair it.
 
 ## Lab Objectives
 
-After the required core, you should be able to:
+After the Core, you can:
 
-1. Validate bounded purchase quantities and test rejection without changing stock.
-2. Reproduce and explain a read-check-write race using stock plus logged sale quantities.
-3. Protect the complete transaction with a bounded file lock and test the invariant.
+1. Read a short script and find its critical section.
+2. Reproduce a race condition and show which rule it breaks.
+3. Protect the whole critical section with a file lock and test it.
 
-**Extension objectives:** Audit trails, permissions and consent-based peer test review; prepared drop-zones and bounded log organization. These retain the original lab's wider topics; they are not required to finish the two-hour core.
+## How This Lab Works
 
-## Task Overview and 120-minute Timetable
+| Command | What it does |
+|---|---|
+| `oslab values lab8` | Shows **your** numbers. Use them everywhere in this lab |
+| `oslab predict lab8` | Saves your prediction once, before the experiment |
+| `oslab hint lab8 1` | Gives a hint (levels 1, 2, 3). Hints cost no points |
+| `oslab check lab8` | Tests your script and shows your milestones |
+| `oslab checkpoint lab8` | Opens when the instructor says so, near the end |
+
+- **Core** is for everyone. **Plus** and **Challenge** are for students who finish early. Full marks need only Core and the checkpoint.
+- AI tools are allowed in Core, Plus and Challenge. They are **not** allowed in the prediction and the checkpoint.
+- If AI gives you a fix, you must test it. In this lab you will see three AI fixes that look right and are wrong.
+
+## Before the Lab
+
+Do this before class. It takes about 10 minutes.
+
+```bash
+oslab doctor
+oslab prelab lab8
+```
+
+## Timetable
 
 | Minutes | Activity |
 |---|---|
-| 0–10 | Introduction, objectives and setup |
-| 10–25 | Guided example: commands and observations |
-| 25–35 | Written prediction; optional five-minute peer comparison |
-| 35–70 | Numbered individual investigation tasks; AI optional |
-| 70–85 | Normal and edge tests; instructor feedback |
-| 85–100 | Individual changed-case checkpoint; no AI or peers |
-| 100–110 | Correction and conceptual explanation |
-| 110–120 | Cleanup and submission |
+| 0–5 | Setup |
+| 5–20 | Read and trace the script |
+| 20–30 | Prediction, then class discussion |
+| 30–50 | Core 1: break it |
+| 50–75 | Core 2: fix it |
+| 75–90 | Plus and Challenge (or finish Core) |
+| 90–105 | Live checkpoint |
+| 105–115 | Debrief |
+| 115–120 | Submit |
 
-Original Levels 0–2 warm-up/validation/logging introduce the store. Levels 3–4 exploit and lock repair are the required investigation. Cross-user permission/drop-zone/log-management levels are optional.
+## Setup (0–5)
 
-## Lab Setup (0–10 minutes)
-
-1. Log in to the Ubuntu server using **your own account**. All commands below run as that ordinary user in Bash. Use only your own files and processes.
-2. Check the helper. If it is unavailable, follow [the local setup guide](../SETUP.md) to define `oslab` from your cloned course repository; it uses the same fixtures.
-
-   ```bash
-   whoami
-   command -v oslab
-   oslab doctor
-   ```
-
-3. Start the lab and **enter its directory**. `oslab start` preserves existing work and does not change the current directory. If resuming, inspect existing files before running commands that write to them.
+1. Start the lab and go into its folder.
 
    ```bash
    export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"
    oslab start lab8
    cd "$OSLAB_WORKSPACE/lab8"
-   pwd
    mkdir -p evidence
-   find . -maxdepth 3 -type f
+   oslab values lab8
    ```
 
-4. Compare your files with the starting tree. `.oslab-managed.json` identifies the managed workspace; leave it intact. `evidence/` was created in step 3. If `tree` is installed, `tree -a -L 3` can display the same structure.
+2. Type **your** three numbers into shell variables. The numbers below are only an example.
+
+   ```bash
+   stock=9
+   buyer_a=7
+   buyer_b=8
+   ```
+
+   If you open a new terminal, run `cd` and set these three variables again.
+
+3. Your folder looks like this:
 
    ```text
    lab8/
-   ├── .oslab-managed.json
    ├── store/
-   │   ├── buy.sh       # skeleton; replaced by the guided starting implementation
-   │   ├── stock.txt    # starts at 5
-   │   └── sales.log    # starts empty
+   │   ├── buy.sh          # the shop script: works for one buyer
+   │   ├── stock.txt       # your starting stock
+   │   ├── sales.log       # empty
+   │   └── ai-answers/     # three "fixes" for the Plus task
    └── evidence/
    ```
 
-The workspace is for experiments. Your personal course Git repository holds the final submission; you will copy selected files there at the end. VM work and privileged commands are never performed on the shared server.
+## Read and Trace (5–20)
 
-## Levels 0–2 — Store Engine: Guided Working Example (10–25)
+Do not run two buyers yet. First understand the script.
 
-1. Inspect the supplied state and save the skeleton if you have already edited it.
-
-   ```bash
-   cat store/stock.txt
-   cat store/buy.sh
-   ```
-
-   Work on the owned `store/` copy. The guided implementation below is intentionally **unsafe under concurrency**; it is only a starting point for investigation.
-
-2. Create a runnable single-buyer engine. Read each part: validation, state read, sufficient-stock check, update and audit log.
+1. Read it with line numbers, then let one buyer buy one unit.
 
    ```bash
-   cat > store/buy.sh <<'SH'
-   #!/usr/bin/env bash
-   set -euo pipefail
-   store=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-   if [[ $# -ne 1 || ! "$1" =~ ^[1-9][0-9]{0,2}$ ]]; then
-       echo 'usage: buy.sh QUANTITY (1..999, no leading zero)' >&2
-       exit 2
-   fi
-   quantity=$1
-   # TODO: a bounded lock must protect the complete transaction below.
-   stock=$(<"$store/stock.txt")
-   [[ "$stock" =~ ^(0|[1-9][0-9]{0,2})$ ]] || { echo 'invalid stock' >&2; exit 2; }
-   if (( quantity > stock )); then echo 'insufficient stock' >&2; exit 1; fi
-   sleep 1  # teaching delay to widen the stale-read window; remove in final version
-   printf '%s\n' "$((stock - quantity))" > "$store/stock.txt"
-   printf 'sold %s\n' "$quantity" >> "$store/sales.log"
-   echo 'accepted'
-   SH
+   cat -n store/buy.sh
    bash store/buy.sh 1
    cat store/stock.txt store/sales.log
    ```
 
-   Expected: stock 4 and one `sold 1` log record. Each script finds its own folder rather than relying on the caller's current directory. Input bounds avoid octal/overflow surprises in this teaching script.
-
-3. Reset **only test data** for the next experiment; this does not replace your program.
+2. Put the test data back. You will use these two lines many times.
 
    ```bash
-   printf '5\n' > store/stock.txt
+   printf '%s\n' "$stock" > store/stock.txt
    : > store/sales.log
    ```
 
-   **Observe:** At which line has the script committed to an old stock value? Does the log by itself prove inventory was decremented consistently?
+3. Answer in `evidence/trace.txt` (use `nano evidence/trace.txt`):
+   - Which line **reads** the stock?
+   - Which lines **change** a file?
+   - After which line has the script decided "there is enough stock"?
+   - Finish this rule: *units sold + units left = …*
 
-## Prediction (25–35)
+## Prediction (20–30)
 
-Before running concurrent buyers, write: **Stock is 5. Both buyers request 4 and both read the stock before either writes it. What may the final stock and log show? Does that preserve `units sold + remaining stock = initial stock`?** No AI; an optional five-minute comparison is allowed.
+```bash
+oslab predict lab8
+```
 
-## Level 3 — Observe the Stale-Read Race (35–50)
+Answer alone, without AI, before the experiment. A wrong prediction costs nothing. The class will look at the spread of answers together.
 
-1. Run only two bounded buyers and capture each PID and exit status.
+## Core 1 — Break It (30–50)
+
+1. Run two buyers at the same time. `BUY_DELAY=1` makes the payment take one second, so the problem is easy to see.
 
    ```bash
-   timeout 5 bash store/buy.sh 4 > evidence/buyer-a.txt 2>&1 &
-   buyer_a=$!
-   timeout 5 bash store/buy.sh 4 > evidence/buyer-b.txt 2>&1 &
-   buyer_b=$!
-   if wait "$buyer_a"; then rc_a=0; else rc_a=$?; fi
-   if wait "$buyer_b"; then rc_b=0; else rc_b=$?; fi
-   printf 'A=%s B=%s\n' "$rc_a" "$rc_b"
-   cat store/stock.txt store/sales.log
+   BUY_DELAY=1 bash store/buy.sh "$buyer_a" > evidence/a.txt 2>&1 &
+   pid_a=$!
+   BUY_DELAY=1 bash store/buy.sh "$buyer_b" > evidence/b.txt 2>&1 &
+   pid_b=$!
+   wait "$pid_a"; rc_a=$?
+   wait "$pid_b"; rc_b=$?
    ```
 
-2. Count **quantities sold**, not just log lines. Two accepted sales of 4 with stock 1 would account for 9 units from an initial 5, exposing the lost update even though stock is nonnegative.
-3. Save initial state, both exit statuses, final stock and log in `evidence/race.txt`. The one-second delay is a controlled teaching aid, not a production fix or a guarantee that every run reveals the race. If necessary, repeat once after resetting only stock/log.
+2. Save what happened.
 
    ```bash
    {
-     printf 'initial stock=5; requests=4,4; A=%s B=%s\n' "$rc_a" "$rc_b"
-     cat evidence/buyer-a.txt evidence/buyer-b.txt store/stock.txt store/sales.log
-   } > evidence/race.txt
+     echo "start=$stock  A wants $buyer_a (exit $rc_a)  B wants $buyer_b (exit $rc_b)"
+     cat evidence/a.txt evidence/b.txt
+     echo "stock.txt now: $(cat store/stock.txt)"
+     cat store/sales.log
+   } | tee evidence/race.txt
    ```
 
-## Level 4 — Protect the Critical Section (50–70)
+3. Check the rule from your trace. How many units were sold? How many are left? Add one line to `evidence/race.txt` that says which number is wrong.
+4. **Your decision.** Put the test data back. Choose two **small** quantities whose sum is less than your stock, so both sales are allowed. Run the two buyers again with your quantities. Is `stock.txt` correct now? Add your quantities, the result and one sentence to `evidence/race.txt`.
+5. Run `oslab check lab8`. Two milestones pass and one does not. That is expected for now.
 
-1. Preserve the flawed starting script for comparison.
+## Core 2 — Fix It (50–75)
+
+1. Keep a copy of the unsafe script.
 
    ```bash
-   cp -- store/buy.sh store/buy_before_lock.sh
+   cp -- store/buy.sh store/buy_unsafe.sh
    ```
 
-2. Learn the locking mechanism on a separate demo lock before editing the store.
+2. Try `flock` alone first.
 
    ```bash
    (
        flock -x -w 2 9 || exit 3
-       printf 'demo lock acquired\n'
+       echo 'I hold the lock'
    ) 9>store/demo.lock
    ```
 
-   Descriptor 9 refers to an opened lock file. `-x` requests exclusivity; `-w 2` bounds the wait. Processes must cooperate using the **same** lock file. Closing the descriptor releases its lock.
+   `9>store/demo.lock` opens the lock file as file descriptor 9. `flock -x` asks for the lock, and `-w 2` waits at most two seconds. The lock ends when descriptor 9 is closed.
 
-3. Mark the transaction boundaries on your script: stock read → sufficiency check → update → sale log. Add a dedicated `stock.lock` descriptor and bounded acquisition before the transaction. Decide where to handle a lock timeout and what status to return. Locking only the write still leaves the earlier check stale.
-4. Keep the descriptor open until the transaction finishes. Remove the teaching delay from the final script; keep the separate flawed copy if you want to reproduce the original observation.
+3. **Before you edit,** write in `evidence/trace.txt`: the first line and the last line of `buy.sh` that must be inside the lock, and why.
+4. Edit `store/buy.sh` (`nano store/buy.sh`). Add the lock. You decide:
+   - where the lock starts,
+   - what the script does when it cannot get the lock (print a message, exit with status 3),
+   - which lock file all buyers share.
 
-**Complete when:** concurrent buyers cannot both spend the same units, invalid inputs leave state unchanged, and your explanation identifies the whole protected section. AI may suggest a lock placement; verify that placement against the transaction boundaries.
+   Keep the `BUY_DELAY` line.
+5. Put the test data back, run the two buyers from Core 1 again, and save the result in `evidence/locked.txt` with the same block as before.
+6. Run `oslab check lab8` until all three milestones pass.
 
-**Hints:** (1) state the inventory invariant; (2) inspect the stock read before the lock; (3) use `exec 9>...` then `flock -x -w 2 9`, keeping read/check/write/log after acquisition.
+Stuck for more than five minutes? Use `oslab hint lab8 1`, then `2`, then `3`.
 
-## Tests and Feedback (70–85)
+**Core is complete when** `oslab check lab8` shows `milestones: 3/3` and your trace names the lines inside the lock.
 
-For each data-dependent case, reset stock to 5 and empty the log; preserve your source. Keep two selected test records, including the concurrent case.
+## Plus — Review Three AI Answers (75–90)
 
-| Case | Expected behavior |
-|---|---|
-| Quantity 2 | Accept; stock 3; one `sold 2` record |
-| 0, -1, `abc`, or missing argument | Reject; no stock/log change |
-| Quantity 6 | Reject as insufficient; stock stays 5 |
-| Two concurrent quantities 4 | Exactly one sale, other rejected; final stock 1 |
-| Forced lock contention | Bounded lock failure is reported; no state change |
+Someone asked an AI assistant to fix `buy.sh`. It gave three answers: `store/ai-answers/a.sh`, `b.sh` and `c.sh`. Each one uses `flock`. Each one is wrong.
 
-The public `oslab check lab8` only checks nonnegative integer stock; it cannot establish the inventory invariant or prove race absence. Check log quantities and stock together. Successful runs support a bounded claim; they do not prove every possible execution safe or provide crash-safe transactions.
+1. See what each answer changed.
 
-After your repaired concurrent run, save its statuses/output/state using the same record block as Level 3, but write to `evidence/locked.txt`. Add the invalid-input and normal-case observations using an editor or `tee -a`; keep the initial stock for each case explicit.
+   ```bash
+   diff store/buy_unsafe.sh store/ai-answers/a.sh
+   ```
 
-**Troubleshooting:** If `flock` is absent, ask for the instructor's trace fallback. A timeout status is not a successful purchase. Leave the lock file in place—deleting and recreating it while workers run can defeat the shared locking protocol. Read `man flock` and [Week 7 notes](../../lectures/notes/week07-critical-sections.md).
+2. Test an answer in a separate folder, so your own script stays safe.
 
+   ```bash
+   mkdir -p try
+   cp -- store/ai-answers/a.sh try/buy.sh
+   printf '%s\n' "$stock" > try/stock.txt
+   : > try/sales.log
+   BUY_DELAY=1 bash try/buy.sh "$buyer_a" & BUY_DELAY=1 bash try/buy.sh "$buyer_b" & wait
+   cat try/stock.txt try/sales.log
+   ```
 
-## Individual Changed-case Checkpoint (85–100 minutes)
+3. For each of the three answers, write in `evidence/ai-review.txt`: the line that is wrong, and one sentence that says why two buyers can still be inside the critical section together.
 
-Close AI tools and peer help. Answer the instructor's short question on paper or the existing course worksheet. Your earlier implementation need not be complete to answer it.
+## Challenge
 
-> Stock is 3 and two buyers request 2 each. Under correct transaction locking, predict how many purchases are accepted, final stock, and total logged units. Explain why nonnegative stock alone is an insufficient test.
+Choose one. Save your commands and your explanation in `evidence/challenge.txt`.
 
-Give the result or diagnosis, the mechanism, and one observation that could check it. The instructor collects this answer before discussing the public key; the public question is practice, so a graded session may use a fresh private variant.
+- **Killed buyer.** Start one buyer of your fixed script with `BUY_DELAY=20` in the background, save its PID, and `kill` that PID while it holds the lock. Does the next buyer wait forever? Explain what the kernel does with the lock.
+- **Smallest repair.** Make `ai-answers/a.sh` correct by moving lines only. Do not add or delete any line.
 
-## Explanation and Correction (100–110 minutes)
+## Live Checkpoint (90–105)
 
-Keep your original prediction visible. Under it, write **confirmed** or **corrected**, cite the relevant test, and explain the OS mechanism in 3–5 sentences. Initial prediction accuracy is lightly weighted; a reasoned attempt and evidence-based correction earn credit.
+Wait until the instructor opens it. Close AI tools. Work alone.
 
-Answer: (a) Why can stock remain nonnegative while sales exceed inventory? (b) Which lines must share one lock? (c) What does your test not establish about crash recovery?
+```bash
+oslab checkpoint lab8
+```
 
-## Cleanup and Final Submission (110–120 minutes)
+1. Answer the questions. They use new numbers, made for you at this moment.
+2. Then make the small change to `store/buy.sh` that the command prints.
+3. Run `oslab check lab8`. A fourth milestone, `checkpoint`, must pass.
 
-Wait for only the two captured buyer jobs to finish. Save both test records, then leave lock/data files for review. Never delete an active lock file or kill unrelated processes.
+You can do the checkpoint even if your Core is not finished: answer the questions first.
 
-1. Set `SUBMISSION_REPO` to the **absolute path of your existing personal course repository**. Replace the example ID/path below with your own; do not copy another student's repository.
+## Debrief (105–115)
+
+Look at your prediction again.
+
+```bash
+cat "$OSLAB_WORKSPACE/.records/lab8-predict.json"
+```
+
+In your report, write **confirmed** or **corrected** for each answer, and explain in 3–5 sentences: why can the stock stay above zero while the shop sells too much, and which lines must share one lock?
+
+## Submit (115–120)
+
+1. Copy your work to your course repository. Replace the path with your own.
 
    ```bash
    SUBMISSION_REPO="$HOME/os-se-YOUR_ID/os-lab-YOUR_ID"
    mkdir -p "$SUBMISSION_REPO/lab8/evidence"
-   ```
-
-2. Use [this lab's README template](README.md). Copy the listed artifacts and **two selected test records**, rather than every terminal output. Check the final tree below before submitting.
-
-   ```bash
    cp -- store/buy.sh "$SUBMISSION_REPO/lab8/"
-   cp -- evidence/race.txt evidence/locked.txt "$SUBMISSION_REPO/lab8/evidence/"
+   cp -- evidence/trace.txt evidence/race.txt evidence/locked.txt "$SUBMISSION_REPO/lab8/evidence/"
    ```
+
+2. Fill in the [report template](README.md) as `lab8/README.md`. Add `ai-review.txt` or `challenge.txt` if you did them.
 
    ```text
    lab8/
    ├── README.md
-   ├── buy.sh              # final locked script
+   ├── buy.sh              # your final script
    └── evidence/
-       ├── race.txt         # stale-read observation and initial data
-       └── locked.txt       # normal/invalid/concurrent results after repair
+       ├── trace.txt       # your reading of the script and the lock boundaries
+       ├── race.txt        # the unsafe run and your own quantities
+       └── locked.txt      # the same run after your repair
    ```
 
-3. Write your own explanations. The prediction must have been captured before execution on paper or the existing course mechanism; copying it into the README afterwards is only a record, not proof of timing. The independent checkpoint is collected separately.
-4. Inspect your course repository with `git status --short`, add only your lab files, and commit/push using the normal course submission procedure. Do not include passwords, personal shell configuration, generated binaries or disk images.
+3. Commit and push in the usual way. Do not delete `store/stock.lock` while a buyer is running.
 
 ## Grading Criteria (10 points)
 
-| Evidence mapped to lab objectives | Points |
+| Evidence | Points |
 |---|---:|
-| Validated purchase behavior and full transaction lock (objectives 1–3) | 3 |
-| Flawed/locked concurrency and invalid-input evidence | 2 |
-| Explain stale reads, lock scope and the units-sold inventory invariant; original prediction and evidence-based correction | 2 |
-| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
-| Concise, attributable evidence and required artifacts | 1 |
+| Working script: `oslab check lab8` passes the three Core milestones | 2 |
+| Tests: unsafe run, your own quantities, and the run after repair | 2 |
+| Prediction saved in time, and an honest confirmed/corrected explanation | 2 |
+| Live checkpoint: answers, the change to your script, and your sentence | 3 |
+| Clear, complete evidence files and report | 1 |
 
-Equivalent valid commands, filenames and approaches earn credit if the evidence meets the objectives. A naming difference is penalized only when it actually breaks execution. AI is permitted during investigation and tests, optional throughout, and excluded from the initial prediction and individual checkpoint. If used, note one helpful suggestion and its verification; no paid tool, chat history or AI detector is required.
+Plus and Challenge are not needed for full marks. They are noted in your feedback. Your prediction is marked for being made and corrected, not for being right.
 
-## Help, References and Optional Work
+## Help and References
 
-Use the progressive hints in the task sections before requesting a full solution. See [the extension guide](extensions.md) for follow-up tasks with their own environment requirements. Existing visual guides are background references and may show the older broader sequence; this Markdown instruction defines the current required core.
+- `oslab hint lab8 1`, `2`, `3`
+- `man flock`
+- Old wider topics (audit trail, drop box, log housekeeping) are in the [optional extensions](extensions.md).

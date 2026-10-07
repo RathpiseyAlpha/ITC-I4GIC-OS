@@ -1,34 +1,38 @@
 # Lab 1 — Introduction to Operating Systems: individual report
 
-Copy this template to `lab1/README.md` in your own course repository. Follow [the instructions](lab1-instruction.md).
+Copy this template to `lab1/README.md` in your own course repository. Follow [the instructions](lab1-instruction.md). Your prediction and checkpoint answers are already saved by `oslab`; do not copy them here.
 
 - Student name/ID:
-- Ubuntu username and environment:
-- Artifact paths (turn these into links after copying to your submission): `evidence/os-info.txt`, `evidence/processes.txt`
+- Ubuntu username:
+- My values (`oslab values lab1`): count = , seconds =
+- Files: `evidence/os-info.txt`, `evidence/processes.txt`, `evidence/answers.txt`, `evidence/timing.txt`
 
-## Original Prediction
+## What I Saw
 
-Copy the prediction you wrote before execution and its reason. State how/when it was captured (paper or the course worksheet).
+| Observation | Result |
+|---|---|
+| Kernel release and distribution of the server | |
+| PIDs of my processes | |
+| Their parent PID, and which program the parent is | |
+| Rows shown after the first process ended | |
+| The five-second process: when I saw it, when I missed it | |
 
-## Test Evidence
+## My Prediction: Confirmed or Corrected
 
-Link to two short records under `evidence/`. Include enough command/input/output context to interpret them.
+For each prediction answer, write **confirmed** or **corrected** and the result that shows it.
 
-| Test | Claim | Result that would contradict it | Observed result | What remains unproven |
-|---|---|---|---|---|
-| two live instances | | | | |
-| short duration and post-exit sample | | | | |
+## Explanation
 
-## Explanation and Correction
+In 3–5 sentences: what is the difference between a program and a process? Why do all your rows show the same name but different PIDs?
 
-Explain distribution versus kernel, program versus process, and why timing changes the sample.
+## What My Tests Do Not Prove
 
-Keep the original prediction above and add a correction supported by one observed result.
+One or two sentences. Think about what a single `ps` output can and cannot tell you.
+
+## Plus / Challenge (only if you did them)
+
+Your three-level drawing, or who became the parent and why.
 
 ## AI Note (optional)
 
-One useful suggestion and the test you used to verify it. If you did not use AI, leave this section out.
-
-## Cleanup
-
-State which owned processes/jobs/mounts you cleaned up or why none were created. The supervised changed-case answer is collected separately; do not reconstruct it after collection.
+One suggestion an AI tool gave you and the test you used to check it.

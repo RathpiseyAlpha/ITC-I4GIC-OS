@@ -1,4 +1,18 @@
-# Validation record — second revision
+# Validation record
+
+## Pilot format for Labs 1, 2 and 8 — checked October 7, 2026
+
+Checked in WSL Ubuntu as an ordinary user (UID 1000, Python 3.8.10), with a temporary inbox and release folder. Nothing was installed on, or deployed to, the teaching server.
+
+- `python3 tools/validate_revision.py`: 11 routes pass; Labs 1, 2 and 8 are recognized as pilot format (contiguous 120-minute timetable matching the instructor plan, 2/2/2/3/1 rubric, all five `oslab` commands named).
+- `python3 tools/test_lab_walkthroughs.py`: every Bash fence passes a syntax check; setup and guided fences of all 11 labs run. For the pilot labs the test replaces the example values with the test account's own values and runs the Core fences plus a model of the student-written steps: Lab 1 reaches 3/3 milestones, Lab 2 reaches 4/4, Lab 8 shows the double sale with the supplied script, a double sale with wrong answer `a.sh`, and 3/3 with the public repaired model.
+- `bash server/test_local.sh`: the earlier lifecycle and isolation checks still pass with personal Lab 2 file names. New checks: values are stable for one name and differ between two names; a second prediction is refused; the checkpoint is refused before release and a second release is refused; `check lab8` fails the supplied script and each of the three wrong answers on the two-buyer milestone and passes the repaired model; after release the limit change turns the fourth milestone from TRY to PASS; the board and CSV export show the test student with 3/3 answers, task done and 2 automatic points.
+- A two-student run of Lab 2 through the checkpoint: the board showed the prediction spread, marked one student 4/4 and the other 1/4, and flagged the student who removed the local record and sent a second prediction as `rewritten` while keeping the first answer. A roster name with no records appears as an empty row.
+- `bash server/install.sh --dry-run --term=2026-s1` prints the new inbox, release folder and term file and changes nothing.
+
+Not checked, and required before class: the real inbox with mode `1733` owned by root and many accounts writing at once; `oslab-teach` under `sudo` (the tests use one UID and trust the name inside the record, which the real tool does not); `flock` on the server's home filesystem; `initialize-students.sh --apply`; and whether the new timetables fit a real session. `oslab check` for Labs 1 and 2 reads files the student wrote, so it shows that the evidence exists and is consistent, not when or how it was produced.
+
+## Second revision — checked October 5, 2026
 
 Checked October 5, 2026, using an ordinary Ubuntu/WSL account (UID 1000), Python 3.8.10, Bash and GCC. Tests use fresh temporary homes/workspaces, including paths with spaces. No live student accounts, personal cron entries, boot configuration, mounts or deployed services were changed.
 
