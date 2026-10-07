@@ -2,6 +2,11 @@
 // Edit these values to match your repository and services.
 
 const CONFIG = {
+    // Parts of the site that can be switched off without removing their code.
+    features: {
+        finalExam: false // true shows the "final exam" link and screen to logged-in users
+    },
+
     // GitHub repository (used to dynamically fetch file tree)
     github: {
         owner: (window.__ENV && window.__ENV.githubOwner) || 'RathpiseyAlpha',

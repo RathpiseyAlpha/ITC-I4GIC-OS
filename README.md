@@ -8,7 +8,7 @@ The revised labs use **120 minutes per lab**, individual solutions, a short opti
 
 ## Start here
 
-- [Course outline](course-outline.md), [exam briefing](EXAM-BRIEFING.md), [lecture notes](lectures/notes/README.md), [class activities](lectures/class-activity/README.md), and [visualizations](lectures/visualizations/README.md)
+- [Course outline](course-outline.md), [lecture notes](lectures/notes/README.md), [class activities](lectures/class-activity/README.md), and [visualizations](lectures/visualizations/README.md)
 - [Environment setup](labs/SETUP.md), [complete lab index](labs/INDEX.md), and [shared lab report template](labs/REPORT-TEMPLATE.md)
 - [Teaching roadmap](teaching/ROADMAP.md), [per-lab audit](teaching/REVISION-AUDIT.md), [implementation record](teaching/IMPLEMENTATION-PLAN.md), [validation](teaching/VALIDATION.md)
 - [Server deployment runbook](server/RUNBOOK.md) and [per-user scenario helper](server/oslab.py)
