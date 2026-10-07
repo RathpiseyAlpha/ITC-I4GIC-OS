@@ -32,10 +32,10 @@ Each part also carries part of its marks for **evidence (screenshots + reports)*
    The answer skeletons are already extracted in your home at `~/exam-templates/`. Copy
    them into your exam folder:
    ```
-   mkdir -p ~/<your-OS-SE-repo>/final-exam
-   cp ~/exam-templates/*.md ~/<your-OS-SE-repo>/final-exam/   # README.md, commands.md, live_mods.md
+   mkdir -p ~/<your-OS-GIC-repo>/final-exam
+   cp ~/exam-templates/*.md ~/<your-OS-GIC-repo>/final-exam/   # README.md, commands.md, live_mods.md
    ```
-2. **Work inside your existing course repo** (the `OS-SE-…` / `os-se-…` folder in your
+2. **Work inside your existing course repo** (the `OS-GIC-…` / `os-gic-…` folder in your
    home that has a `.git`), in a new top-level **`final-exam/`** folder. Follow the tree
    in the paper. Scripts are lowercase `snake_case` with **no `.sh` extension**.
 3. **Live curveballs** are released **once, late in the exam** (see below).

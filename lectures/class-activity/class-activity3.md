@@ -977,10 +977,10 @@ Everything goes in your **README.md** — there is no separate answers file. You
 
 ### Submission Folder Structure
 
-All class activities go inside your personal `os-se-<YourStudentID>/` repository:
+All class activities go inside your personal `os-gic-<YourStudentID>/` repository:
 
 ```
-os-se-<YourStudentID>/
+os-gic-<YourStudentID>/
 ├── os-lab-<YourStudentID>/                  # ← Your lab submissions (existing)
 │   └── ...
 │
@@ -1022,7 +1022,7 @@ os-se-<YourStudentID>/
 
 ```bash
 # Navigate to your existing submission repo
-$ cd os-se-<YourStudentID>
+$ cd os-gic-<YourStudentID>
 
 # Create the activity 3 folder structure
 $ mkdir -p os-class-activities-<YourStudentID>/activity3/{task1_socket,task2_threads,task3_java,screenshots}
@@ -1035,7 +1035,7 @@ $ cd os-class-activities-<YourStudentID>/activity3
 
 ```bash
 # Make sure you are in the root of your repo
-$ cd os-se-<YourStudentID>
+$ cd os-gic-<YourStudentID>
 
 # Stage your class activity files
 $ git add os-class-activities-<YourStudentID>/activity3/

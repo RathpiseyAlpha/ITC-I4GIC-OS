@@ -430,7 +430,7 @@ task2_prevention/bank_no_deadlock.py
 ### Submission Folder Structure
 
 ```text
-os-se-<YourStudentID>/
+os-gic-<YourStudentID>/
 `-- os-class-activities-<YourStudentID>/
     `-- activity6/
         |-- README.md

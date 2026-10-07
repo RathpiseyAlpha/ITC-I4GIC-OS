@@ -13,3 +13,5 @@ students.md
 GIC_Course Spec_OS.pdf
 app/server/roster.json
 app/server/deadlines.json
+app/server/marks.json
+app/server/marks.tmp

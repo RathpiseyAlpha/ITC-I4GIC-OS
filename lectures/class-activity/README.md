@@ -26,10 +26,10 @@ _More activities will be added as the course progresses._
 
 ## Submission Structure
 
-All class activities are submitted inside your personal `os-se-<YourStudentID>/` repository, in a dedicated folder that follows the same naming convention as your lab submissions:
+All class activities are submitted inside your personal `os-gic-<YourStudentID>/` repository, in a dedicated folder that follows the same naming convention as your lab submissions:
 
 ```
-os-se-<YourStudentID>/
+os-gic-<YourStudentID>/
 ├── os-lab-<YourStudentID>/                # Lab submissions (existing)
 │   ├── lab1/
 │   ├── lab2/

@@ -332,7 +332,7 @@ screenshots/task4_case2.png               screenshots/task4_case3.png
 ### Submission folder structure
 
 ```text
-os-se-<YourStudentID>/
+os-gic-<YourStudentID>/
 └── os-class-activities-<YourStudentID>/
     └── activity7/
         ├── README.md                  # ← your written answers + traced tables (README.pdf also accepted)

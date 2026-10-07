@@ -243,7 +243,7 @@ In your report, write **confirmed** or **corrected** for each answer, and explai
 1. Copy your work to your course repository. Replace the path with your own.
 
    ```bash
-   SUBMISSION_REPO="$HOME/os-se-YOUR_ID/os-lab-YOUR_ID"
+   SUBMISSION_REPO="$HOME/os-gic-YOUR_ID/os-lab-YOUR_ID"
    mkdir -p "$SUBMISSION_REPO/lab8/evidence"
    cp -- store/buy.sh "$SUBMISSION_REPO/lab8/"
    cp -- evidence/trace.txt evidence/race.txt evidence/locked.txt "$SUBMISSION_REPO/lab8/evidence/"

@@ -55,7 +55,7 @@ Then follow the lab's `start`, `cd`, and `pwd` steps. These functions last for t
 
 ```text
 ~/oslab-work/labN/             # experiments and editable fixtures
-~/os-se-YOUR_ID/
+~/os-gic-YOUR_ID/
 └── os-lab-YOUR_ID/            # existing personal course Git repository
     └── labN/                 # selected sources, evidence and README
 ```

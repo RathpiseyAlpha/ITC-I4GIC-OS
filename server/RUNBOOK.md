@@ -18,6 +18,23 @@ Topic tools: `gcc`/pthread (Lab 5), `flock` (Labs 8–9), `tar` and user cron (L
 | `/var/lib/itc-oslab/inbox` | root, `1733` | Students' `oslab` drops small JSON records here: pre-lab, start, prediction, hints, checks, checkpoint. Students can add files but cannot list the folder. A student can remove only files they own |
 | `/var/lib/itc-oslab/release` | root, `0755` | `oslab-teach release labN` writes `labN.checkpoint` here. Until that file exists, `oslab checkpoint labN` refuses to start |
 | `/usr/local/bin/oslab-teach` | root, `0755` | Instructor tool. It must list the inbox, so run it with `sudo` |
+| `/opt/itc-os-labs/inbox-reader` | root, `0644` | Only with `--inbox-reader=ACCOUNT`. Names the one account, besides root, that may list the inbox |
+
+### Marking from the website
+
+The admin dashboard (Labs tab, **view and mark**) shows each student's files, their lab records and a form for the rubric points. The lab records come from the inbox, so the account that runs the website service must be able to list it:
+
+```bash
+sudo bash server/install.sh --apply --inbox-reader=pisey
+sudo systemctl restart itc-os-presence
+getfacl -p /var/lib/itc-oslab/inbox
+```
+
+`getfacl` must print `user:pisey:r-x`, and `stat` now prints `1773` for the inbox because of that entry. Students still cannot list the folder. The name is kept in `inbox-reader`, so later installs keep the access; to remove it, delete that file and install again.
+
+- Marks are saved in `app/server/marks.json` (mode `0600`, not in git). Back it up with the roster. A student sees a mark and its comment only after you tick **Show this mark and comment to the student** or use **Show all labN marks to students**.
+- The suggested points on the form come from the lab records. They are a starting value; the saved points are always the ones you typed.
+- The website keeps its own list of first-seen records in the service account's `~/.oslab-teach/`, separate from the one `sudo oslab-teach` keeps. Its `sent more than once` note counts from the first time anyone opened that student's mark screen.
 
 Instructor commands, each with `--roster FILE` (one account name per line, the same file as the allowlist):
 

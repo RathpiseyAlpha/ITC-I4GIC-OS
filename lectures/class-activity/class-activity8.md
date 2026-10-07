@@ -253,7 +253,7 @@ Answer in your own words (original examples — don't reuse the lecture's):
 Submit a written report (Part 1A/1B + Part 2A traces, and Part 3 answers), your source files, and your screenshots.
 
 ```text
-os-se-<YourStudentID>/
+os-gic-<YourStudentID>/
 `-- os-class-activities-<YourStudentID>/
     `-- activity8/
         |-- README.md                 # hand-traces & predictions (1A, 1B, 2A) + Part 3 answers

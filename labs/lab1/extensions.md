@@ -21,7 +21,7 @@ Do the APT tasks on your own Ubuntu (WSL or a virtual machine), where you have `
 
    ```bash
    sudo apt-get install tree -y
-   tree ~/os-se-YOUR_ID
+   tree ~/os-gic-YOUR_ID
    ```
 
 ## B. More About Virtual Machines

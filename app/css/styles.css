@@ -1556,3 +1556,74 @@ html[data-theme="light"] .admin-datetime::-webkit-calendar-picker-indicator { fi
 .themeBtn:hover { border-color: var(--green-dark); background: rgba(0,255,65,0.06); }
 .themeBtn .ic { font-size: 12px; line-height: 1; }
 @media (max-width: 768px) { .themeBtn { bottom: 44px; } }
+
+/* Instructor marks: lab records, file viewer and the marking form */
+.mark-box {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+.mark-title { color: var(--cyan); font-size: 12px; margin-bottom: 8px; }
+.mark-sub { color: var(--cyan); font-size: 11px; margin: 10px 0 4px; }
+.mark-facts { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 11px; }
+.mark-table { width: 100%; font-size: 11px; }
+.mark-table td { white-space: normal; vertical-align: top; }
+.mark-answer { color: var(--white); font-family: 'Fira Code', monospace; }
+.mark-input {
+    width: 64px;
+    background: transparent;
+    color: var(--white);
+    border: 1px solid var(--border);
+    padding: 2px 4px;
+    font-family: inherit;
+    font-size: 12px;
+}
+.mark-total { font-size: 13px; margin: 8px 0; }
+.mark-comment {
+    display: block;
+    width: 100%;
+    min-height: 60px;
+    box-sizing: border-box;
+    background: transparent;
+    color: var(--white);
+    border: 1px solid var(--border);
+    padding: 6px;
+    font-family: inherit;
+    font-size: 12px;
+}
+.mark-publish { display: block; font-size: 11px; margin: 8px 0; cursor: pointer; }
+.mark-save {
+    background: transparent;
+    color: var(--green);
+    border: 1px solid var(--green);
+    padding: 4px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.mark-save:hover { background: var(--green); color: #000; }
+.mark-status { font-size: 11px; color: var(--comment); margin-left: 8px; }
+.mark-tag {
+    font-size: 9px;
+    padding: 0 4px;
+    border: 1px solid var(--comment);
+    color: var(--comment);
+    border-radius: 3px;
+}
+.mark-tag-on { border-color: var(--green); color: var(--green); }
+.mark-student-comment { font-size: 12px; white-space: pre-wrap; }
+.file-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.file-chip {
+    font-size: 11px;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--cyan);
+    cursor: pointer;
+    font-family: 'Fira Code', monospace;
+}
+.file-chip:hover { color: var(--white); border-color: var(--cyan); }
+.file-view-head { font-size: 11px; color: var(--cyan); margin: 6px 0 4px; }
+.file-view-text { max-height: 420px; white-space: pre-wrap; }
+.file-view-image { max-width: 100%; border: 1px solid var(--border); }

@@ -196,7 +196,7 @@ The core creates no background job. Finish any owned-process extension with its 
 1. Set `SUBMISSION_REPO` to the **absolute path of your existing personal course repository**. Replace the example ID/path below with your own; do not copy another student's repository.
 
    ```bash
-   SUBMISSION_REPO="$HOME/os-se-YOUR_ID/os-lab-YOUR_ID"
+   SUBMISSION_REPO="$HOME/os-gic-YOUR_ID/os-lab-YOUR_ID"
    mkdir -p "$SUBMISSION_REPO/lab4/evidence"
    ```
 

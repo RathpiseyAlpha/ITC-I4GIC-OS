@@ -765,7 +765,7 @@ Both partners should upload the **same result files, source files, and screensho
 ### Submission Folder Structure
 
 ```
-os-se-<YourStudentID>/
+os-gic-<YourStudentID>/
 └── os-class-activities-<YourStudentID>/
     └── activity4/
         ├── README.md

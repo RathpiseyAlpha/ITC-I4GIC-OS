@@ -5,6 +5,7 @@ mode=dry-run
 prefix=/opt/itc-os-labs
 allowlist=
 term=
+reader=
 state=/var/lib/itc-oslab
 for arg in "$@"; do
   case "$arg" in
@@ -13,6 +14,7 @@ for arg in "$@"; do
     --prefix=*) prefix=${arg#*=} ;;
     --allowlist=*) allowlist=${arg#*=} ;;
     --term=*) term=${arg#*=} ;;
+    --inbox-reader=*) reader=${arg#*=} ;;
     *) printf 'unknown argument: %s\n' "$arg" >&2; exit 2 ;;
   esac
 done
@@ -34,6 +36,17 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 [[ -f "$script_dir/lab10_cron.py" ]] || { echo 'lab10_cron.py missing' >&2; exit 2; }
 [[ -f "$script_dir/oslab_teach.py" ]] || { echo 'oslab_teach.py missing' >&2; exit 2; }
 [[ -z "$term" || "$term" =~ ^[A-Za-z0-9_.-]{1,64}$ ]] || { echo 'term must be 1-64 letters, digits, dot, dash or underscore' >&2; exit 2; }
+# The account that runs the course website may list the inbox, so the instructor can mark from the dashboard.
+# The name is remembered, so a later install without the option keeps the access.
+if [[ -z "$reader" && -f "$prefix/inbox-reader" && ! -L "$prefix/inbox-reader" ]]; then
+  IFS= read -r reader < "$prefix/inbox-reader" || true
+fi
+if [[ -n "$reader" ]]; then
+  [[ "$reader" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo 'invalid inbox reader name' >&2; exit 2; }
+  reader_uid=$(id -u -- "$reader" 2>/dev/null) || { echo "inbox reader account missing: $reader" >&2; exit 2; }
+  [[ "$reader_uid" -ne 0 ]] || { echo 'root needs no inbox reader entry' >&2; exit 2; }
+  command -v setfacl >/dev/null || { echo 'setfacl missing: install the acl package' >&2; exit 2; }
+fi
 [[ ! -L "$state" && ! -L "$state/inbox" && ! -L "$state/release" ]] || { echo 'symlink in state path refused' >&2; exit 2; }
 if [[ -e /usr/local/bin/oslab ]] && ! grep -Fq -- '# ITC-OSLAB-MANAGED' /usr/local/bin/oslab; then
   echo 'existing oslab wrapper refused' >&2; exit 2
@@ -58,6 +71,7 @@ printf 'mode=%s prefix=%s source=%s\n' "$mode" "$prefix" "$script_dir/oslab.py"
 if [[ "$mode" = dry-run ]]; then
   echo 'would install read-only oslab.py, lab10_cron.py, oslab_teach.py and command wrappers; no accounts or workspaces changed'
   printf 'would create %s/inbox (mode 1733, students drop answers) and %s/release (mode 0755)\n' "$state" "$state"
+  [[ -z "$reader" ]] || printf 'would let account %s list the inbox (read only)\n' "$reader"
   if [[ -f "$prefix/term.conf" ]]; then echo 'would keep the existing term.conf (personal values stay the same)'
   else printf 'would create term.conf with term name: %s\n' "${term:-term-$(date +%Y)}"; fi
   exit 0
@@ -80,6 +94,12 @@ fi
 # Students may add files to the inbox but cannot list it or remove each other's files.
 install -d -m 0755 -o root -g root -- "$state" "$state/release"
 install -d -m 1733 -o root -g root -- "$state/inbox"
+setfacl -b -- "$state/inbox" 2>/dev/null || true
+if [[ -n "$reader" ]]; then
+  setfacl -m "u:$reader:r-x" -- "$state/inbox"
+  printf '%s\n' "$reader" > "$prefix/inbox-reader"
+  chmod 0644 "$prefix/inbox-reader"
+fi
 printf 'ITC OS labs managed install v1\n' > "$prefix/.itc-oslab-install"
 chmod 0644 "$prefix/.itc-oslab-install"
 wrapper=$(mktemp)

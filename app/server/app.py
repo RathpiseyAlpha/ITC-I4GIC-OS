@@ -796,13 +796,17 @@ def _try_alias(expected_lower, existing):
 # ── File-System Helpers ────────────────────────────────────────
 
 
+# A student's course repository folder: the new name first, then the name used before 2026.
+REPO_PREFIXES = ("os-gic-", "os-se-")
+
+
 def _find_lab_root(username, lab_name):
     home = Path(f"/home/{username}")
     if not home.is_dir():
         return None
     try:
         for d in home.iterdir():
-            if d.is_dir() and d.name.lower().startswith("os-se-"):
+            if d.is_dir() and d.name.lower().startswith(REPO_PREFIXES):
                 for sub in d.iterdir():
                     if sub.is_dir() and sub.name.lower().startswith("os-lab-"):
                         lab_dir = sub / lab_name
@@ -827,7 +831,7 @@ def _find_activity_root(username, activity_name):
         return None
     try:
         for d in home.iterdir():
-            if d.is_dir() and d.name.lower().startswith("os-se-"):
+            if d.is_dir() and d.name.lower().startswith(REPO_PREFIXES):
                 for sub in d.iterdir():
                     if sub.is_dir() and sub.name.lower().startswith(
                         "os-class-activit"
@@ -999,7 +1003,7 @@ def grade_student_lab(username, lab_name):
             "found": False, "labPath": None, "items": [],
             "feedback": [
                 f"Lab directory not found. Expected "
-                f"~/os-se-<ID>/os-lab-<ID>/{lab_name}/"
+                f"~/os-gic-<ID>/os-lab-<ID>/{lab_name}/"
             ],
         }
 
@@ -1146,7 +1150,7 @@ def grade_student_activity(username, activity_name):
             "items": [],
             "feedback": [
                 f"Activity directory not found. Expected "
-                f"~/os-se-<ID>/os-class-activities-<ID>/{activity_name}/"
+                f"~/os-gic-<ID>/os-class-activities-<ID>/{activity_name}/"
             ],
         }
 
@@ -1494,6 +1498,264 @@ def get_student_activity_tree(username, activity_name):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Instructor marks — rubric, lab records, file viewer
+# ══════════════════════════════════════════════════════════════
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_MARKS_FILE = Path(__file__).resolve().parent / "marks.json"
+_marks_lock = threading.Lock()
+_TEXT_LIMIT = 200_000
+_IMAGE_LIMIT = 4_000_000
+_IMAGE_TYPES = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".gif": "image/gif", ".webp": "image/webp",
+}
+
+
+def _lab_rubric(lab):
+    """Rows of the Grading Criteria table in the lab's instruction."""
+    path = _REPO_ROOT / "labs" / lab / f"{lab}-instruction.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    rows = []
+    parts = text.split("## Grading Criteria", 1)
+    if len(parts) == 2:
+        section = parts[1].split("\n## ", 1)[0]
+        found = re.findall(
+            r"^\|\s*([^|\n]+?)\s*\|\s*(\d+(?:\.\d+)?)\s*\|\s*$", section, re.M
+        )
+        for label, points in found:
+            rows.append({
+                "key": f"r{len(rows) + 1}",
+                "label": label.replace("`", ""),
+                "max": float(points),
+            })
+    return rows or [{"key": "r1", "label": "Lab mark", "max": 10.0}]
+
+
+def _load_marks():
+    try:
+        with open(_MARKS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_marks(data):
+    """Write the marks file. Must be called with _marks_lock held."""
+    tmp = _MARKS_FILE.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1)
+    os.chmod(tmp, 0o600)  # marks are private to the service account
+    os.replace(tmp, _MARKS_FILE)
+
+
+def _mark_view(lab, entry, rubric=None):
+    """A stored mark with its rubric rows and totals. entry may be None."""
+    rubric = rubric or _lab_rubric(lab)
+    entry = entry or {}
+    given = entry.get("rows", {})
+    rows, total, marked = [], 0.0, 0
+    for r in rubric:
+        points = given.get(r["key"])
+        if points is not None:
+            total += points
+            marked += 1
+        rows.append({"key": r["key"], "label": r["label"],
+                     "max": r["max"], "points": points})
+    return {
+        "rows": rows,
+        "total": round(total, 2) if marked else None,
+        "max": sum(r["max"] for r in rubric),
+        "complete": marked == len(rubric),
+        "comment": entry.get("comment", ""),
+        "published": bool(entry.get("published")),
+        "updated": entry.get("updated", ""),
+    }
+
+
+def _mark_summary(lab, username, marks):
+    """The short form shown in tables, or None when nothing is marked."""
+    entry = marks.get(lab, {}).get(username)
+    if not entry:
+        return None
+    view = _mark_view(lab, entry)
+    return {k: view[k] for k in ("total", "max", "complete", "published")}
+
+
+def _oslab_modules():
+    """The lab helper and its instructor module from this repository."""
+    import sys
+    folder = str(_REPO_ROOT / "server")
+    if folder not in sys.path:
+        sys.path.insert(0, folder)
+    try:
+        import oslab
+        import oslab_teach
+        return oslab, oslab_teach
+    except Exception:
+        return None
+
+
+def _expected_text(item):
+    kind, expect = item["kind"], item["expect"]
+    if expect is None:
+        return ""
+    if kind == "int":
+        return " or ".join(str(x) for x in expect)
+    if kind == "yesno":
+        return "yes" if expect == "y" else "no"
+    if kind == "path":
+        return os.path.relpath(expect[1], expect[0]).replace(os.sep, "/")
+    return str(expect)
+
+
+def _oslab_activity(username, lab):
+    """What the student did with oslab in this lab: pre-lab, prediction,
+    hints, checks and checkpoint, with the answers marked."""
+    mods = _oslab_modules()
+    if not mods:
+        return {"available": False,
+                "reason": "The lab helper is not installed with this site."}
+    oslab, teach = mods
+    if lab not in oslab.PREDICT:
+        return {"available": False,
+                "reason": "This lab collects its prediction and checkpoint on paper."}
+    try:
+        users, flagged = teach.scan(lab)
+    except (ValueError, OSError) as exc:
+        return {"available": False,
+                "reason": f"The class inbox cannot be read: {exc}"}
+    kinds = users.get(username, {})
+    nonce = teach.released(lab)
+    values = oslab.lab_values(lab, username)
+
+    def marked(items, given):
+        out = []
+        for item in items:
+            answer = given.get(item["key"], "")
+            out.append({
+                "question": item["text"], "answer": answer,
+                "expected": _expected_text(item),
+                "ok": oslab.mark(item["kind"], item["expect"], answer),
+            })
+        return out
+
+    checks = [{"passed": c.get("passed", 0), "total": c.get("total", 0),
+               "failed": c.get("failed", []), "time": c.get("time", ""),
+               "checkpoint": c.get("checkpoint")}
+              for c in kinds.get("check", [])]
+    out = {
+        "available": True, "values": values, "released": bool(nonce),
+        "flag": username in flagged,
+        "started": bool(kinds.get("start")),
+        "prelab": None, "prediction": None, "checkpoint": None,
+        "hints": [{"level": h.get("level"), "time": h.get("time", "")}
+                  for h in kinds.get("hint", [])],
+        "checks": checks,
+    }
+    if kinds.get("prelab"):
+        first = kinds["prelab"][0]
+        out["prelab"] = {"firstTry": first.get("first_try"),
+                         "questions": first.get("questions"),
+                         "time": first.get("time", "")}
+    if kinds.get("predict"):
+        first = kinds["predict"][0]
+        out["prediction"] = {
+            "time": first.get("time", ""),
+            "answers": marked(oslab.PREDICT[lab](values), first.get("answers", {})),
+        }
+    if kinds.get("checkpoint"):
+        first = kinds["checkpoint"][0]
+        practice = bool(first.get("practice")) or not nonce
+        entry = {"time": first.get("time", ""), "practice": practice,
+                 "values": first.get("values", {}), "answers": [],
+                 "taskDone": any(c["checkpoint"] for c in checks)}
+        if not practice:
+            items = oslab.checkpoint_task(lab, username, nonce)[2]
+            entry["answers"] = marked(items, first.get("answers", {}))
+        out["checkpoint"] = entry
+    return out
+
+
+def _mark_suggestions(rubric, activity):
+    """Points the lab records already justify, for the pilot rubric
+    (files 2, report 2, prediction 2, checkpoint 3, homework 1)."""
+    if not activity.get("available"):
+        return {}
+    if [r["max"] for r in rubric] != [2.0, 2.0, 2.0, 3.0, 1.0]:
+        return {}
+    out = {}
+    best = max(activity["checks"], key=lambda c: c["passed"], default=None)
+    if best:
+        extra = 0 if best["checkpoint"] is None else 1
+        core_total = best["total"] - extra
+        core_passed = best["passed"] - (1 if best["checkpoint"] else 0)
+        if core_total > 0:
+            out["r1"] = {
+                "points": round(2 * core_passed / core_total * 2) / 2,
+                "note": f"{core_passed} of {core_total} milestones passed",
+            }
+    if activity.get("prediction"):
+        out["r3"] = {"points": 1.0,
+                     "note": "saved in time; add 1 for the correction in the report"}
+    cp = activity.get("checkpoint")
+    if cp and not cp["practice"]:
+        marks = [a["ok"] for a in cp["answers"] if a["ok"] is not None]
+        right = sum(marks)
+        answers = 1.0 if marks and right == len(marks) else 0.5 if right * 2 >= len(marks) and marks else 0.0
+        task = 1.0 if cp["taskDone"] else 0.0
+        out["r4"] = {
+            "points": answers + task,
+            "note": f"{right} of {len(marks)} answers right, file task "
+                    f"{'done' if cp['taskDone'] else 'not done'}; add up to 1 for the sentence",
+        }
+    return out
+
+
+def _student_file(username, lab, rel):
+    """Read one file of a student's lab folder. Returns (data, error).
+    Refuses anything that leaves the lab folder or the student's home,
+    because the service account can read more than a student may show."""
+    root = _find_lab_root(username, lab)
+    if not root:
+        return None, "Lab directory not found."
+    if not rel or rel.startswith(("/", "\\")) or ".." in Path(rel).parts:
+        return None, "Not a path inside the lab folder."
+    try:
+        home_real = Path(f"/home/{username}").resolve(strict=True)
+        root_real = root.resolve(strict=True)
+        real = (root / rel).resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None, "File not found."
+    if home_real not in root_real.parents or root_real not in real.parents:
+        return None, "Not a file inside this lab folder."
+    if not real.is_file():
+        return None, "Not a regular file."
+    size = real.stat().st_size
+    kind = _IMAGE_TYPES.get(real.suffix.lower())
+    try:
+        if kind:
+            if size > _IMAGE_LIMIT:
+                return None, "The picture is larger than 4 MB."
+            import base64
+            data = base64.b64encode(real.read_bytes()).decode("ascii")
+            return {"path": rel, "kind": "image", "size": size,
+                    "dataUrl": f"data:{kind};base64,{data}"}, None
+        with open(real, "rb") as f:
+            raw = f.read(_TEXT_LIMIT + 1)
+    except OSError:
+        return None, "The file cannot be read."
+    if b"\0" in raw:
+        return {"path": rel, "kind": "binary", "size": size}, None
+    return {"path": rel, "kind": "text", "size": size,
+            "truncated": len(raw) > _TEXT_LIMIT,
+            "content": raw[:_TEXT_LIMIT].decode("utf-8", "replace")}, None
+
+# ══════════════════════════════════════════════════════════════
 #  Final Exam — config, completion grading, status & controls
 # ══════════════════════════════════════════════════════════════
 
@@ -1509,7 +1771,7 @@ EXAM_TOOLS_DIR = os.environ.get("EXAM_TOOLS_DIR", "/home/rathpisey/exam-final")
 EXAM_SCHEDULE_FILE = os.environ.get(
     "EXAM_SCHEDULE_FILE", os.path.join(EXAM_TOOLS_DIR, "schedule.json"))
 
-# Expected deliverables in ~/os-se-<id>/final-exam/  (an item ending in "buy_" is
+# Expected deliverables in ~/os-gic-<id>/final-exam/  (an item ending in "buy_" is
 # matched by prefix, since that script name varies per student).
 FINAL_EXAM_ITEMS = {
     "Docs": ["README.md", "commands.md", "live_mods.md"],
@@ -1639,7 +1901,7 @@ def _find_final_root(username):
         return None
     try:
         for de in home.iterdir():
-            if de.is_dir() and de.name.lower().startswith("os-se-"):
+            if de.is_dir() and de.name.lower().startswith(REPO_PREFIXES):
                 fe = de / "final-exam"
                 if fe.is_dir():
                     return fe
@@ -1985,9 +2247,14 @@ def route_admin_stats():
 def route_admin_grades():
     lab = request.args.get("lab")
     user = request.args.get("user")
+    marks = _load_marks()
     if user and lab:
-        return jsonify(grade_student_lab(user, lab))
+        grade = grade_student_lab(user, lab)
+        grade["mark"] = _mark_summary(lab, user, marks)
+        return jsonify(grade)
     results = grade_all_students(lab)
+    for g in results:
+        g["mark"] = _mark_summary(g.get("lab"), g.get("username"), marks)
     return jsonify({"grades": results, "labs": list(LAB_SPECS.keys())})
 
 
@@ -2064,6 +2331,101 @@ def route_admin_activity_tree():
     return jsonify(tree)
 
 
+# ── Instructor marks (admin) ───────────────────────────────────
+
+
+def _mark_target():
+    """(user, lab, error response) from the query string or JSON body."""
+    body = request.get_json(silent=True) or {}
+    user = request.args.get("user") or body.get("user")
+    lab = request.args.get("lab") or body.get("lab")
+    if lab not in LAB_SPECS:
+        return None, None, (jsonify({"error": "Unknown lab."}), 400)
+    if user not in _USER_TO_SID:
+        return None, None, (jsonify({"error": "Student not found in roster."}), 404)
+    return user, lab, None
+
+
+@app.route("/api/admin/mark")
+@admin_required
+def route_admin_mark():
+    user, lab, error = _mark_target()
+    if error:
+        return error
+    rubric = _lab_rubric(lab)
+    activity = _oslab_activity(user, lab)
+    sid = _USER_TO_SID[user]
+    return jsonify({
+        "user": user, "lab": lab, "id": sid, "name": STUDENTS[sid]["name"],
+        "mark": _mark_view(lab, _load_marks().get(lab, {}).get(user), rubric),
+        "suggested": _mark_suggestions(rubric, activity),
+        "activity": activity,
+    })
+
+
+@app.route("/api/admin/mark", methods=["POST"])
+@admin_required
+def route_admin_mark_post():
+    user, lab, error = _mark_target()
+    if error:
+        return error
+    body = request.get_json(silent=True) or {}
+    given = body.get("rows") if isinstance(body.get("rows"), dict) else {}
+    rows = {}
+    for r in _lab_rubric(lab):
+        value = given.get(r["key"])
+        if value is None or value == "":
+            continue
+        try:
+            points = round(float(value) * 2) / 2
+        except (TypeError, ValueError):
+            return jsonify({"error": f"Points for '{r['label']}' must be a number."}), 400
+        if not 0 <= points <= r["max"]:
+            return jsonify({"error": f"Points for '{r['label']}' must be between 0 and {r['max']:g}."}), 400
+        rows[r["key"]] = points
+    entry = {
+        "rows": rows,
+        "comment": str(body.get("comment", ""))[:2000],
+        "published": bool(body.get("published")),
+        "updated": datetime.now(_PPH).isoformat(timespec="seconds"),
+        "by": request._session["username"],  # type: ignore
+    }
+    with _marks_lock:
+        marks = _load_marks()
+        marks.setdefault(lab, {})[user] = entry
+        _save_marks(marks)
+    return jsonify({"ok": True, "mark": _mark_view(lab, entry)})
+
+
+@app.route("/api/admin/marks/publish", methods=["POST"])
+@admin_required
+def route_admin_marks_publish():
+    body = request.get_json(silent=True) or {}
+    lab = body.get("lab")
+    if lab not in LAB_SPECS:
+        return jsonify({"error": "Unknown lab."}), 400
+    published = bool(body.get("published"))
+    with _marks_lock:
+        marks = _load_marks()
+        entries = marks.get(lab, {})
+        for entry in entries.values():
+            entry["published"] = published
+        _save_marks(marks)
+    return jsonify({"ok": True, "lab": lab, "published": published, "count": len(entries)})
+
+
+@app.route("/api/admin/file")
+@admin_required
+def route_admin_file():
+    user, lab, error = _mark_target()
+    if error:
+        return error
+    data, problem = _student_file(user, lab, request.args.get("path", ""))
+    if problem:
+        return jsonify({"error": problem}), 404
+    return jsonify(data)
+
+
 # ── Deadlines (any authenticated user) ────────────────────────
 
 
@@ -2109,6 +2471,10 @@ def route_my_grades():
                 "items": [],
                 "feedback": ["Cannot access lab directory."],
             })
+    marks = _load_marks()
+    for g in grades:
+        entry = marks.get(g.get("lab"), {}).get(linux_user)
+        g["mark"] = _mark_view(g["lab"], entry) if entry and entry.get("published") else None
     return jsonify({"grades": grades, "labs": labs})
 
 

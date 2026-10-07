@@ -22,7 +22,7 @@ What changed from the first revision: no PID, PPID or process-state reading, no 
 | 1 OS identification, 2 files, 4 process, 5 multitasking, 6 virtualization | Course server, in class | `oslab check lab1`, 2 points |
 | Prediction (`oslab predict`) and live checkpoint (`oslab checkpoint`) | Course server, in class | 2 and 3 points |
 | 3 APT install, remove, purge | The student's own Ubuntu (WSL or a virtual machine), at home | Report and homework evidence, 2 and 1 points |
-| Report with three screenshots, push to GitHub, pull on the server | Student's PC and server, at home | Report and homework evidence |
+| Push Part A from the server, clone on the student's Ubuntu, report with three screenshots, push, pull on the server | Server and student's computer | Report and homework evidence |
 
 Students have no `sudo` on the server and must not get it, which is why Task 3 is at home.
 
@@ -38,12 +38,38 @@ Students have no `sudo` on the server and must not get it, which is why Task 3 i
 ## Before Class
 
 - Install or update the helper as in the [runbook](../../../server/RUNBOOK.md). Check that `/var/lib/itc-oslab/inbox` exists with mode `1733` and that `/var/lib/itc-oslab/release/lab1.checkpoint` does **not** exist.
-- As an ordinary test account: `oslab doctor` must say `class inbox: connected`; `oslab start lab1`; `oslab check lab1` (expect 0/4). On the server, `lsb_release`, `systemd-detect-virt`, `lscpu`, `ps`, `top`, `nproc` and `scp` access must work.
+- As an ordinary test account: `oslab doctor` must say `class inbox: connected`; `oslab start lab1`; `oslab check lab1` (expect 0/4). On the server, `lsb_release`, `systemd-detect-virt`, `lscpu`, `ps`, `top`, `nproc`, `git` and `tree` must work.
 - Send every student the host name and account name at least two days before. Ask them to log in once and run `oslab prelab lab1`. Ask them to open their own Ubuntu once too.
-- Test the Part B route once yourself from a PC: `scp 'USER@SERVER:oslab-work/lab1/task*.txt' .` must work from the students' network, and each student needs a GitHub account.
+- Test the Part B route once yourself: `git push` over HTTPS from the server with a personal access token, `git clone` on another machine, `git push` there, and `git pull` on the server. Each student needs a GitHub account and a token. Prepare a two-minute demonstration of creating a token.
+- `tree` must be installed on the server; Step 4 of Part B uses it.
 - Set the homework deadline on the website.
 - Prepare a roster file with one account name per line. All `oslab-teach` commands below take `--roster FILE`.
 - The evening before, run `sudo oslab-teach board lab1 --roster FILE`. Students with an empty `prelab` column have probably never logged in; contact them.
+
+## The Lab 1 Guide Slides
+
+Project the guide during Part A: [guides/slides.html](../../../labs/lab1/guides/slides.html) (arrow keys to move; the same slides as a [PDF](../../../labs/lab1/guides/lab1-guides.pdf)). Students can open it on their own screens. The slides are wider than 16:9, so they fill a normal laptop browser window. Commands are shown in dark terminal windows; the words in orange are the ones a student must replace. Slide numbers:
+
+| Slides | Content | Use at minute |
+|---|---|---|
+| 1 to 3 | Cover, objectives, opening question | 0–10 |
+| 4 to 19 | Linux in brief, kept from the earlier guide: why Linux matters, its origin, the kernel, distributions, families, package management, DPKG and APT, the shell, the prompt and `~` | Before the lab |
+| 20 to 27 | The two parts, timetable, helper commands and why, rules, setup, and what the personal values and the capital placeholders mean | 0–10 |
+| 28 to 29 | Task 1: kernel and distribution | 10–20 |
+| 30 to 37 | Task 2: the ten commands, where output goes, the syntax of `>` and `>>`, `..`, the steps | 20–40 |
+| 38 to 39 | The prediction | 40–50 |
+| 40 to 43 | Tasks 4 and 5: program and process, several at once | 50–65 |
+| 45 to 47 | Task 6: virtual machine | 65–75 |
+| 44, 48 | What multitasking really is (the demonstration), Plus and Challenge | 75–90 |
+| 49 to 54 | The live checkpoint: why it exists, the steps, an example run, the file task, marking | 90–105 |
+| 55 to 64 | Part B: how the work travels, push from the server, clone, Task 3, screenshots, push, pull, the tree (homework briefing) | 105–120 |
+| 65 to 68 | Grading, common mistakes, takeaways, the next lab | 105–120 |
+
+**The 16 background slides (4 to 19) are not in the 120-minute timetable.** They take about 15 to 20 minutes. Show them in the lecture before the lab, or ask students to read them as part of the pre-lab. If you show them at the start of the lab, shorten the 75–90 block.
+
+The background pictures (Linux is everywhere, the kernel diagram, the layers table, the two timelines, the command-line picture and the portrait of Linus Torvalds) come from the earlier guide. Check that you may redistribute them before you share the slides outside the class.
+
+The deck is built from `lectures/files/decks/lab-01/gen.py`. Change the text there, never in the generated files.
 
 ## Timetable and What You Do
 
@@ -59,7 +85,7 @@ Keep `sudo oslab-teach board lab1 --roster FILE --watch 20` open on your own scr
 | 65–75 | Task 6: Is this a virtual machine? | Write the `|` pipe on the board: output of one command goes into the next. Remind them to take the Task 6 screenshot |
 | 75–90 | Instructor demonstration, then Plus and Challenge | Demonstrate real multitasking on the projector (see below). Then work only with students whose `checks` column is below 4/4 |
 | 90–105 | Live checkpoint | At minute 90 say "close AI tools" and run `sudo oslab-teach release lab1` |
-| 105–120 | Debrief and homework briefing | Use the script below. Show the Part B route once on the projector: screenshots, `scp`, README, push, pull. Run `sudo oslab-teach export lab1 --roster FILE > lab1.csv` |
+| 105–120 | Debrief and homework briefing | Use the script below. Show the Part B route once on the projector: push from the server, clone, Task 3, README, push, pull. Run `sudo oslab-teach export lab1 --roster FILE > lab1.csv` |
 
 ### The demonstration (75–90)
 
@@ -120,8 +146,8 @@ Use the hints in order (`oslab hint lab1 1` to `3`).
 - `ps` without options lists only the processes of the terminal the student is typing in. This is why students see only a few lines.
 - 60 students with up to four `sleep 300` processes each is a trivial load. The processes end by themselves.
 - The Python web server on port 8080 from the original lab is left out: only one student could use that port on a shared server.
-- `scp` is a new command for most students and the first hurdle of Part B. If the server is reachable only through a Cloudflare tunnel, students need `cloudflared` as well; settle the access route before this lab.
-- A student who pushes from their PC and also commits on the server will get a merge problem when pulling. Tell students to **only pull** on the server.
+- Pushing from the server is the first hurdle of Part B: GitHub refuses the account password and wants a personal access token. Let students do Step 1 in the last minutes of class, while you can help. A student who cannot push from the server can still do the rest; they then copy their Part A files by hand.
+- The order matters: the server pushes once (Step 1), the student's computer pushes after that (Step 3), and from then on the server only pulls. A student who commits on the server again after Step 1 gets a merge problem when pulling.
 
 ## Fallback
 

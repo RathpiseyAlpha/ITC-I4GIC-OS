@@ -423,7 +423,7 @@ task2_hello/hello_after.cpp
 ### Submission Folder Structure
 
 ```text
-os-se-<YourStudentID>/
+os-gic-<YourStudentID>/
 `-- os-class-activities-<YourStudentID>/
     `-- activity5/
         |-- README.md

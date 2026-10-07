@@ -4,7 +4,7 @@
 |---|---|
 | Duration | Part A: 120 minutes in class (plus a 10-minute pre-lab). Part B: homework, about 60 minutes, due before the next class |
 | Work | Individual. Your file names and numbers are different from your neighbour's |
-| Where | Part A on the course server. Part B on **your own Ubuntu** (WSL or a virtual machine) and your own PC |
+| Where | Part A on the course server. Part B on **your own Ubuntu** (WSL or a virtual machine). Git keeps the two in step |
 | Lab format | Pilot: personal values, Core / Plus / Challenge, live checkpoint |
 | Lecture link | [Week 1 notes: introduction to operating systems](../../lectures/notes/week01-introduction-to-os.md) |
 
@@ -23,7 +23,7 @@ After this lab, you can:
 
 ## How This Lab Works
 
-In class (Part A) you type commands in a terminal on the server and save the results in text files in your `lab1` folder. A few small helper commands (`oslab`) check your work and give you your own names and numbers. At home (Part B) you do the software task, take screenshots, write the report and push everything to GitHub.
+In class (Part A) you type commands in a terminal on the server and save the results in text files in your `lab1` folder. A few small helper commands (`oslab`) check your work and give you your own names and numbers. At home (Part B) you do the software task, take screenshots, write the report, and bring both machines together with Git.
 
 | Command | What it does |
 |---|---|
@@ -77,20 +77,39 @@ For Part B you need a Linux of your own with `sudo`: WSL (Ubuntu) or your virtua
    oslab values lab1
    ```
 
-   Write down your values. In this lab, they are called `file1`, `file2` and `count`. In the commands below, replace `FILE1` with your `file1`, `FILE2` with your `file2` and `COUNT` with your `count`.
+2. **Read your personal values.** The last command prints three values that are only yours. For example:
 
-2. Your folder now looks like this:
+   ```text
+   Your personal values for lab1 (your-account):
+     count    = 3
+     file1    = maple
+     file2    = river
+   ```
+
+   Your own words and number are different. Write them down.
+
+3. **Understand the capital words.** This instruction cannot know your values, so it writes a word in capitals where your value belongs: `FILE1`, `FILE2` and `COUNT`. These words are placeholders. Never type them. Type your own value in their place.
+
+   | The instruction says | With the example values above, you type |
+   |---|---|
+   | `touch FILE1.txt FILE2.txt` | `touch maple.txt river.txt` |
+   | `echo "This is file FILE1" > FILE1.txt` | `echo "This is file maple" > maple.txt` |
+   | type the line `COUNT` times | type the line 3 times |
+
+4. Your folder now looks like this:
 
    ```text
    lab1/
    └── README.txt       # you add your result files here
    ```
 
-3. Try the helper once. It shows `TRY` for everything. That is correct: you have not done anything yet.
+5. Try the checking command once.
 
    ```bash
    oslab check lab1
    ```
+
+   It prints one line for each part of the lab. `TRY` means "not done yet" and `PASS` means "done". At the start every line says `TRY`, because you have not done anything yet. Run it again whenever you want to see what is still missing.
 
 ## Task 1 — Which System Is This? (10–20)
 
@@ -113,7 +132,7 @@ For Part B you need a Linux of your own with `sudo`: WSL (Ubuntu) or your virtua
 
 ## Task 2 — Files and Folders (20–40)
 
-**Goal:** practise the basic commands. You use two file names that are only yours: `FILE1` and `FILE2` from `oslab values lab1`. The example below uses `maple` and `river`. Replace them with yours.
+**Goal:** practise the basic commands. In the commands, `FILE1` and `FILE2` stand for your own `file1` and `file2` from `oslab values lab1`. Type your own words, never the capitals.
 
 The commands you use:
 
@@ -293,11 +312,98 @@ oslab checkpoint lab1
    cat ~/oslab-work/.records/lab1-predict.json
    ```
 
-2. The instructor explains Part B. Make sure you can log in to your own Ubuntu and that you know your student ID and the server address.
+2. The instructor explains Part B. If there is time, do Step 1 of Part B now (push your Part A files from the server), so the instructor can help with GitHub.
 
 # Part B — Homework (due before the next class)
 
-Part B is part of Lab 1 and is graded with it. It takes about 60 minutes. It needs `sudo`, so you do not do it on the server.
+Part B is part of Lab 1 and is graded with it. It takes about 60 minutes.
+
+In this course you do **not** hand in Word or PDF reports. You use **Markdown and Git**. Your work lives in one GitHub repository, and you keep two machines in step with it by pushing and pulling.
+
+## How Your Work Travels
+
+```text
+┌──────────────────────────── Course server (SSH) ───────────────────────────┐
+│                                                                             │
+│   Part A files            copy into              git push                   │
+│   task1 … task6    ──▶    os-gic-YOUR_ID   ──▶   to GitHub                   │
+│                                                                             │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Step 1
+                                       ▼
+                         ┌───────────────────────────┐
+                         │  GitHub: OS-GIC-YOUR_ID   │
+                         └─────────────┬─────────────┘
+                                       │ Step 2: git clone
+                                       ▼
+┌──────────────────────── Your own computer (Ubuntu) ────────────────────────┐
+│                                                                             │
+│   Task 3: APT       ──▶   screenshots and   ──▶   git push                  │
+│   task3_apt.txt           README.md               to GitHub                 │
+│                                                                             │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Step 3
+                                       ▼
+                         ┌───────────────────────────┐
+                         │  GitHub: OS-GIC-YOUR_ID   │
+                         └─────────────┬─────────────┘
+                                       │ Step 4: git pull
+                                       ▼
+┌──────────────────────────── Course server (SSH) ───────────────────────────┐
+│                                                                             │
+│   git pull          ──▶   tree: check that everything is there              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+The server pushes first, your computer pushes second, and the server only pulls after that. If you keep this order, the two machines never disagree.
+
+## Step 1 — On the Server: Push Your Part A Files
+
+Do this at the end of the class if there is time, so the instructor can help.
+
+1. On GitHub, create an **empty** repository named `OS-GIC-YOUR_ID` (no README, no license). Replace `YOUR_ID` with your student ID.
+2. On the server, tell Git who you are. First time only.
+
+   ```bash
+   git config --global user.name "YOUR NAME"
+   git config --global user.email "YOUR_EMAIL"
+   ```
+
+3. Make your course folder and copy your Part A files into it.
+
+   ```bash
+   mkdir -p ~/os-gic-YOUR_ID/os-lab-YOUR_ID/lab1
+   cp ~/oslab-work/lab1/task*.txt ~/os-gic-YOUR_ID/os-lab-YOUR_ID/lab1/
+   cp -r ~/oslab-work/lab1/task2_files ~/os-gic-YOUR_ID/os-lab-YOUR_ID/lab1/
+   ```
+
+4. Turn the folder into a Git repository and push it. Replace `YOUR_USERNAME` with your GitHub name.
+
+   ```bash
+   cd ~/os-gic-YOUR_ID
+   git init
+   git add .
+   git commit -m "Lab 1: Part A files"
+   git branch -M main
+   git remote add origin https://github.com/YOUR_USERNAME/OS-GIC-YOUR_ID.git
+   git push -u origin main
+   ```
+
+   GitHub asks for your user name and a **personal access token**. It does not accept your GitHub password here. The instructor shows how to create a token.
+
+## Step 2 — On Your Own Ubuntu: Clone the Repository
+
+Open a terminal in **your own Ubuntu** (WSL or a virtual machine). You have `sudo` there.
+
+```bash
+git clone https://github.com/YOUR_USERNAME/OS-GIC-YOUR_ID.git os-gic-YOUR_ID
+cd os-gic-YOUR_ID/os-lab-YOUR_ID/lab1
+mkdir images
+ls
+```
+
+`ls` shows the files you made on the server. They travelled through GitHub.
 
 ## Task 3 — Install, Remove and Purge Software
 
@@ -310,7 +416,7 @@ Part B is part of Lab 1 and is graded with it. It takes about 60 minutes. It nee
 | `sudo apt-get remove NAME` | Uninstalls the program, but **keeps** its settings in `/etc` |
 | `sudo apt-get purge NAME` | Uninstalls the program **and deletes** its settings |
 
-Do this on **your own Ubuntu** (WSL or a virtual machine). We use the package `mc` (Midnight Commander). It puts settings in the folder `/etc/mc`.
+Stay in the `lab1` folder of your clone, so the result file is saved in the right place. We use the package `mc` (Midnight Commander). It puts settings in the folder `/etc/mc`.
 
 1. Install it, and save the path of the program and the state of the folder.
 
@@ -338,65 +444,50 @@ Do this on **your own Ubuntu** (WSL or a virtual machine). We use the package `m
 
 4. **Take a screenshot** that shows the last `ls -ld /etc/mc` after the purge. Keep it as `task3.png`. Compare it with your prediction.
 
-## Bring Your Work Together and Write the Report
+## Step 3 — Write the Report and Push
 
-You now have files on the server (Part A) and on your own Ubuntu (this task). Put them in one folder on your PC, write the report, and push.
-
-1. On GitHub, create an **empty** repository named `OS-SE-YOUR_ID` (no README, no license). First lab only.
-2. On your PC, clone it into a folder named `os-se-YOUR_ID` and make the lab folder. Replace `YOUR_USERNAME` with your GitHub name.
-
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/OS-SE-YOUR_ID.git os-se-YOUR_ID
-   cd os-se-YOUR_ID
-   mkdir -p os-lab-YOUR_ID/lab1/images
-   ```
-
-3. Copy your files from the server into it. Replace `SERVER_USER` with your server account and `SERVER_ADDRESS` with the address your instructor gave you. The server asks for your password.
+1. Put your three screenshots (`task3.png`, `task5.png`, `task6.png`) into the `images` folder. In WSL, `explorer.exe .` opens the current folder in Windows Explorer.
+2. Copy the [report template](README.md) into the `lab1` folder as `README.md`. Fill it in, and show your screenshots in it. In VS Code, `Ctrl+Shift+V` previews it.
+3. Push everything from the top folder of your clone.
 
    ```bash
-   scp 'SERVER_USER@SERVER_ADDRESS:oslab-work/lab1/task*.txt' os-lab-YOUR_ID/lab1/
-   scp -r SERVER_USER@SERVER_ADDRESS:oslab-work/lab1/task2_files os-lab-YOUR_ID/lab1/
-   ```
-
-4. Add `task3_apt.txt` (from your Ubuntu) to the `lab1` folder, and your three screenshots to its `images` folder.
-5. Copy the [report template](README.md) to `os-lab-YOUR_ID/lab1/README.md`. Fill it in, and show your screenshots in it. Press `Ctrl+Shift+V` in VS Code to preview it.
-6. Push everything.
-
-   ```bash
+   cd ../..
    git add .
-   git commit -m "Lab 1 report"
+   git commit -m "Lab 1: Task 3, screenshots and report"
    git push
    ```
 
-7. Pull it to the server. Log in to the server, clone your repository into your home folder (first time), and look at the result. Only **pull** on the server later; never edit files there.
+## Step 4 — On the Server: Pull
 
-   ```bash
-   cd ~
-   git clone https://github.com/YOUR_USERNAME/OS-SE-YOUR_ID.git os-se-YOUR_ID
-   ls -R os-se-YOUR_ID
-   ```
+Log in to the server and pull. From now on, **only pull** on the server. Never edit your repository files there.
 
-   Your repository must look like this:
+```bash
+cd ~/os-gic-YOUR_ID
+git pull
+tree
+```
 
-   ```text
-   os-se-YOUR_ID/
-   └── os-lab-YOUR_ID/
-       └── lab1/
-           ├── README.md
-           ├── images/
-           │   ├── task3.png
-           │   ├── task5.png
-           │   └── task6.png
-           ├── task1_os_info.txt
-           ├── task2_file_commands.txt
-           ├── task2_files/
-           │   ├── FILE1.txt
-           │   └── FILE2_renamed.txt
-           ├── task3_apt.txt
-           ├── task4_process_list.txt
-           ├── task5_multitasking.txt
-           └── task6_virtualization_check.txt
-   ```
+`tree` must show this structure, with your own ID and file names:
+
+```text
+os-gic-YOUR_ID
+└── os-lab-YOUR_ID
+    └── lab1
+        ├── images
+        │   ├── task3.png
+        │   ├── task5.png
+        │   └── task6.png
+        ├── README.md
+        ├── task1_os_info.txt
+        ├── task2_file_commands.txt
+        ├── task2_files
+        │   ├── FILE1.txt
+        │   └── FILE2_renamed.txt
+        ├── task3_apt.txt
+        ├── task4_process_list.txt
+        ├── task5_multitasking.txt
+        └── task6_virtualization_check.txt
+```
 
 ## Plus and Challenge for Homework
 
@@ -418,4 +509,5 @@ Seven points are earned in class and three at home. Plus and Challenge are not n
 
 - `oslab hint lab1 1`, `2`, `3`
 - `man uname`, `man ls`, `man apt-get`
+- The slides for this lab: [Lab 1 guide](guides/slides.html) (also as a [PDF](guides/lab1-guides.pdf))
 - More about APT and virtualization is in the [optional extensions](extensions.md).

@@ -836,10 +836,10 @@ Everything goes in your **README.md** — there is no separate answers file. You
 
 ### Submission Folder Structure
 
-All class activities go inside your personal `os-se-<YourStudentID>/` repository, in a dedicated folder following the same convention as labs:
+All class activities go inside your personal `os-gic-<YourStudentID>/` repository, in a dedicated folder following the same convention as labs:
 
 ```
-os-se-<YourStudentID>/
+os-gic-<YourStudentID>/
 ├── os-lab-<YourStudentID>/                # ← Your lab submissions (already exists)
 │   └── ...
 │
@@ -891,7 +891,7 @@ os-se-<YourStudentID>/
 
 ```bash
 # Navigate to your existing submission repo
-$ cd os-se-<YourStudentID>
+$ cd os-gic-<YourStudentID>
 
 # Create the class activities folder structure
 $ mkdir -p os-class-activities-<YourStudentID>/activity1/{task1,task2,task3_strace,screenshots}
@@ -906,7 +906,7 @@ This uses the **same repository** you already created for your labs. Just commit
 
 ```bash
 # Make sure you are in the root of your repo
-$ cd os-se-<YourStudentID>
+$ cd os-gic-<YourStudentID>
 
 # Stage your class activity files
 $ git add os-class-activities-<YourStudentID>/
@@ -918,7 +918,7 @@ $ git commit -m "Add class activity 1 — System Calls in Practice"
 $ git push origin main
 ```
 
-> **Reminder:** This is the same `os-se-<YourStudentID>` GitHub repository you use for lab submissions. Your labs and class activities live side by side in the same repo.  
+> **Reminder:** This is the same `os-gic-<YourStudentID>` GitHub repository you use for lab submissions. Your labs and class activities live side by side in the same repo.  
 > Commit and push **regularly** as you work — do not wait until the last minute.
 
 ### README Template for Activity 1

@@ -758,6 +758,9 @@
                 'Raw Score': roundScore(g.score || 0),
                 'Final Score': roundScore(finalScore),
                 'Total': roundScore(g.total || 0),
+                'Mark': g.mark && g.mark.total !== null && g.mark.total !== undefined ? g.mark.total : '',
+                'Mark Max': g.mark ? g.mark.max : '',
+                'Mark Shown': g.mark ? (g.mark.published ? 'yes' : 'no') : '',
                 'Final %': finalPct,
                 'Late Remark': lateRemark,
                 'Missing/Wrong File Remarks': missingWrong,
@@ -1193,6 +1196,238 @@
         });
     }
 
+    // ── Instructor marks: lab records, file viewer and the marking form ──
+    var markContext = null;
+
+    function renderMarkCell(m) {
+        if (!m || m.total === null || m.total === undefined) return '<span style="color:var(--comment);">—</span>';
+        var pct = m.max ? (m.total / m.max) * 100 : 0;
+        return '<span class="' + gradeClass(pct) + '">' + formatScore(m.total) + '/' + formatScore(m.max) + '</span>'
+            + (m.complete ? '' : ' <span class="mark-tag">partial</span>')
+            + (m.published ? ' <span class="mark-tag mark-tag-on">published</span>' : ' <span class="mark-tag">draft</span>');
+    }
+
+    function adminPostJson(url, body) {
+        return fetch(url, {
+            method: 'POST', mode: 'cors',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify(body)
+        }).then(function (r) {
+            return r.json().then(function (data) {
+                if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+                return data;
+            });
+        });
+    }
+
+    function flattenTreeFiles(nodes, prefix, out) {
+        (nodes || []).forEach(function (node) {
+            var path = prefix + node.name;
+            if (node.type === 'dir') flattenTreeFiles(node.children, path + '/', out);
+            else out.push(path);
+        });
+    }
+
+    function renderFileChips(tree) {
+        var files = [];
+        flattenTreeFiles(tree, '', files);
+        if (files.length === 0) return '';
+        var html = '<div class="mark-sub">Open a file</div><div class="file-chips">';
+        files.forEach(function (f) {
+            html += '<span class="file-chip" onclick="openStudentFile(\'' + encodeURIComponent(f).replace(/'/g, '%27') + '\')">' + escapeHtml(f) + '</span>';
+        });
+        return html + '</div><div id="file-view-panel"></div>';
+    }
+
+    window.openStudentFile = function (encodedPath) {
+        var url = serverUrl();
+        var panel = document.getElementById('file-view-panel');
+        if (!url || !panel || !markContext) return;
+        var path = decodeURIComponent(encodedPath);
+        panel.innerHTML = '<div class="admin-loading">Loading ' + escapeHtml(path) + '...</div>';
+        adminRequestJson(url + '/api/admin/file?user=' + encodeURIComponent(markContext.user)
+            + '&lab=' + encodeURIComponent(markContext.lab) + '&path=' + encodeURIComponent(path))
+        .then(function (data) {
+            var head = '<div class="file-view-head">' + escapeHtml(data.path) + ' <span style="color:var(--comment);">(' + data.size + ' bytes)</span></div>';
+            if (data.kind === 'image') {
+                panel.innerHTML = head + '<img class="file-view-image" src="' + data.dataUrl + '" alt="' + escapeHtml(data.path) + '">';
+            } else if (data.kind === 'text') {
+                panel.innerHTML = head + '<pre class="grade-tree file-view-text">' + escapeHtml(data.content) + '</pre>'
+                    + (data.truncated ? '<div style="color:var(--yellow);font-size:11px;">The file is longer; only the first part is shown.</div>' : '');
+            } else {
+                panel.innerHTML = head + '<div style="color:var(--comment);font-size:11px;">This is not a text file or a picture, so it is not shown.</div>';
+            }
+        })
+        .catch(function (err) {
+            panel.innerHTML = renderAdminRequestError('Failed to open the file', err);
+        });
+    };
+
+    function answersTable(title, answers) {
+        var html = '<div class="mark-sub">' + title + '</div>'
+            + '<table class="admin-table mark-table"><thead><tr><th>Question</th><th>Answer</th><th>Expected</th><th></th></tr></thead><tbody>';
+        answers.forEach(function (x) {
+            var icon = x.ok === true ? '✅' : x.ok === false ? '❌' : '✍️';
+            html += '<tr><td>' + escapeHtml(x.question) + '</td>'
+                + '<td class="mark-answer">' + escapeHtml(String(x.answer === undefined || x.answer === null ? '' : x.answer)) + '</td>'
+                + '<td>' + (x.ok === null ? '<span style="color:var(--comment);">you read this one</span>' : escapeHtml(x.expected)) + '</td>'
+                + '<td>' + icon + '</td></tr>';
+        });
+        return html + '</tbody></table>';
+    }
+
+    function renderActivity(a) {
+        var html = '<div class="mark-box"><div class="mark-title">Lab records (oslab)</div>';
+        if (!a || !a.available) {
+            return html + '<div style="color:var(--comment);font-size:11px;">' + escapeHtml((a && a.reason) || 'No lab records.') + '</div></div>';
+        }
+        var values = [];
+        Object.keys(a.values || {}).forEach(function (k) { values.push(k + ' = ' + a.values[k]); });
+        var best = null;
+        (a.checks || []).forEach(function (c) { if (!best || c.passed >= best.passed) best = c; });
+        var maxHint = 0;
+        (a.hints || []).forEach(function (h) { if (h.level > maxHint) maxHint = h.level; });
+        html += '<div class="mark-facts">'
+            + '<span><b>Personal values:</b> ' + escapeHtml(values.join(', ') || 'none') + '</span>'
+            + '<span><b>Pre-lab:</b> ' + (a.prelab ? a.prelab.firstTry + '/' + a.prelab.questions + ' right first time' : 'not done') + '</span>'
+            + '<span><b>Started in class:</b> ' + (a.started ? 'yes' : 'no') + '</span>'
+            + '<span><b>Checks:</b> ' + (best ? best.passed + '/' + best.total + ' milestones, ' + a.checks.length + ' run(s)' : 'never ran oslab check') + '</span>'
+            + '<span><b>Hints:</b> ' + (a.hints.length ? a.hints.length + ' used, up to level ' + maxHint : 'none') + '</span>'
+            + '</div>';
+        if (a.flag) {
+            html += '<div style="color:var(--yellow);font-size:11px;margin:6px 0;">⚠️ A prediction or checkpoint was sent more than once, or removed. The first one received is shown.</div>';
+        }
+        if (best && best.failed && best.failed.length) {
+            html += '<div style="color:var(--comment);font-size:11px;margin:4px 0;">Still failing: ' + escapeHtml(best.failed.join('; ')) + '</div>';
+        }
+        html += a.prediction
+            ? answersTable('Prediction, saved ' + escapeHtml(a.prediction.time), a.prediction.answers)
+            : '<div class="mark-sub">Prediction</div><div style="color:var(--comment);font-size:11px;">No prediction was saved.</div>';
+        if (!a.checkpoint) {
+            html += '<div class="mark-sub">Checkpoint</div><div style="color:var(--comment);font-size:11px;">'
+                + (a.released ? 'No checkpoint was saved.' : 'The checkpoint has not been released for this lab.') + '</div>';
+        } else if (a.checkpoint.practice) {
+            html += '<div class="mark-sub">Checkpoint</div><div style="color:var(--yellow);font-size:11px;">Saved in practice mode, so it cannot be marked.</div>';
+        } else {
+            html += answersTable('Checkpoint, saved ' + escapeHtml(a.checkpoint.time), a.checkpoint.answers)
+                + '<div style="font-size:11px;margin-top:4px;">Live task: '
+                + (a.checkpoint.taskDone ? '<span class="grade-a">✅ done</span>' : '<span class="grade-c">❌ not done</span>') + '</div>';
+        }
+        return html + '</div>';
+    }
+
+    function renderMarkForm(data) {
+        var m = data.mark;
+        var html = '<div class="mark-box"><div class="mark-title">Mark — ' + escapeHtml(data.name || data.user) + ', ' + escapeHtml(data.lab) + '</div>'
+            + '<table class="admin-table mark-table"><thead><tr><th>Criterion</th><th>Points</th><th>From the lab records</th></tr></thead><tbody>';
+        m.rows.forEach(function (r) {
+            var sug = data.suggested ? data.suggested[r.key] : null;
+            var value = r.points === null || r.points === undefined ? '' : r.points;
+            html += '<tr><td>' + escapeHtml(r.label) + '</td>'
+                + '<td style="white-space:nowrap;"><input type="number" class="mark-input" id="mark-' + r.key + '" min="0" max="' + r.max
+                + '" step="0.5" value="' + value + '" oninput="updateMarkTotal()"> / ' + formatScore(r.max) + '</td>'
+                + '<td>' + (sug ? '<span class="admin-detail-btn" onclick="useMarkSuggestion(\'' + r.key + '\',' + sug.points + ')">use ' + formatScore(sug.points) + '</span> '
+                    + '<span style="color:var(--comment);">' + escapeHtml(sug.note) + '</span>' : '') + '</td></tr>';
+        });
+        html += '</tbody></table>'
+            + '<div class="mark-total">Total: <span id="mark-total">0</span> / ' + formatScore(m.max) + '</div>'
+            + '<textarea id="mark-comment" class="mark-comment" maxlength="2000" placeholder="Comment for the student (optional)">' + escapeHtml(m.comment || '') + '</textarea>'
+            + '<label class="mark-publish"><input type="checkbox" id="mark-published"' + (m.published ? ' checked' : '') + '> Show this mark and comment to the student</label>'
+            + '<div><button type="button" class="mark-save" onclick="saveMark()">Save mark</button> '
+            + '<span id="mark-status" class="mark-status">' + (m.updated ? 'last saved ' + escapeHtml(m.updated) : 'not marked yet') + '</span></div></div>';
+        return html;
+    }
+
+    window.updateMarkTotal = function () {
+        var el = document.getElementById('mark-total');
+        if (!el || !markContext || !markContext.rows) return;
+        var total = 0;
+        markContext.rows.forEach(function (r) {
+            var input = document.getElementById('mark-' + r.key);
+            var v = input ? parseFloat(input.value) : NaN;
+            if (!isNaN(v)) total += v;
+        });
+        el.textContent = formatScore(total);
+    };
+
+    window.useMarkSuggestion = function (key, points) {
+        var input = document.getElementById('mark-' + key);
+        if (input) { input.value = points; updateMarkTotal(); }
+    };
+
+    window.saveMark = function () {
+        var url = serverUrl();
+        var status = document.getElementById('mark-status');
+        if (!url || !markContext || !markContext.rows) return;
+        var rows = {};
+        markContext.rows.forEach(function (r) {
+            var input = document.getElementById('mark-' + r.key);
+            rows[r.key] = input ? input.value : '';
+        });
+        if (status) { status.textContent = 'saving...'; status.style.color = 'var(--comment)'; }
+        adminPostJson(url + '/api/admin/mark', {
+            user: markContext.user, lab: markContext.lab, rows: rows,
+            comment: document.getElementById('mark-comment').value,
+            published: document.getElementById('mark-published').checked
+        })
+        .then(function (data) {
+            if (status) {
+                status.textContent = 'saved ' + formatScore(data.mark.total || 0) + '/' + formatScore(data.mark.max)
+                    + (data.mark.published ? ', visible to the student' : ', hidden from the student');
+                status.style.color = 'var(--green)';
+            }
+        })
+        .catch(function (err) {
+            if (status) { status.textContent = 'not saved: ' + err.message; status.style.color = 'var(--red)'; }
+        });
+    };
+
+    function loadMarkPanel(username, lab) {
+        var url = serverUrl();
+        var panel = document.getElementById('mark-panel');
+        if (!url || !panel) return;
+        adminRequestJson(url + '/api/admin/mark?user=' + encodeURIComponent(username) + '&lab=' + encodeURIComponent(lab))
+        .then(function (data) {
+            markContext = { user: username, lab: lab, rows: data.mark.rows };
+            panel.innerHTML = renderActivity(data.activity) + renderMarkForm(data);
+            updateMarkTotal();
+        })
+        .catch(function (err) {
+            panel.innerHTML = renderAdminRequestError('Failed to load the lab records and the mark', err);
+        });
+    }
+
+    window.publishLabMarks = function (published) {
+        var url = serverUrl();
+        if (!url || !gradesLabFilter) return;
+        adminPostJson(url + '/api/admin/marks/publish', { lab: gradesLabFilter, published: published })
+        .then(function () { fetchAdminGrades(url, gradesLabFilter); })
+        .catch(function (err) {
+            var container = adminContent();
+            if (container) container.innerHTML = renderAdminRequestError('Failed to change the marks', err);
+        });
+    };
+
+    // A student sees a mark only after the instructor publishes it.
+    function renderStudentMark(m, full) {
+        if (!m) {
+            return full ? '<div class="mark-box"><span style="color:var(--comment);font-size:11px;">Your instructor has not published a mark for this lab yet.</span></div>' : '';
+        }
+        var pct = m.max ? ((m.total || 0) / m.max) * 100 : 0;
+        var html = '<div class="mark-box"><div class="mark-title">Instructor mark: <span class="' + gradeClass(pct) + '">'
+            + formatScore(m.total || 0) + ' / ' + formatScore(m.max) + '</span></div>';
+        if (full) {
+            html += '<table class="admin-table mark-table"><thead><tr><th>Criterion</th><th>Points</th></tr></thead><tbody>';
+            m.rows.forEach(function (r) {
+                html += '<tr><td>' + escapeHtml(r.label) + '</td><td style="white-space:nowrap;">'
+                    + (r.points === null || r.points === undefined ? '—' : formatScore(r.points)) + ' / ' + formatScore(r.max) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            if (m.comment) html += '<div class="mark-sub">Comment from your instructor</div><div class="mark-student-comment">' + escapeHtml(m.comment) + '</div>';
+        }
+        return html + '</div>';
+    }
+
     // ── Labs Tab ──
     var gradesLabFilter = null;
 
@@ -1222,12 +1457,18 @@
                 html += '<span class="admin-lab-btn' + (gradesLabFilter === l ? ' active' : '') + '" onclick="filterGrades(\'' + l + '\')">' + escapeHtml(l) + '</span>';
             });
             html += '</div>' + adminExportButtons('labs');
+            if (gradesLabFilter) {
+                html += '<div class="admin-lab-filters">'
+                    + '<span class="admin-lab-btn" onclick="publishLabMarks(true)">Show all ' + escapeHtml(gradesLabFilter) + ' marks to students</span>'
+                    + '<span class="admin-lab-btn" onclick="publishLabMarks(false)">Hide all ' + escapeHtml(gradesLabFilter) + ' marks</span>'
+                    + '</div>';
+            }
 
             if (grades.length === 0) {
                 html += '<div style="color:var(--comment);padding:12px;">No submissions found.</div>';
             } else {
                 html += adminTableStart('admin-grades-table', '')
-                    + '<thead><tr><th class="pin-col pin-id" onclick="adminSortTable(this)">ID</th><th class="pin-col pin-name" onclick="adminSortTable(this)">Name</th><th onclick="adminSortTable(this)">Lab</th><th onclick="adminSortTable(this)">Score</th><th onclick="adminSortTable(this)">%</th><th onclick="adminSortTable(this)">Late</th><th onclick="adminSortTable(this)">Status</th><th>Details</th></tr></thead>'
+                    + '<thead><tr><th class="pin-col pin-id" onclick="adminSortTable(this)">ID</th><th class="pin-col pin-name" onclick="adminSortTable(this)">Name</th><th onclick="adminSortTable(this)">Lab</th><th onclick="adminSortTable(this)">Score</th><th onclick="adminSortTable(this)">%</th><th onclick="adminSortTable(this)">Mark</th><th onclick="adminSortTable(this)">Late</th><th onclick="adminSortTable(this)">Status</th><th>Details</th></tr></thead>'
                     + '<tbody>';
                 grades.forEach(function (g) {
                     var pct = g.finalPercentage !== undefined ? g.finalPercentage : scorePercent(actualScore(g), g.total || 0);
@@ -1238,9 +1479,10 @@
                         + '<td>' + escapeHtml(g.lab) + '</td>'
                         + '<td>' + renderScoreValue(g) + '</td>'
                         + '<td>' + renderScorePercent(g) + '</td>'
+                        + '<td>' + renderMarkCell(g.mark) + '</td>'
                         + '<td>' + renderLateBadge(g) + '</td>'
                         + '<td>' + statusIcon + '</td>'
-                        + '<td><span class="admin-detail-btn" onclick="showGradeDetail(\'' + escapeHtml(g.username) + '\',\'' + escapeHtml(g.lab) + '\')">view</span></td>'
+                        + '<td><span class="admin-detail-btn" onclick="showGradeDetail(\'' + escapeHtml(g.username) + '\',\'' + escapeHtml(g.lab) + '\')">view and mark</span></td>'
                         + '</tr>';
                 });
                 html += '</tbody>' + adminTableEnd();
@@ -1265,6 +1507,7 @@
     window.showGradeDetail = function (username, lab) {
         var url = serverUrl();
         if (!url) return;
+        markContext = { user: username, lab: lab, rows: null };
         var container = adminContent();
         if (!container) return;
         container.innerHTML = '<div class="admin-loading">Loading details for ' + escapeHtml(username) + ' / ' + escapeHtml(lab) + '...</div>';
@@ -1334,7 +1577,10 @@
                 });
                 html += '</div>';
             }
+            if (tree && tree.tree) html += renderFileChips(tree.tree);
+            html += '<div id="mark-panel"><div class="admin-loading">Loading the lab records and the mark...</div></div>';
             container.innerHTML = html;
+            loadMarkPanel(username, lab);
         })
         .catch(function (err) {
             container.innerHTML = renderAdminRequestError('Failed to load grade detail', err);
@@ -1931,7 +2177,7 @@
             + '<b>How it runs</b>'
             + '<ol>'
             + '<li>Your paper is sealed until the start time — it appears at <code>~/exam-paper/FINAL-EXAM.md</code> when the invigilator opens it. Your answer skeletons are ready in <code>~/exam-templates/</code> — copy them into your <code>final-exam/</code> folder (<code>cp ~/exam-templates/*.md …/final-exam/</code>).</li>'
-            + '<li>Work inside your existing <code>~/OS-SE-…</code> repo, in a <code>final-exam/</code> folder. Scripts: lowercase <code>snake_case</code>, <b>no <code>.sh</code></b>.</li>'
+            + '<li>Work inside your existing <code>~/OS-GIC-…</code> repo, in a <code>final-exam/</code> folder. Scripts: lowercase <code>snake_case</code>, <b>no <code>.sh</code></b>.</li>'
             + '<li><b>Live curveballs</b> (3 — Parts A, D, E): live modification tasks released once, late in the exam (~20 min total). Each edits something you already built using <b>your live values</b> (PIDs / stock / timestamps). When released, read yours at <code>/srv/exam/&lt;your-username&gt;/curveball.md</code> (try <code>cat /srv/exam/$(whoami)/curveball.md</code>); record answers in <code>live_mods.md</code>.</li>'
             + '<li><code>git add · commit · push</code> your repo <b>before the end</b> — uncommitted work is not graded.</li>'
             + '<li>At the finish, <b>SSH access is blocked automatically</b>.</li>'
@@ -2376,6 +2622,7 @@
                     + '<span class="' + pctClass + '">' + renderScoreValue(g) + ' (' + pct + '%)</span>'
                     + ' <span class="admin-detail-btn" onclick="showStudentLabDetail(\'' + escapeHtml(g.lab) + '\')">view details</span>'
                     + '</div>';
+                html += renderStudentMark(g.mark, false);
 
                 // Brief checklist summary
                 if (g.items && g.items.length > 0) {
@@ -2558,6 +2805,8 @@
             if (g.labPath) {
                 html += '<div style="color:var(--comment);font-size:11px;margin-bottom:8px;">' + escapeHtml(g.labPath) + '</div>';
             }
+
+            html += renderStudentMark(g.mark, true);
 
             // Deadline & penalty summary
             html += renderDeadlineSummary(g);
