@@ -2,206 +2,276 @@
 
 | Item | Details |
 |---|---|
-| Duration | 120 minutes in class, plus a 10-minute pre-lab |
-| Work | Individual. Your values are different from your neighbour's |
-| Environment | Shared Ubuntu server with an individual account for each student. Local Linux/WSL works for practice ([setup](../SETUP.md)) |
-| Tools | `bash`, `uname`, `ps`, `sleep`, `oslab` |
+| Duration | Part A: 120 minutes in class (plus a 10-minute pre-lab). Part B: homework, about 60 minutes, due before the next class |
+| Work | Individual. Your file names and numbers are different from your neighbour's |
+| Where | Part A on the course server. Part B on **your own Ubuntu** (WSL or a virtual machine) and your own PC |
 | Lab format | Pilot: personal values, Core / Plus / Challenge, live checkpoint |
 | Lecture link | [Week 1 notes: introduction to operating systems](../../lectures/notes/week01-introduction-to-os.md) |
 
-> **Scenario:** It is your first day at TechCorp. You log in to a server you have never seen. Find out which system it runs, then show that one program on the disk can run as several processes at the same time.
+> **Scenario:** It is your first day at TechCorp. You log in to a Linux server you have never seen. You find out which system it is, practise the basic commands, and see how the system runs several programs at once. At home you install and remove software, and write your report.
 
 ## Lab Objectives
 
-After the Core, you can:
+After this lab, you can:
 
-1. Find the kernel and the distribution of a Linux machine, and say how they differ.
-2. Create and read files in your own folder with basic commands.
-3. Start several processes from one program and explain their PID, parent PID and lifetime.
+1. Identify basic operating system and kernel information.
+2. Use essential Linux file and directory commands.
+3. Install, remove, and purge software using the APT package manager.
+4. Understand the difference between a program and a running process.
+5. Observe multitasking in a running operating system.
+6. Detect whether an operating system is running on a virtualized environment.
 
 ## How This Lab Works
 
-You will use the same five commands in every lab of this kind.
+In class (Part A) you type commands in a terminal on the server and save the results in text files in your `lab1` folder. A few small helper commands (`oslab`) check your work and give you your own names and numbers. At home (Part B) you do the software task, take screenshots, write the report and push everything to GitHub.
 
 | Command | What it does |
 |---|---|
-| `oslab values lab1` | Shows **your** numbers. Use them everywhere in this lab |
-| `oslab predict lab1` | Saves your prediction once, before the experiment |
-| `oslab hint lab1 1` | Gives a hint (levels 1, 2, 3). Hints cost no points |
-| `oslab check lab1` | Looks at your evidence files and shows your milestones |
-| `oslab checkpoint lab1` | Opens when the instructor says so, near the end |
+| `oslab values lab1` | Shows **your** names and number. You use them in Task 2 and Task 5 |
+| `oslab predict lab1` | Saves your guess **before** you try things. A wrong guess costs nothing |
+| `oslab hint lab1 1` | A hint. Use level 1, then 2, then 3. Hints cost no points |
+| `oslab check lab1` | Checks your files and shows what is still missing |
+| `oslab checkpoint lab1` | A short test near the end. It opens when the instructor says so |
 
-- **Core** is for everyone. **Plus** and **Challenge** are for students who finish early. Full marks need only Core and the checkpoint.
-- AI tools are allowed in Core, Plus and Challenge. They are **not** allowed in the prediction and the checkpoint.
-- The first time you need a command, the lab shows it in full. The second time, you write it yourself.
+Two small ideas before you start:
+
+- `>` puts the output of a command **into a file** and replaces what was in the file. `>>` **adds** to the end of the file.
+- `man COMMAND` shows the manual of a command, for example `man ls`. Press `q` to leave it.
+
+AI tools are allowed during the tasks. They are **not** allowed for the prediction and the checkpoint. Always test what an AI tells you.
 
 ## Before the Lab
 
-Log in to the server once before class, so that password problems do not cost you lab time. Then run:
+Log in to the server once before class, so password problems do not cost you lab time. Then run:
 
 ```bash
 oslab doctor
 oslab prelab lab1
 ```
 
+For Part B you need a Linux of your own with `sudo`: WSL (Ubuntu) or your virtual machine. Open it once before class.
+
 ## Timetable
 
 | Minutes | Activity |
 |---|---|
-| 0–15 | Setup and a tour of `oslab` |
-| 15–30 | Guided: which system is this? |
-| 30–40 | Prediction, then class discussion |
-| 40–65 | Core 1: one program, several processes |
-| 65–75 | Core 2: choose your own timing |
-| 75–90 | Plus and Challenge (or finish Core) |
+| 0–10 | Setup |
+| 10–20 | Task 1: Which system is this? |
+| 20–40 | Task 2: Files and folders |
+| 40–50 | Prediction, then class discussion |
+| 50–65 | Tasks 4 and 5: programs, processes and multitasking |
+| 65–75 | Task 6: Is this a virtual machine? |
+| 75–90 | Instructor demonstration, then Plus and Challenge |
 | 90–105 | Live checkpoint |
-| 105–115 | Debrief |
-| 115–120 | Submit |
+| 105–120 | Debrief and homework briefing |
 
-## Setup and Tour (0–15)
+# Part A — In Class
 
-1. Start the lab and go into its folder.
+## Setup (0–10)
+
+1. Log in to the server with your own account. Start the lab and go into its folder.
 
    ```bash
-   export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"
    oslab start lab1
-   cd "$OSLAB_WORKSPACE/lab1"
-   mkdir -p evidence
+   cd ~/oslab-work/lab1
    oslab values lab1
    ```
 
-2. Type **your** two numbers into shell variables. The numbers below are only an example.
+   Write down your values. In this lab, they are called `file1`, `file2` and `count`. In the commands below, replace `FILE1` with your `file1`, `FILE2` with your `file2` and `COUNT` with your `count`.
 
-   ```bash
-   count=3
-   seconds=40
-   ```
-
-   If you open a new terminal, run `cd` and set these variables again.
-
-3. Try the helper commands once, so you know them.
-
-   ```bash
-   oslab hint lab1 1
-   oslab check lab1
-   ```
-
-   The check shows `TRY` three times. That is correct: you have not done anything yet.
-
-4. Your folder looks like this:
+2. Your folder now looks like this:
 
    ```text
    lab1/
-   ├── process.txt       # a short reminder
-   └── evidence/         # you save your results here
+   └── README.txt       # you add your result files here
    ```
 
-## Guided — Which System Is This? (15–30)
-
-1. Ask the kernel about itself. Run each command alone and read the answer.
+3. Try the helper once. It shows `TRY` for everything. That is correct: you have not done anything yet.
 
    ```bash
-   uname -s
-   uname -r
-   uname -m
+   oslab check lab1
    ```
 
-2. Read the file that describes the distribution. Find `NAME` and `VERSION_ID`.
+## Task 1 — Which System Is This? (10–20)
+
+**Goal:** find the operating system and the kernel. The **kernel** is the core of the system. It controls the hardware. The **distribution** (here Ubuntu) is the kernel plus many other programs.
+
+1. Save the kernel information in a file, then add the distribution information to the same file.
 
    ```bash
-   cat /etc/os-release
+   uname -a > task1_os_info.txt
+   lsb_release -a >> task1_os_info.txt
    ```
 
-   The **kernel** is the core program that manages the hardware. The **distribution** (for example Ubuntu) is the kernel plus many other programs, packaged together. They have different version numbers.
-
-3. Practise files in your own folder.
+2. Read the file.
 
    ```bash
-   mkdir -p practice
-   printf 'My first OS observation\n' > practice/notes.txt
-   cp -- practice/notes.txt practice/notes-copy.txt
-   ls -l practice
-   cat practice/notes-copy.txt
+   cat task1_os_info.txt
    ```
 
-   `>` creates a file or replaces what is in it. `>>` adds to the end.
+3. Write down for your report: which number is the version of the kernel, and which is the version of Ubuntu?
 
-4. Save a short record of the system.
+## Task 2 — Files and Folders (20–40)
+
+**Goal:** practise the basic commands. You use two file names that are only yours: `FILE1` and `FILE2` from `oslab values lab1`. The example below uses `maple` and `river`. Replace them with yours.
+
+The commands you use:
+
+| Command | Meaning |
+|---|---|
+| `pwd` | Shows the folder you are in |
+| `ls` | Lists the files in the folder |
+| `mkdir` | Makes a folder |
+| `cd` | Goes into a folder (`cd ..` goes up one folder) |
+| `touch` | Makes an empty file |
+| `echo` | Prints text. With `>` it writes the text into a file |
+| `cat` | Shows what is inside a file |
+| `cp` | Copies a file |
+| `mv` | Moves or renames a file |
+| `rm` | Deletes a file |
+
+`..` always means "the folder above". So `../task2_file_commands.txt` is a file in the folder above the one you are in.
+
+1. Make a working folder and go into it. Save where you are and what is in it.
 
    ```bash
-   {
-     uname -srm
-     grep -E '^(NAME|VERSION_ID)=' /etc/os-release
-   } > evidence/os-info.txt
-   cat evidence/os-info.txt
+   mkdir task2_files
+   cd task2_files
+   pwd > ../task2_file_commands.txt
+   ls >> ../task2_file_commands.txt
    ```
 
-## Prediction (30–40)
+2. Create the two files and list them.
+
+   ```bash
+   touch FILE1.txt FILE2.txt
+   ls >> ../task2_file_commands.txt
+   ```
+
+3. Write one line into each file and save what is inside them.
+
+   ```bash
+   echo "This is file FILE1" > FILE1.txt
+   echo "This is file FILE2" > FILE2.txt
+   cat FILE1.txt FILE2.txt >> ../task2_file_commands.txt
+   ```
+
+4. Copy the first file. Rename the second. Delete the copy. List after each step.
+
+   ```bash
+   cp FILE1.txt FILE1_copy.txt
+   ls >> ../task2_file_commands.txt
+   mv FILE2.txt FILE2_renamed.txt
+   ls >> ../task2_file_commands.txt
+   rm FILE1_copy.txt
+   ls >> ../task2_file_commands.txt
+   ```
+
+5. Go back to the lab folder and read your record.
+
+   ```bash
+   cd ..
+   cat task2_file_commands.txt
+   ```
+
+   At the end of the file you see the final list: `FILE1.txt` and `FILE2_renamed.txt`.
+
+## Prediction (40–50)
+
+Guess first, then try. Answer alone, without AI.
 
 ```bash
 oslab predict lab1
 ```
 
-Answer alone, without AI, before the experiment. A wrong prediction costs nothing. The class will look at the spread of answers together.
+It asks three questions and one sentence. The answers come from Tasks 4 and 5, and from Task 3 at home. After this, the class looks together at what everybody guessed.
 
-## Core 1 — One Program, Several Processes (40–65)
+## Task 4 — Program or Process? (50–60)
 
-1. Find the program file, then start it once in the background.
+**Goal:** see the difference between a program (a file on the disk) and a process (a program that is running).
 
-   ```bash
-   command -v sleep
-   sleep "$seconds" &
-   pid1=$!
-   echo "first PID: $pid1"
-   ```
-
-   `&` starts the command in the background. `$!` is the PID of the command you just started. Save it at once.
-
-2. **Now you.** You need `count` processes in total. Start the others in the same way and save each PID in its own variable (`pid2`, `pid3`, …).
-3. Look at the first process while it is alive.
+1. Find the program file of `sleep`. `sleep` is a small program that just waits.
 
    ```bash
-   ps -o pid,ppid,stat,comm -p "$pid1"
+   which sleep
    ```
 
-4. **Now you.** Run the same `ps` for **all** your PIDs. Separate them with commas. Add `| tee evidence/processes.txt` at the end to show the result and save it. Be quick: the processes end after your number of seconds.
-5. Answer by experiment in `evidence/answers.txt` (use `nano evidence/answers.txt`). The toolbox below has what you need.
-   - Who is the parent of your processes? Give its PID and say what program it is.
-   - What does the letter in the `STAT` column mean?
-   - All rows show the same name in `COMM`. How does the system tell the processes apart?
+2. Run it for 30 seconds in the background. The `&` at the end means: run it, and give me my prompt back. Then list the running processes and save the list.
 
-   | Toolbox | Use |
-   |---|---|
-   | `echo $$` | PID of the shell you are typing in |
-   | `jobs -l` | Background jobs of this shell |
-   | `man ps` | Search for `PROCESS STATE CODES` with `/` |
-   | `wait PID` | Pause until that process ends |
+   ```bash
+   sleep 30 &
+   ps > task4_process_list.txt
+   cat task4_process_list.txt
+   ```
 
-6. Wait for the first process to end, then run your `ps` command from step 4 again, this time with `| tee -a evidence/processes.txt`. Write in `evidence/answers.txt` what changed, and whether the file from `command -v sleep` still exists.
+   `ps` lists the processes that run in your terminal.
 
-## Core 2 — Choose Your Own Timing (65–75)
+3. Wait 30 seconds, then run `ps` again, and run `which sleep` again.
 
-A process that lives five seconds is easy to miss.
+   ```bash
+   ps
+   which sleep
+   ```
 
-1. Start one `sleep 5` in the background and save its PID.
-2. **Your decision:** when do you run `ps` to see it alive once, and gone once? Do it, and save both results in `evidence/timing.txt`.
-3. Add one sentence: what can a late `ps` **not** tell you about a process?
-4. Run `oslab check lab1` until all three milestones pass.
+   Write down for your report: what did you see before, during and after? Where was the program, and where was the process?
 
-Stuck for more than five minutes? Use `oslab hint lab1 1`, then `2`, then `3`.
+## Task 5 — Multitasking (60–65)
 
-**Core is complete when** `oslab check lab1` shows `milestones: 3/3` and you have answered the three questions.
+**Goal:** see several programs at the same time.
 
-## Plus — A Different Parent (75–90)
+1. Start `COUNT` copies of `sleep` in the background. Type this line `COUNT` times. (Press the up-arrow key to get the previous line again.)
 
-1. Start a second shell inside your shell by typing `bash`. Run `echo $$`.
-2. In that second shell, start `sleep 20 &` and look at it with `ps -o pid,ppid,comm -p $!`.
-3. Type `exit` to go back. Compare the PPID with the one from Core 1.
-4. In `evidence/plus.txt`, draw the three levels (first shell, second shell, `sleep`) with their PIDs. Check your drawing with `ps -o pid,ppid,comm --forest`.
+   ```bash
+   sleep 300 &
+   ```
 
-## Challenge
+2. List the processes and save the list.
 
-In a second shell (`bash`), start `sleep 40 &`, print its PID, and type `exit` at once. Back in the first shell, look at that PID with `ps -o pid,ppid,comm -p`. Who is the parent now? Explain in `evidence/challenge.txt` why a process always has a parent, and what the system did here.
+   ```bash
+   ps > task5_multitasking.txt
+   cat task5_multitasking.txt
+   ```
+
+3. **Take a screenshot** of your terminal now (it must show your prompt and the `ps` result). Keep it for your report as `task5.png`.
+
+## Task 6 — Is This a Virtual Machine? (65–75)
+
+**Goal:** find out whether the system runs on real hardware or inside a virtual machine.
+
+1. Run the four commands. The `|` sends the output of `lscpu` into `grep`, which keeps only the lines that contain the words `hypervisor vendor`. A **hypervisor** is the program that runs virtual machines.
+
+   ```bash
+   systemd-detect-virt > task6_virtualization_check.txt
+   lscpu | grep -i "hypervisor vendor" >> task6_virtualization_check.txt
+   uname -r >> task6_virtualization_check.txt
+   hostname >> task6_virtualization_check.txt
+   cat task6_virtualization_check.txt
+   ```
+
+2. Write down for your report: what did the first line say, and what does it mean? A word such as `kvm`, `vmware` or `wsl` means a virtual machine. The word `none` means real hardware.
+
+3. **Take a screenshot** of this result. Keep it as `task6.png`.
+
+4. Check your work. All four milestones must show `PASS`.
+
+   ```bash
+   oslab check lab1
+   ```
+
+## Instructor Demonstration, Plus and Challenge (75–90)
+
+First, watch the instructor show what the system does when programs really compute. `sleep` waits and uses no processor, so it shows that several processes exist at the same time, but not how the processor is shared.
+
+Then, if you finish early, try these on the server. They are not needed for full marks.
+
+**Plus**
+
+- Run `top`. The line that begins with `Tasks:` counts all processes on the server. Press `q` to leave. Why are there more than the ones you started?
+- Run `nproc`. It prints the number of processors. Compare it with the number of `sleep` processes you started.
+
+**Challenge**
+
+Run `ps -e | wc -l`. `ps -e` lists **all** processes of the server. `wc -l` counts the lines. How many processes are running? You started only a few of them. Who started the others? Write two sentences for your report.
 
 ## Live Checkpoint (90–105)
 
@@ -211,58 +281,141 @@ Wait until the instructor opens it. Close AI tools. Work alone.
 oslab checkpoint lab1
 ```
 
-1. Answer the questions. They use new numbers, made for you at this moment.
-2. Then do what the command prints, and save the `ps` output in `evidence/checkpoint.txt`.
-3. Run `oslab check lab1`. A fourth milestone, `checkpoint`, must pass.
+1. Answer the questions.
+2. Then do the small file task that the command prints (make a folder, create a file, copy it, rename it, save the list).
+3. Run `oslab check lab1`. A fifth milestone, `checkpoint`, must show `PASS`.
 
-## Debrief (105–115)
+## Debrief and Homework Briefing (105–120)
 
-Look at your prediction again.
-
-```bash
-cat "$OSLAB_WORKSPACE/.records/lab1-predict.json"
-```
-
-In your report, write **confirmed** or **corrected** for each answer, and explain in 3–5 sentences the difference between a program and a process.
-
-## Submit (115–120)
-
-1. Copy your work to your course repository. Replace the path with your own.
+1. Look at your prediction again. You will test the third answer at home.
 
    ```bash
-   SUBMISSION_REPO="$HOME/os-se-YOUR_ID/os-lab-YOUR_ID"
-   mkdir -p "$SUBMISSION_REPO/lab1/evidence"
-   cp -- evidence/os-info.txt evidence/processes.txt evidence/answers.txt evidence/timing.txt "$SUBMISSION_REPO/lab1/evidence/"
+   cat ~/oslab-work/.records/lab1-predict.json
    ```
 
-2. Fill in the [report template](README.md) as `lab1/README.md`. Add `checkpoint.txt`, and `plus.txt` or `challenge.txt` if you did them.
+2. The instructor explains Part B. Make sure you can log in to your own Ubuntu and that you know your student ID and the server address.
+
+# Part B — Homework (due before the next class)
+
+Part B is part of Lab 1 and is graded with it. It takes about 60 minutes. It needs `sudo`, so you do not do it on the server.
+
+## Task 3 — Install, Remove and Purge Software
+
+**Goal:** see the difference between **remove** and **purge**. APT is the program that installs software on Ubuntu.
+
+| Command | What it does |
+|---|---|
+| `sudo apt-get update` | Refreshes the list of available software. Installs nothing |
+| `sudo apt-get install NAME` | Downloads and installs a package |
+| `sudo apt-get remove NAME` | Uninstalls the program, but **keeps** its settings in `/etc` |
+| `sudo apt-get purge NAME` | Uninstalls the program **and deletes** its settings |
+
+Do this on **your own Ubuntu** (WSL or a virtual machine). We use the package `mc` (Midnight Commander). It puts settings in the folder `/etc/mc`.
+
+1. Install it, and save the path of the program and the state of the folder.
+
+   ```bash
+   sudo apt-get update
+   sudo apt-get install mc -y
+   which mc > task3_apt.txt
+   ls -ld /etc/mc >> task3_apt.txt
+   ```
+
+2. Remove it. Look at the folder again.
+
+   ```bash
+   sudo apt-get remove mc -y
+   ls -ld /etc/mc >> task3_apt.txt
+   ```
+
+3. Purge it. Look at the folder one more time. `2>&1` also saves the error message in the file.
+
+   ```bash
+   sudo apt-get purge mc -y
+   ls -ld /etc/mc >> task3_apt.txt 2>&1
+   cat task3_apt.txt
+   ```
+
+4. **Take a screenshot** that shows the last `ls -ld /etc/mc` after the purge. Keep it as `task3.png`. Compare it with your prediction.
+
+## Bring Your Work Together and Write the Report
+
+You now have files on the server (Part A) and on your own Ubuntu (this task). Put them in one folder on your PC, write the report, and push.
+
+1. On GitHub, create an **empty** repository named `OS-SE-YOUR_ID` (no README, no license). First lab only.
+2. On your PC, clone it into a folder named `os-se-YOUR_ID` and make the lab folder. Replace `YOUR_USERNAME` with your GitHub name.
+
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/OS-SE-YOUR_ID.git os-se-YOUR_ID
+   cd os-se-YOUR_ID
+   mkdir -p os-lab-YOUR_ID/lab1/images
+   ```
+
+3. Copy your files from the server into it. Replace `SERVER_USER` with your server account and `SERVER_ADDRESS` with the address your instructor gave you. The server asks for your password.
+
+   ```bash
+   scp 'SERVER_USER@SERVER_ADDRESS:oslab-work/lab1/task*.txt' os-lab-YOUR_ID/lab1/
+   scp -r SERVER_USER@SERVER_ADDRESS:oslab-work/lab1/task2_files os-lab-YOUR_ID/lab1/
+   ```
+
+4. Add `task3_apt.txt` (from your Ubuntu) to the `lab1` folder, and your three screenshots to its `images` folder.
+5. Copy the [report template](README.md) to `os-lab-YOUR_ID/lab1/README.md`. Fill it in, and show your screenshots in it. Press `Ctrl+Shift+V` in VS Code to preview it.
+6. Push everything.
+
+   ```bash
+   git add .
+   git commit -m "Lab 1 report"
+   git push
+   ```
+
+7. Pull it to the server. Log in to the server, clone your repository into your home folder (first time), and look at the result. Only **pull** on the server later; never edit files there.
+
+   ```bash
+   cd ~
+   git clone https://github.com/YOUR_USERNAME/OS-SE-YOUR_ID.git os-se-YOUR_ID
+   ls -R os-se-YOUR_ID
+   ```
+
+   Your repository must look like this:
 
    ```text
-   lab1/
-   ├── README.md
-   └── evidence/
-       ├── os-info.txt       # kernel and distribution
-       ├── processes.txt     # your processes alive, then after the first one ended
-       ├── answers.txt       # the three questions
-       └── timing.txt        # the five-second process, seen and missed
+   os-se-YOUR_ID/
+   └── os-lab-YOUR_ID/
+       └── lab1/
+           ├── README.md
+           ├── images/
+           │   ├── task3.png
+           │   ├── task5.png
+           │   └── task6.png
+           ├── task1_os_info.txt
+           ├── task2_file_commands.txt
+           ├── task2_files/
+           │   ├── FILE1.txt
+           │   └── FILE2_renamed.txt
+           ├── task3_apt.txt
+           ├── task4_process_list.txt
+           ├── task5_multitasking.txt
+           └── task6_virtualization_check.txt
    ```
 
-3. Commit and push in the usual way.
+## Plus and Challenge for Homework
+
+The Plus and Challenge from class are optional here too. You may also install two programs at once on your own Ubuntu (`sudo apt-get install htop tmux -y`) and check them with `which htop tmux`. More is in the [optional extensions](extensions.md).
 
 ## Grading Criteria (10 points)
 
 | Evidence | Points |
 |---|---:|
-| System record and your processes: `oslab check lab1` passes the three Core milestones | 2 |
-| Tests: processes alive and ended, and your own timing for the short process | 2 |
-| Prediction saved in time, and an honest confirmed/corrected explanation | 2 |
-| Live checkpoint: answers, the saved `ps` output, and your sentence | 3 |
-| Clear, complete evidence files and report | 1 |
+| Files: `oslab check lab1` passes the four Core milestones (class) | 2 |
+| Report (homework): kernel and distribution, remove and purge, program and process, virtual machine, written from your own results | 2 |
+| Prediction saved in time, and an honest confirmed/corrected note (class) | 2 |
+| Live checkpoint: answers, the file task, and your sentence (class) | 3 |
+| Homework evidence: the APT file, three screenshots, README, pushed and pulled to the server on time | 1 |
 
-Plus and Challenge are not needed for full marks. They are noted in your feedback. Your prediction is marked for being made and corrected, not for being right.
+Seven points are earned in class and three at home. Plus and Challenge are not needed for full marks. Your prediction is marked for being made and corrected, not for being right.
 
 ## Help and References
 
 - `oslab hint lab1 1`, `2`, `3`
-- `man uname`, `man ps`
-- Old wider topics (packages with APT, virtualization) are in the [optional extensions](extensions.md).
+- `man uname`, `man ls`, `man apt-get`
+- More about APT and virtualization is in the [optional extensions](extensions.md).

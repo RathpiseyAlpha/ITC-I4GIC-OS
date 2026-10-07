@@ -47,6 +47,8 @@ Convert each lab before the week it is taught, using what Labs 1 and 2 showed. T
 | 3 Links | Follows guided `ln` steps, then repairs one link | Keep the repair; make the first steps a prediction | File names; which name is renamed | A new chain of links: which names still open? |
 | 11 Bonus | Optional | Leave as it is | | |
 
+Where a lab has unsupervised work (a software install, a written report with screenshots, a push to GitHub), use the Lab 1 split: about 7 points earned in class and 3 as homework, graded inside the same lab, with the homework deadline set on the website.
+
 The table is in order of benefit. Labs 5 and 9 gain the most: today the student pastes a complete program and edits one or two lines, as in the old Lab 8. Labs 3, 4, 6 and 7 already ask for real decisions; for them the gain is personal values, the saved prediction, the automatic check and the live checkpoint.
 
 **Needs from you:** nothing until Lab 2 has run. Then say which labs to convert next.

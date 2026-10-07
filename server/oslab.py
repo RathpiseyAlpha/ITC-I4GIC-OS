@@ -61,7 +61,7 @@ AI_ANSWERS = {
 }
 
 FIXTURES = {
-    "lab1": {"process.txt": "Observe processes you started with sleep. Record PID, PPID and state.\n"},
+    "lab1": {"README.txt": "Work in this folder. Save your result files in this folder.\n"},
     "lab2": lambda v: {f"incoming/{v['file1']}": f"amount,{v['amount1']}\n",
                        f"incoming/{v['file2']}": f"amount,{v['amount2']}\n",
                        "reports/README.txt": "Move the two incoming files here; keep their names.\n"},
@@ -85,9 +85,9 @@ GENERIC_HINTS = ("Identify the resource and expected invariant.",
                  "Inspect the fixture and the command's exit status.",
                  "Try one controlled change, then compare before and after.")
 HINTS = {
-    "lab1": ("A program is a file on disk. A process is one running copy of it. What would be different between two running copies?",
-             "Save `$!` right after each `sleep ... &`. Then give those numbers to `ps -o pid,ppid,stat,comm -p PID1,PID2`.",
-             "If `ps` shows only the header line, the processes already ended. Start them again and run `ps` sooner."),
+    "lab1": ("Read the step again slowly. Which command did you run, and in which folder? Check with `pwd` and `ls`.",
+             "Run `oslab check lab1` and read the line that says TRY. It tells you which file it looked at. Look inside that file with `cat`.",
+             "A missing line in a file often means the command ran in the wrong folder, or `>` was used where `>>` was needed (`>` replaces the whole file)."),
     "lab2": ("Draw the folders on paper. Mark where you are (`pwd`) and where the file must go.",
              "Each `..` goes up one folder. From `incoming/`, one `..` brings you to the lab folder. Which folders are next to `incoming` there?",
              "From one department folder, go up once to TechCorp, then down into the other department: `../DEPARTMENT/'file name'`."),
@@ -97,12 +97,12 @@ HINTS = {
 }
 
 PRELAB = {
-    "lab1": (("Which command prints the kernel release?", ("cat /etc/os-release", "uname -r", "ps"), "b",
-              "`uname` asks the running kernel. /etc/os-release describes the distribution."),
-             ("What does `&` at the end of a command do?", ("runs it as administrator", "runs it in the background", "runs it twice"), "b",
-              "The shell starts the command and gives you the prompt back at once."),
-             ("Program and process:", ("they are the same thing", "a program is a file on disk, a process is a running copy", "a process is a file on disk"), "b",
-              "One program file can be running as many processes at the same time.")),
+    "lab1": (("Which command shows the name and release of the kernel?", ("uname -a", "pwd", "ls"), "a",
+              "`uname` asks the running kernel about itself. `-a` means all the information."),
+             ("What does `>>` do when you put it after a command?", ("it replaces the file", "it adds the output to the end of the file", "it deletes the file"), "b",
+              "`>` replaces the file. `>>` adds to the end and keeps what is already there."),
+             ("Program and process:", ("they are the same thing", "a program is a file on disk, a process is a running copy of it", "a process is a file on disk"), "b",
+              "One program file can be running as several processes at the same time.")),
     "lab2": (("An absolute path always starts with:", ("./", "/", "../"), "b",
               "It starts at the root directory `/`, so it means the same place from anywhere."),
              ("`..` means:", ("the current directory", "your home directory", "the parent directory"), "c",
@@ -159,30 +159,46 @@ def question(key, text, kind, expect=None):
     return {"key": key, "text": text, "kind": kind, "expect": expect}
 
 
+WORDS = ("maple", "river", "cloud", "stone", "tiger", "lemon", "ocean", "panda",
+         "candle", "garden", "pencil", "rocket", "forest", "silver", "bridge", "market")
+
+
+def two_words(pick, first, second):
+    a = pick(first, len(WORDS))
+    b = (a + 1 + pick(second, len(WORDS) - 1)) % len(WORDS)
+    return WORDS[a], WORDS[b]
+
+
 def lab1_values(pick):
-    return {"count": 2 + pick("count", 3), "seconds": 30 + 2 * pick("seconds", 10)}
+    file1, file2 = two_words(pick, "file1", "file2")
+    return {"count": 2 + pick("count", 3), "file1": file1, "file2": file2}
 
 
 def lab1_predict(v):
-    n, d = v["count"], v["seconds"]
-    return [question("pids", f"You start `sleep {d}` {n} times in the background from one shell. How many different PID values do these processes have?", "int", [n]),
-            question("ppids", "How many different PPID values will `ps` show for them?", "int", [1]),
-            question("later", f"You run the same `ps` again {d + 10} seconds later. How many `sleep` rows does it show?", "int", [0]),
-            question("why", "One sentence: why did you answer like this?", "text")]
+    n = v["count"]
+    return [question("sleeps", f"You start {n} copies of `sleep` in the background at the same time, then run `ps`. How many lines with `sleep` does `ps` show?", "int", [n]),
+            question("file", "All the copies have finished. Is the program file `sleep` still on the disk? (yes/no)", "yesno", "y"),
+            question("remove", "You run `apt-get remove` on a package. Is the package's configuration folder in /etc deleted by that command? (yes/no)", "yesno", "n"),
+            question("why", "One sentence: what is the difference between a program and a process?", "text")]
 
 
 def lab1_checkpoint(pick, v):
-    a, b = 1 + pick("a", 3), 1 + pick("b", 3)
-    x, y = 2 + pick("x", 3), 40 + 10 * pick("y", 3)
-    cv = {"short_count": a, "short_seconds": x, "long_count": b, "long_seconds": y, "sample_at": x + 4}
-    intro = [f"From one shell you start {a} x `sleep {x}` and {b} x `sleep {y}` in the background and save every PID.",
-             f"{x + 4} seconds after starting them you run `ps -o pid,ppid,stat,comm -p` with all saved PIDs."]
-    qs = [question("rows", "How many `sleep` rows does that `ps` show?", "int", [b]),
-          question("started", "How many processes did you start in total?", "int", [a + b]),
-          question("file", "After all of them end, is the `sleep` program file still on the disk? (yes/no)", "yesno", "y"),
-          question("why", "One sentence: why are some rows missing?", "text")]
-    after = ["Now do it for real and save the `ps` output:",
-             "  ps -o pid,ppid,stat,comm -p PID,PID,... | tee evidence/checkpoint.txt",
+    folder, note = two_words(pick, "folder", "note")
+    n = 2 + pick("n", 3)
+    cv = {"folder": f"cp-{folder}", "note": f"{note}.txt", "copy": f"{note}-copy.txt", "old": f"{note}-old.txt",
+          "text": f"hello {folder}", "n": n}
+    intro = ["Work alone, with AI tools closed. Use only commands from this lab."]
+    qs = [question("sleeps", f"You start {n} copies of `sleep 300` in the background, then run `ps`. How many lines with `sleep` does `ps` show?", "int", [n]),
+          question("file", "300 seconds later they have all finished. Does `which sleep` still print a path? (yes/no)", "yesno", "y"),
+          question("kernel", "Type the kernel release of this server: the number that `uname -r` prints.", "word", os.uname().release),
+          question("files", "In the task below, how many files are in the new folder after step 4?", "int", [2]),
+          question("why", "One sentence: what is the difference between a program and a process?", "text")]
+    after = ["Now do it for real, in your lab1 folder:",
+             f"  1. Make a folder named {cv['folder']} and go into it.",
+             f"  2. Create a file named {cv['note']} that contains the text: {cv['text']}",
+             f"  3. Copy it to a file named {cv['copy']}.",
+             f"  4. Rename {cv['note']} to {cv['old']}.",
+             f"  5. Go back to the lab1 folder and save the list of files of {cv['folder']} in checkpoint.txt",
              "Then run: oslab check lab1"]
     return cv, intro, qs, after
 
@@ -281,6 +297,8 @@ def mark(kind, expect, answer):
         return bool(re.match(r"^-?\d{1,6}$", str(answer))) and int(answer) in expect
     if kind == "yesno":
         return str(answer).lower()[:1] == expect
+    if kind == "word":
+        return str(answer).strip().lower() == str(expect).strip().lower()
     if kind == "path":
         text = str(answer).strip().strip("'\"")
         return bool(text) and not text.startswith("/") and posixpath.normpath(posixpath.join(expect[0], text)) == expect[1]
@@ -304,9 +322,11 @@ def ask(item):
             return answer.lower()[:1]
         if kind == "path" and answer:
             return answer
+        if kind == "word" and answer and " " not in answer:
+            return answer
         if kind == "text" and len(answer) >= 3:
             return answer
-        print({"int": "Type a whole number.", "yesno": "Type yes or no.", "path": "Type a path.", "text": "Write a short sentence."}[kind])
+        print({"int": "Type a whole number.", "yesno": "Type yes or no.", "path": "Type a path.", "word": "Type one word or number, without spaces.", "text": "Write a short sentence."}[kind])
 
 
 def workspace():
@@ -610,19 +630,32 @@ def read_text(path):
 
 
 def sleep_rows(text):
-    return re.findall(r"^\s*(\d+)\s+(\d+)\s+\S+\s+sleep\s*$", text, re.M)
+    """Lines of `ps` output whose command is sleep."""
+    return re.findall(r"^\s*\d+\s+\S+\s+\S+\s+sleep\s*$", text, re.M)
 
 
 def check_lab1(target, values, extra):
-    info = read_text(target / "evidence/os-info.txt")
-    rows = sleep_rows(read_text(target / "evidence/processes.txt"))
+    info = read_text(target / "task1_os_info.txt")
+    folder = target / "task2_files"
+    first, second = values["file1"], values["file2"]
+    files_ok = (read_text(folder / f"{first}.txt") == f"This is file {first}\n"
+                and (folder / f"{second}_renamed.txt").is_file()
+                and not (folder / f"{first}_copy.txt").exists() and not (folder / f"{second}.txt").exists()
+                and folder.name in read_text(target / "task2_file_commands.txt"))
     count = values["count"]
-    results = [("evidence/os-info.txt has the kernel line and the distribution NAME", "NAME=" in info and "Linux" in info),
-               (f"evidence/processes.txt shows {count} different live sleep PIDs", len({pid for pid, _ in rows}) >= count),
-               ("those processes share one parent PID", bool(rows) and len({ppid for _, ppid in rows}) == 1)]
+    virt = [line for line in read_text(target / "task6_virtualization_check.txt").splitlines() if line.strip()]
+    results = [("task1_os_info.txt has the kernel line and the distribution description", "Linux" in info and ("Distributor ID" in info or "Ubuntu" in info)),
+               (f"task2_files holds {first}.txt and {second}_renamed.txt (no copy left), and task2_file_commands.txt names the folder", files_ok),
+               (f"task4_process_list.txt shows a sleep process and task5_multitasking.txt shows {count} at the same time",
+                len(sleep_rows(read_text(target / "task4_process_list.txt"))) >= 1 and len(sleep_rows(read_text(target / "task5_multitasking.txt"))) >= count),
+               ("task6_virtualization_check.txt has the detection result, kernel release and host name", len(virt) >= 3)]
     if extra:
-        shown = len(sleep_rows(read_text(target / "evidence/checkpoint.txt")))
-        results.append((f"checkpoint: evidence/checkpoint.txt shows {extra['long_count']} sleep rows", shown == extra["long_count"]))
+        box = target / extra["folder"]
+        text = f"{extra['text']}\n"
+        listing = read_text(target / "checkpoint.txt")
+        results.append(("checkpoint: the folder holds the renamed file and the copy with the right text, and the listing is saved",
+                        read_text(box / extra["old"]) == text and read_text(box / extra["copy"]) == text
+                        and not (box / extra["note"]).exists() and extra["old"] in listing and extra["copy"] in listing))
     return results
 
 

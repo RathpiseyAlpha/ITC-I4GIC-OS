@@ -1,20 +1,47 @@
 # Instructor plan — OS Lab 1 — Introduction to Operating Systems (Hands-on)
 
-**Public repository notice:** this plan is public, and so is the code that computes every student's values and answers. Personal values stop neighbour copying and force each answer to use the student's own numbers; they are not secret. The live checkpoint is protected by its release time, not by secrecy. Keep anything that must stay private outside this repository.
+**Public repository notice:** this plan is public, and so is the code that computes every student's values and answers. Personal values stop neighbour copying and force each answer to use the student's own names and numbers; they are not secret. The live checkpoint is protected by its release time, not by secrecy. Keep anything that must stay private outside this repository.
 
-This lab uses the pilot format and is the first time students meet it. Read the [student instruction](../../../labs/lab1/lab1-instruction.md) and the [report template](../../../labs/lab1/README.md) first.
+This lab uses the pilot format and is the first time students meet it. It keeps the six tasks and the six objectives of the original Lab 1, with simpler steps, and splits the work into **Part A in class (7 points)** and **Part B homework (3 points)**, both graded as Lab 1. Read the [student instruction](../../../labs/lab1/lab1-instruction.md) and the [report template](../../../labs/lab1/README.md) first.
 
 ## Objectives
 
-1. Find the kernel and the distribution of a Linux machine, and say how they differ.
-2. Create and read files in your own folder with basic commands.
-3. Start several processes from one program and explain their PID, parent PID and lifetime.
+1. Identify basic operating system and kernel information.
+2. Use essential Linux file and directory commands.
+3. Install, remove, and purge software using the APT package manager.
+4. Understand the difference between a program and a running process.
+5. Observe multitasking in a running operating system.
+6. Detect whether an operating system is running on a virtualized environment.
+
+What changed from the first revision: no PID, PPID or process-state reading, no shell variables, no `wait`, no `command -v`. Students use only commands the original lab taught. The original screenshots and the GitHub workflow are back, as homework.
+
+## Where Each Task Runs
+
+| Task | Where | Graded in |
+|---|---|---|
+| 1 OS identification, 2 files, 4 process, 5 multitasking, 6 virtualization | Course server, in class | `oslab check lab1`, 2 points |
+| Prediction (`oslab predict`) and live checkpoint (`oslab checkpoint`) | Course server, in class | 2 and 3 points |
+| 3 APT install, remove, purge | The student's own Ubuntu (WSL or a virtual machine), at home | Report and homework evidence, 2 and 1 points |
+| Report with three screenshots, push to GitHub, pull on the server | Student's PC and server, at home | Report and homework evidence |
+
+Students have no `sudo` on the server and must not get it, which is why Task 3 is at home.
+
+## Homework: Deadline, Marking and Link to the Class
+
+- **Deadline.** Set the Lab 1 deadline on the website's admin page (the same deadline mechanism as the other labs). The late penalty is applied from the dates of the Git commits on the server, so the student must have **pulled** the repository there. Students who push but do not pull show as missing.
+- **Website progress.** The grader counts `README.md`, the six `taskN_...` files, and the folders `task2_files` and `images`. It measures what was handed in, not whether it is correct.
+- **Marking the 3 homework points.** Report understanding (2): read the four short answers and the correction of the prediction. About two minutes each; skim for answers that do not use the student's own results (their file names, their `count`, their purge screenshot). Homework evidence (1): the APT file, three screenshots, README, pulled to the server on time.
+- **Where AI enters.** Homework is unsupervised. The report is the part most easily written by AI, so it carries 2 of the 10 points. The 7 in-class points cannot be earned that way when you walk the room.
+- **Optional link back.** At the start of the next class, ask one question aloud or on paper: "After `apt-get remove`, did `/etc/mc` still exist?" A student who skipped Task 3 will not know.
+- **Students without a working Ubuntu.** Offer a lab computer for 30 minutes, or let them do Task 3 on a friend's machine with their own screenshot. A student must not lose points only because their WSL does not start.
 
 ## Before Class
 
 - Install or update the helper as in the [runbook](../../../server/RUNBOOK.md). Check that `/var/lib/itc-oslab/inbox` exists with mode `1733` and that `/var/lib/itc-oslab/release/lab1.checkpoint` does **not** exist.
-- As an ordinary test account: `oslab doctor` must say `class inbox: connected`; `oslab start lab1`; `oslab check lab1` (expect 0/3).
-- Send every student their host name and account name at least two days before. Ask them to log in once and run `oslab prelab lab1`. This moves most password problems out of the session.
+- As an ordinary test account: `oslab doctor` must say `class inbox: connected`; `oslab start lab1`; `oslab check lab1` (expect 0/4). On the server, `lsb_release`, `systemd-detect-virt`, `lscpu`, `ps`, `top`, `nproc` and `scp` access must work.
+- Send every student the host name and account name at least two days before. Ask them to log in once and run `oslab prelab lab1`. Ask them to open their own Ubuntu once too.
+- Test the Part B route once yourself from a PC: `scp 'USER@SERVER:oslab-work/lab1/task*.txt' .` must work from the students' network, and each student needs a GitHub account.
+- Set the homework deadline on the website.
 - Prepare a roster file with one account name per line. All `oslab-teach` commands below take `--roster FILE`.
 - The evening before, run `sudo oslab-teach board lab1 --roster FILE`. Students with an empty `prelab` column have probably never logged in; contact them.
 
@@ -24,82 +51,90 @@ Keep `sudo oslab-teach board lab1 --roster FILE --watch 20` open on your own scr
 
 | Minutes | Students | You |
 |---|---|---|
-| 0–15 | Setup and a tour of `oslab` | The first ten minutes are login support. Use the `started` column to find who is not in yet. At minute 10, show the five commands once on the projector with your own test account |
-| 15–30 | Guided: which system is this? | Type along on the projector. Stop after `uname -r` and `cat /etc/os-release` and ask why the two version numbers differ |
-| 30–40 | Prediction, then class discussion | At minute 35 read the **prediction spread** aloud without names. The `ppids` and `later` questions split a first-year class; let two students argue each side |
-| 40–65 | Core 1: one program, several processes | Steps 2 and 4 are the first commands students write themselves. Expect questions; answer with "what did step 1 do?" |
-| 65–75 | Core 2: choose your own timing | Visit students whose `checks` column is empty or below 3/3 |
-| 75–90 | Plus and Challenge (or finish Core) | Work only with students below 3/3 |
+| 0–10 | Setup | Login support. Use the `started` column to find who is not in yet. Show the five `oslab` commands once with your own test account |
+| 10–20 | Task 1: Which system is this? | Type along. Ask: "Which number is the kernel, which is Ubuntu?" |
+| 20–40 | Task 2: Files and folders | The longest typing task. Expect the placeholder mistake (`FILE1.txt` typed literally) and `>` where `>>` was needed; hint 3 covers both. Explain `..` on the board |
+| 40–50 | Prediction, then class discussion | At minute 45 read the **prediction spread** aloud without names. The `remove` question splits the class; let two students argue each side, and tell them they will test it at home |
+| 50–65 | Tasks 4 and 5 | Task 4 has a 30-second wait; use it to answer questions. The up-arrow trick for repeating `sleep 300 &` is new to most students. Remind them to take the Task 5 screenshot |
+| 65–75 | Task 6: Is this a virtual machine? | Write the `|` pipe on the board: output of one command goes into the next. Remind them to take the Task 6 screenshot |
+| 75–90 | Instructor demonstration, then Plus and Challenge | Demonstrate real multitasking on the projector (see below). Then work only with students whose `checks` column is below 4/4 |
 | 90–105 | Live checkpoint | At minute 90 say "close AI tools" and run `sudo oslab-teach release lab1` |
-| 105–115 | Debrief | Use the script below |
-| 115–120 | Submit | Many students have never pushed to their repository. If time runs out, let them push after class and say so clearly. Run `sudo oslab-teach export lab1 --roster FILE > lab1.csv` |
+| 105–120 | Debrief and homework briefing | Use the script below. Show the Part B route once on the projector: screenshots, `scp`, README, push, pull. Run `sudo oslab-teach export lab1 --roster FILE > lab1.csv` |
+
+### The demonstration (75–90)
+
+`sleep` waits and uses no processor, so Task 5 shows several processes, not how the processor is shared. Show it with a **bounded** load, on your own account, not the students':
+
+```bash
+nproc
+for i in 1 2 3 4 5 6; do timeout 30 yes > /dev/null & done
+top
+```
+
+Ask: "There are more busy processes than processors. What does each get?" Point at the `%CPU` column. Press `q`; the loads end by themselves after 30 seconds. Do not ask 60 students to run the loop at once.
 
 ## Expected Results
 
-- `uname -r` gives the kernel release; `/etc/os-release` gives the distribution name and version. On WSL or a container the kernel string looks unusual; accept it.
-- A student with `count = 3` sees three rows with three different PIDs, one shared PPID (the PID of their shell, `echo $$`), state `S`, and command `sleep`.
-- After the first process ends, the same `ps` shows one row fewer. After all end it shows only the header and may return a non-zero status. The file from `command -v sleep` still exists.
-- **Plus:** the PPID of the new `sleep` is the second shell, whose parent is the first shell.
-- **Challenge:** after the second shell exits, the orphaned `sleep` gets a new parent, usually PID 1 or the user's `systemd --user` process.
-
-Model for a quick demonstration:
-
-```bash
-sleep 20 & a=$!
-sleep 20 & b=$!
-ps -o pid,ppid,stat,comm -p "$a,$b"
-wait "$a"; wait "$b"
-ps -o pid,ppid,stat,comm -p "$a,$b" || true
-```
+- **Task 1:** the first line of `uname -a` starts with `Linux`, then the host name and the kernel release. `lsb_release -a` gives the distribution (here Ubuntu 26.04). The two version numbers differ.
+- **Task 2:** `task2_files` holds `FILE1.txt` (`This is file FILE1`) and `FILE2_renamed.txt`. `task2_file_commands.txt` holds the working-folder path and four listings.
+- **Task 3 (homework):** after install, `which mc` prints `/usr/bin/mc` and `/etc/mc` exists. After `remove`, `/etc/mc` still exists (the settings stay). After `purge`, `ls -ld /etc/mc` prints "No such file or directory". Run it once on the current Ubuntu release before class to confirm.
+- **Task 4:** `ps` lists `bash`, `sleep` and `ps`. After 30 seconds the `sleep` line is gone, but `which sleep` still prints a path.
+- **Task 5:** `COUNT` `sleep` lines at once (the Task 4 one has ended). If a student started them more than 300 seconds before running `ps`, some are gone: they start again.
+- **Task 6:** the server is a virtual machine (`kvm` on the first line, `Hypervisor vendor: KVM`). WSL prints `wsl`. A physical machine prints `none` and no vendor line.
+- **Plus and Challenge:** `top` shows a `Tasks:` count in the hundreds; most are system services started when the server booted.
 
 ## Checkpoint Key and Marking
 
-Key: `sudo oslab-teach key lab1 --roster FILE` prints each student's values and expected answers, including the checkpoint after release. The student starts `a` short and `b` long `sleep` processes and samples after the short ones have ended: rows shown = `b`, started = `a + b`, and the program file is still on the disk.
+Key: `sudo oslab-teach key lab1 --roster FILE` prints each student's values and expected answers, including the checkpoint after release. The numeric, yes/no and kernel-release answers are marked automatically: `ps` shows `n` sleep lines, `which sleep` still prints a path (yes), the kernel release equals `uname -r` on the server, and the new folder holds 2 files after step 4. The kernel answer cannot be guessed: the student has to run `uname -r`. The task is: make a folder, create a file with one line of text, copy it, rename the original, and save the listing.
 
 The checkpoint is worth 3 points:
 
 | Part | Points | Source |
 |---|---:|---|
-| The three marked answers (all right 1, at least half 0.5) | 1 | `checkpoint_auto_points_of_2` in the export |
-| `evidence/checkpoint.txt` shows the right number of rows | 1 | same column |
-| The sentence says the short processes had already ended | 1 | read `checkpoint_sentence` in the export |
+| The four marked answers (all right 1, at least half 0.5) | 1 | `checkpoint_auto_points_of_2` in the export |
+| The folder, file, copy, rename and saved listing are right | 1 | same column |
+| The sentence says a program is a file and a process is a running copy of it | 1 | read `checkpoint_sentence` in the export; about 10 seconds each |
 
 The `flag` column says `rewritten` when a prediction or checkpoint was sent more than once or removed; look at that student's work before marking.
 
-## Debrief Script (10 minutes)
+## Debrief Script (about 8 minutes)
 
-1. Show the prediction spread and ask who was surprised by the PPID result.
-2. Ask: "All rows say `sleep`. How does the kernel tell them apart?" Lead to PID and to program versus process.
-3. Take one Core 2 timing result: "You ran `ps` and saw nothing. Does that prove the process never ran?"
+1. Show the prediction spread. Ask who was surprised by Task 4, and who thinks `remove` deletes the settings. Tell them they will see the answer at home.
+2. Ask: "`sleep` ended. Is the program gone?" Lead to program (file) versus process (running copy).
+3. Ask: "How many programs ran at once in Task 5, and how many processors does the server have?" Lead to multitasking by fast switching.
 4. Tell students that every pilot-format lab uses the same five commands, and ask what was unclear about them. Write the answers down for the retrospective in the [roadmap](../../ROADMAP.md).
 
 ## Misconceptions
 
-- Program name equals identity ("they are all the same `sleep`").
-- An empty `ps` means the command failed or the software is missing.
-- `$!` is read too late and gives the PID of a different command.
+- A program and a process are the same thing.
+- `remove` and `purge` do the same: students expect `/etc/mc` to vanish after `remove`.
+- `>` and `>>` are interchangeable; a record file then shows only the last command.
+- An empty `ps` result means `sleep` is missing, not that it already ended.
+- Several `sleep` processes prove that the processor is shared. They do not; they only exist at the same time.
 
 Use the hints in order (`oslab hint lab1 1` to `3`).
 
 ## Caveats Moved Out of the Student Text
 
-- A `ps` output is one sample. It cannot rebuild the history of a process.
-- PIDs can be reused after a process ends. On a quiet server this is unlikely within a lab.
-- Students must look only at processes they started. If a demonstration must be stopped, signal only a PID captured in that shell.
-- `oslab check lab1` reads the evidence files; it does not prove when they were written.
+- `oslab check lab1` reads the result files in the workspace. It cannot prove when they were written. The homework evidence is judged from the repository on the server.
+- `ps` without options lists only the processes of the terminal the student is typing in. This is why students see only a few lines.
+- 60 students with up to four `sleep 300` processes each is a trivial load. The processes end by themselves.
+- The Python web server on port 8080 from the original lab is left out: only one student could use that port on a shared server.
+- `scp` is a new command for most students and the first hurdle of Part B. If the server is reachable only through a Cloudflare tunnel, students need `cloudflared` as well; settle the access route before this lab.
+- A student who pushes from their PC and also commits on the server will get a merge problem when pulling. Tell students to **only pull** on the server.
 
 ## Fallback
 
-Without the class inbox, everything works in practice mode: answers stay in the student's workspace, the checkpoint uses practice values, and you collect predictions by a show of hands. If the server is down, students can do the whole lab in WSL or a local Linux with the [local setup](../../../labs/SETUP.md).
+Without the class inbox, everything works in practice mode: answers stay in the student's workspace, the checkpoint uses practice values, and you collect predictions by a show of hands. If the server is down, students can do Part A in WSL or a local Linux with the [local setup](../../../labs/SETUP.md); Part B is already local.
 
 ## Topic Rubric (10 points)
 
 | Evidence | Points |
 |---|---:|
-| System record and processes: `oslab check lab1` passes the three Core milestones | 2 |
-| Tests: processes alive and ended, and own timing for the short process | 2 |
-| Prediction saved in time, and an honest confirmed/corrected explanation | 2 |
-| Live checkpoint: answers, the saved `ps` output, and the sentence | 3 |
-| Clear, complete evidence files and report | 1 |
+| Files: `oslab check lab1` passes the four Core milestones (class) | 2 |
+| Report (homework): kernel and distribution, remove and purge, program and process, virtual machine, written from the student's own results | 2 |
+| Prediction saved in time, and an honest confirmed/corrected note (class) | 2 |
+| Live checkpoint: answers, the file task, and the sentence (class) | 3 |
+| Homework evidence: the APT file, three screenshots, README, pushed and pulled to the server on time | 1 |
 
-The export gives you the first and fourth rows almost directly. Read only `answers.txt`, `timing.txt` and the report's explanation for the rest.
+The export gives you the first and third rows and most of the fourth. Read only the report for the second.

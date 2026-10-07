@@ -1,34 +1,30 @@
 # Lab 1 — Optional Extensions
 
-Follow [the required instruction](lab1-instruction.md) first. These procedures preserve the original lab's broader coverage and are not part of the 120-minute core.
+Follow [the required instruction](lab1-instruction.md) first. These are extra tasks and are not needed for full marks.
 
-Use your individual account on the shared Ubuntu server for unprivileged tasks. VM-only sections require a disposable snapshot and instructor preparation. State exactly what you executed versus interpreted from a supplied trace; extra tasks are not a prerequisite for full core credit.
+Do the APT tasks on your own Ubuntu (WSL or a virtual machine), where you have `sudo`. Do not run `sudo` commands on the course server.
 
+## A. More About APT
 
-## A. APT Package Inspection and Management
-
-**Goal:** distinguish package metadata from installation. Read-only inspection works on the server; installation/removal needs a disposable Ubuntu VM with a snapshot and administrator access prepared before class.
-
-1. On Ubuntu, inspect a small package without changing the system.
+1. Look at a package before you install it. These commands only read information.
 
    ```bash
-   apt-cache policy tree
-   dpkg-query -W -f='${Package} ${Version}\n' tree
+   apt-cache policy mc
+   apt list --installed | grep mc
    ```
 
-   A missing installed package may make `dpkg-query` return nonzero. Record the candidate versus installed version; the cache may be stale.
-2. **VM only:** take a snapshot, confirm `tree` is not needed by the VM, then install it.
+   `Installed: (none)` means it is not installed. `Candidate` is the version APT would install.
+
+2. `update` and `upgrade` are different. `sudo apt-get update` only refreshes the list of available software. `sudo apt-get upgrade` installs newer versions of what you already have. Always run `update` first. Run `upgrade` only on your own machine, and read what it wants to change before you answer `Y`.
+
+3. Install `tree`, then use it on your lab folder to see its structure.
 
    ```bash
-   sudo apt update
-   sudo apt install tree
-   tree --version
+   sudo apt-get install tree -y
+   tree ~/os-se-YOUR_ID
    ```
 
-3. Inspect `apt-cache policy tree` again. If you installed it for this exercise, remove that package with `sudo apt remove tree`, inspect the result, then restore the snapshot. Do not remove packages that were present beforehand. Record what changed and what removal leaves behind. Do not run system upgrades or `autoremove` for this exercise.
+## B. More About Virtual Machines
 
-## B. Virtualization and Process Observation
-
-1. Use `systemd-detect-virt` if available, then inspect `lscpu`. An output such as `wsl` or `kvm` describes a detected environment, not proof that the server is physical or that you can create VMs.
-2. Start one `sleep 15`, capture `$!`, and compare `ps -o pid,ppid,stat,comm -p "$pid"` with `top -b -n 1 -p "$pid"`. Finish with `wait "$pid"`; do not inspect or signal arbitrary classmates' processes.
-3. Explain why a installed executable remains after its process exits. Save one package observation and one environment/process observation if you choose this extension.
+1. Run `lscpu` without `grep` and find the lines about the hypervisor. Run `systemd-detect-virt` on your own Ubuntu and on the server. Do they give the same answer? Why?
+2. A virtual machine can run inside another one. Look at `hostname` and `uname -r` on both machines. Which values are the same, and which are different?

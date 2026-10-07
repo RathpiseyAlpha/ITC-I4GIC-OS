@@ -65,6 +65,9 @@ with tempfile.TemporaryDirectory(prefix='oslab-walkthrough-') as temp:
         """Replace the example values in a pilot lab's fences with this test account's own values."""
         for key, value in dict(values[n], **override).items():
             code = re.sub(rf'^(\s*){key}=.*$', lambda m: f'{m.group(1)}{key}={shlex.quote(str(value))}', code, flags=re.M)
+        code = code.replace('~/oslab-work', '"$OSLAB_WORKSPACE"')
+        if n == 1:  # Lab 1 shows placeholders instead of shell variables
+            code = code.replace('FILE1', values[1]['file1']).replace('FILE2', values[1]['file2'])
         return code
 
     def section(n, *starts, **override):
@@ -83,20 +86,23 @@ with tempfile.TemporaryDirectory(prefix='oslab-walkthrough-') as temp:
             shell(prefix+setup+guided, home, env, f'Lab {n} guided')
         print(f'Lab {n} setup/guided commands PASS', flush=True)
 
-    assert 'NAME=' in (base/'lab1/evidence/os-info.txt').read_text()
     count = int(values[1]['count'])
-    # The documented first process, then a model of the student-written steps with short bounded sleeps.
-    out = shell(prefix+section(1, 'Setup', seconds=2)+section(1, 'Core 1', seconds=2)+f'''
-pids=("$pid1")
-for i in $(seq 2 {count}); do sleep 4 & pids+=("$!"); done
-list=$(IFS=,; echo "${{pids[*]}}")
-ps -o pid,ppid,stat,comm -p "$list" | tee evidence/processes.txt
-wait "$pid1"
-ps -o pid,ppid,stat,comm -p "$list" | tee -a evidence/processes.txt
-wait
-oslab check lab1
-''', home, env, 'Lab1 processes')
-    assert 'milestones: 3/3' in out, out
+    first, second = values[1]['file1'], values[1]['file2']
+    # Tasks 1, 2, 4, 5, 6 as written; Task 5's single `sleep 300 &` line is typed COUNT times, as the student does.
+    task5 = section(1, 'Task 5').replace('sleep 300 &\n', 'sleep 300 &\n' * count, 1)
+    task4 = section(1, 'Task 4').replace('sleep 30 &', 'sleep 3 &')
+    shell(prefix + section(1, 'Setup') + section(1, 'Task 1') + section(1, 'Task 2') + task4 + task5
+          + section(1, 'Task 6') + 'kill $(jobs -p) 2>/dev/null || true\n', home, env, 'Lab1 tasks')
+    lab1 = base/'lab1'
+    assert (lab1/'task2_files'/f'{first}.txt').read_text() == f'This is file {first}\n'
+    assert (lab1/'task2_files'/f'{second}_renamed.txt').is_file()
+    out = shell(prefix + 'oslab check lab1\n', home, env, 'Lab1 check')
+    assert 'milestones: 4/4' in out, out
+    # Task 3 (APT) is homework on the student's own machine; it needs sudo and a real install, so it is not run here.
+    # A student who typed the placeholder literally must not pass.
+    (lab1/'task2_files'/f'{first}.txt').write_text('This is file FILE1\n')
+    assert 'TRY : task2_files' in shell(prefix + 'oslab check lab1\n', home, env, 'Lab1 wrong content'), 'placeholder text passed'
+    (lab1/'task2_files'/f'{first}.txt').write_text(f'This is file {first}\n')
 
     out = shell(prefix+section(2, 'Setup')+section(2, 'Core 1')+'''
 cd incoming

@@ -22,6 +22,8 @@ These labs give every student different values and collect answers through `osla
 
 `oslab doctor` tells you whether the class inbox is connected. On the server it is, and your answers go to the instructor. On your own Linux or WSL it is not: this is **practice mode**. Everything works, your answers stay in `~/oslab-work/.records/`, the checkpoint uses practice numbers, and your values may differ from the ones you get on the server.
 
+Task 3 of Lab 1 (installing and removing software with APT) is homework. It needs `sudo`, so you do it on your own Ubuntu (WSL or a virtual machine), not on the server. Students have no `sudo` on the server.
+
 ## Local Linux or WSL, or a missing wrapper
 
 These commands use Bash and Python 3.8+ as your ordinary user. First obtain the course repository, or use an existing clone. Do not clone a second copy over existing files.

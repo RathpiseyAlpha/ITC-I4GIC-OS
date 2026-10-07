@@ -21,6 +21,8 @@ def links(file):
     for target in re.findall(r"\]\(([^)]+)\)", text):
         if target.startswith(("http://", "https://", "#", "mailto:")):
             continue
+        if file.name == "README.md" and target.startswith("images/"):
+            continue  # report template: screenshots are added by the student
         path = (file.parent / target.split("#")[0]).resolve()
         require(path.exists(), f"Missing link: {file.relative_to(ROOT)} -> {target}")
 
@@ -46,8 +48,9 @@ for number in range(1, 12):
         require("shared Ubuntu account" not in text, f"Ambiguous account wording: {file}")
     text = student.read_text(encoding="utf-8")
     objectives = text.split("## Lab Objectives", 1)[1].split("\n## ", 1)[0].split("**Extension objectives:**", 1)[0]
-    require(len(re.findall(r"^\d+\. ", objectives, re.M)) == 3, f"Expected three core objectives: {student}")
-    require(f'cd "$OSLAB_WORKSPACE/lab{number}"' in text, f"Missing explicit workspace cd: {student}")
+    wanted = range(3, 7) if PILOT in text else (3,)
+    require(len(re.findall(r"^\d+\. ", objectives, re.M)) in wanted, f"Unexpected number of core objectives: {student}")
+    require(f'cd "$OSLAB_WORKSPACE/lab{number}"' in text or f"cd ~/oslab-work/lab{number}" in text, f"Missing explicit workspace cd: {student}")
     require(len(re.findall(r"^\s*```text$", text, re.M)) >= 2, f"Missing starting/submission trees: {student}")
     require("120 minutes" in text, f"Missing duration: {student}")
     require("3 Hours" not in text and "2026-06" not in text, f"Stale duration/date: {student}")
@@ -55,9 +58,13 @@ for number in range(1, 12):
     require("Public repository notice" in plan and "private" in plan and "Key:" in plan, f"Missing public-key/private-variant notice: {instructor}")
     if PILOT in text:
         pilots.append(number)
-        for label in ("## Before the Lab", "## Timetable", "## Prediction", "## Core 1", "## Plus", "## Challenge",
-                      "## Live Checkpoint", "## Debrief", "## Submit", "## Grading Criteria"):
+        for label in ("## Before the Lab", "## Timetable", "## Prediction", "## Live Checkpoint", "## Debrief",
+                      "## Grading Criteria"):
             require(label in text, f"Missing {label}: {student}")
+        for word in ("Plus", "Challenge"):
+            require(re.search(rf"^#+ .*{word}", text, re.M), f"Missing a {word} heading: {student}")
+        require("## Core 1" in text or "## Task 1" in text, f"Missing first task section: {student}")
+        require("## Submit" in text or "and Submit" in text or "# Part B" in text, f"Missing submit or homework section: {student}")
         for command in ("prelab", "values", "predict", "check", "checkpoint"):
             require(f"oslab {command} lab{number}" in text, f"Missing oslab {command}: {student}")
         spans = timetable(student)
