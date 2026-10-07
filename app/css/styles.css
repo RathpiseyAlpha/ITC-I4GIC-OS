@@ -1568,7 +1568,8 @@ html[data-theme="light"] .admin-datetime::-webkit-calendar-picker-indicator { fi
 .mark-sub { color: var(--cyan); font-size: 11px; margin: 10px 0 4px; }
 .mark-facts { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 11px; }
 .mark-table { width: 100%; font-size: 11px; }
-.mark-table td { white-space: normal; vertical-align: top; }
+.admin-table.mark-table tbody td { white-space: normal; vertical-align: top; overflow-wrap: anywhere; }
+.admin-table.mark-table thead th { position: static; }
 .mark-answer { color: var(--white); font-family: 'Fira Code', monospace; }
 .mark-input {
     width: 64px;
@@ -1627,3 +1628,166 @@ html[data-theme="light"] .admin-datetime::-webkit-calendar-picker-indicator { fi
 .file-view-head { font-size: 11px; color: var(--cyan); margin: 6px 0 4px; }
 .file-view-text { max-height: 420px; white-space: pre-wrap; }
 .file-view-image { max-width: 100%; border: 1px solid var(--border); }
+
+/* ─── Admin and grades: full-width panel, compact toolbars, marking layout ─── */
+/* The file list pane is hidden while the admin panel or the grades are open. */
+body.panel-wide .pane-top,
+body.panel-wide .pane-divider { display: none !important; }
+body.panel-wide .pane-bottom {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0;
+}
+body.panel-wide .pane-bottom .terminal-body { padding: 8px 14px; }
+body.panel-wide .admin-panel { padding: 0; }
+body.panel-wide .admin-tabs { margin-bottom: 8px; overflow-x: auto; scrollbar-width: thin; }
+body.panel-wide .admin-tab { padding: 6px 12px; white-space: nowrap; flex-shrink: 0; }
+body.panel-wide .admin-section-header { margin-bottom: 6px; padding-bottom: 0; }
+body.panel-wide .admin-lab-filters { margin-bottom: 6px; }
+body.panel-wide .admin-table thead th { padding: 6px 10px; }
+body.panel-wide .admin-table tbody td { padding: 4px 10px; }
+body.panel-wide .admin-table-wrap { max-height: calc(100vh - 222px); min-height: 220px; }
+body.panel-wide .admin-export-actions { margin: 0; }
+body.panel-wide .student-lab-card { margin-bottom: 8px; padding: 8px 12px; }
+.admin-section-header .admin-chip-row { margin-bottom: 0; }
+.admin-chip-row { flex-wrap: wrap; }
+.admin-lab-btn { white-space: nowrap; user-select: none; }
+.admin-refresh {
+    color: var(--cyan);
+    cursor: pointer;
+    font-size: 11px;
+    border-bottom: 1px dashed var(--cyan);
+}
+.admin-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0 10px 6px 0;
+    vertical-align: top;
+}
+.admin-actions + .admin-table-tools { display: inline-flex; vertical-align: top; }
+.admin-row-open { cursor: pointer; }
+.admin-row-open:hover { color: var(--cyan); text-decoration: underline; }
+.admin-table-wrap[data-markf="todo"] tbody tr:not([data-mark="todo"]),
+.admin-table-wrap[data-markf="draft"] tbody tr:not([data-mark="draft"]),
+.admin-table-wrap[data-markf="shown"] tbody tr:not([data-mark="shown"]) { display: none !important; }
+
+/* Marking screen */
+.mark-nav {
+    position: sticky;
+    top: -8px;
+    z-index: 8;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 6px 0;
+    margin-bottom: 6px;
+    background: var(--terminal-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+.mark-nav .admin-back-btn { margin-right: 0; }
+.mark-nav-btn {
+    background: transparent;
+    color: var(--cyan);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.mark-nav-btn:hover:not(:disabled) { border-color: var(--cyan); color: var(--white); }
+.mark-nav-btn:disabled { opacity: 0.35; cursor: default; }
+.mark-nav-pos { color: var(--comment); font-size: 11px; min-width: 48px; text-align: center; }
+.mark-nav-who { color: var(--white); }
+.mark-nav-who b { color: var(--yellow); font-weight: 600; }
+.mark-nav-auto { color: var(--comment); font-size: 11px; margin-left: auto; }
+.mark-nav-jump { display: none; }
+.mark-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 14px; align-items: start; }
+.mark-work { min-width: 0; }
+.mark-side { position: sticky; top: 36px; z-index: 7; min-width: 0; max-height: calc(100vh - 130px); overflow-y: auto; }
+.mark-side .mark-box, .mark-work #mark-records .mark-box:first-child { margin-top: 0; }
+.mark-work #mark-records { margin-top: 10px; }
+.mark-layout .grade-tree, .mark-layout .grade-items { max-height: 220px; }
+.mark-form .mark-title { display: flex; justify-content: space-between; align-items: baseline; }
+.mark-form .mark-total { margin: 0; color: var(--white); }
+.mark-form .mark-total b { color: var(--green); font-size: 16px; }
+.mark-row { padding: 4px 0; border-top: 1px solid rgba(30,58,47,0.5); }
+.mark-row-label { font-size: 11px; color: var(--white); line-height: 1.3; margin-bottom: 3px; }
+.mark-row-input { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mark-row-note { font-size: 10px; color: var(--comment); margin-top: 3px; }
+.mark-max { color: var(--comment); font-size: 12px; margin-right: 4px; }
+.mark-form .mark-input { width: 64px; padding: 2px 6px; font-size: 14px; }
+.mark-input:focus, .mark-comment:focus { outline: none; border-color: var(--cyan); }
+.mark-input-bad { border-color: var(--red) !important; color: var(--red); }
+.mark-quick {
+    background: transparent;
+    color: var(--comment);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+.mark-quick:hover { color: var(--white); border-color: var(--cyan); }
+.mark-sug { color: var(--cyan); }
+.mark-form .mark-comment { margin-top: 6px; min-height: 44px; }
+.mark-form .mark-publish { margin: 0 0 6px; }
+.mark-form .mark-title { margin-bottom: 4px; }
+.mark-side .mark-box { padding-bottom: 0; }
+.mark-form-foot { position: sticky; bottom: 0; background: var(--terminal-bg); padding: 6px 0 8px; border-top: 1px solid var(--border); }
+.mark-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.mark-save { padding: 6px 14px; }
+.mark-save-next { background: rgba(0,255,65,0.1); }
+.mark-form .mark-status { margin: 6px 0 0; }
+.mark-keys { font-size: 10px; color: var(--comment); margin-top: 4px; }
+.file-chip.active { color: var(--white); border-color: var(--cyan); background: rgba(0,212,255,0.1); }
+.file-view-text { max-height: 55vh; }
+.file-view-image { max-height: 70vh; object-fit: contain; }
+
+@media (max-width: 1099px) {
+    .mark-layout { grid-template-columns: minmax(0, 1fr); }
+    .mark-side { position: static; max-height: none; overflow: visible; }
+    .mark-nav-jump { display: inline; }
+    .mark-keys { display: none; }
+}
+@media (max-width: 768px) {
+    body.panel-wide .pane-bottom { min-height: 0; }
+    body.panel-wide .pane-bottom .terminal-body { padding: 8px 10px; }
+    body.panel-wide .admin-table-wrap { max-height: calc(100vh - 200px); }
+    .admin-chip-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+    .admin-chip-row::-webkit-scrollbar { display: none; }
+    .admin-lab-btn { flex-shrink: 0; padding: 6px 10px; }
+    .admin-search-bar { margin-left: 0; flex: 1 1 100%; }
+    .admin-search-bar input { width: 100%; font-size: 16px; padding: 6px 10px; }
+    .admin-actions { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: 0; }
+    .admin-actions::-webkit-scrollbar { display: none; }
+    .admin-actions > *, .admin-export-actions { flex-shrink: 0; flex-wrap: nowrap; }
+    .admin-export-actions button { white-space: nowrap; padding: 6px 10px; }
+    .admin-actions + .admin-table-tools { display: flex; }
+    .admin-table-tools button { padding: 5px 9px; }
+    .mark-nav-auto { margin-left: 0; }
+    .mark-nav-btn { padding: 6px 12px; }
+    .grade-detail-columns { flex-direction: column; gap: 8px; }
+    .grade-tree-col { flex: none; }
+    .mark-form .mark-input { width: 84px; font-size: 16px; padding: 6px 8px; }
+    .mark-quick { padding: 6px 12px; font-size: 12px; }
+    .mark-comment { font-size: 16px; }
+    .mark-save { padding: 9px 16px; font-size: 13px; flex: 1 1 auto; }
+    .file-chip { padding: 4px 8px; }
+    .mark-table { display: block; overflow-x: auto; }
+}
+@media (max-width: 600px) {
+    /* Only the ID stays pinned; a pinned name would cover most of a phone screen. */
+    .admin-table-wrap.sticky-cols .pin-name,
+    .admin-table-wrap.sticky-cols .pin-name-after-rank { position: static; box-shadow: none; }
+    .pin-name, .pin-name-after-rank { min-width: 120px; width: auto; }
+    .pin-id, .pin-id-after-rank { min-width: 84px; width: 84px; }
+    body.panel-wide .admin-table thead th, body.panel-wide .admin-table tbody td { padding: 6px 8px; }
+}
+html[data-theme="light"] .mark-row { border-top-color: rgba(15,40,25,0.12); }
+html[data-theme="light"] .mark-save:hover { color: #fff; }
