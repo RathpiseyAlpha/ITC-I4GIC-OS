@@ -425,6 +425,49 @@ def get_user_stats():
     return result_list
 
 
+def _loginctl_users():
+    """Logged-in users from systemd-logind, in the same shape as the `who` list."""
+    users = []
+    try:
+        listing = subprocess.run(
+            ["loginctl", "list-sessions", "--no-legend", "--no-pager"],
+            capture_output=True, text=True, timeout=5,
+        )
+        ids = [ln.split()[0] for ln in listing.stdout.splitlines() if ln.split()]
+        if not ids:
+            return []
+        shown = subprocess.run(
+            ["loginctl", "show-session", *ids, "--no-pager",
+             "-p", "Id", "-p", "Name", "-p", "Class", "-p", "State",
+             "-p", "TTY", "-p", "RemoteHost", "-p", "Timestamp"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return []
+
+    for block in shown.stdout.split("\n\n"):
+        props = dict(
+            ln.split("=", 1) for ln in block.splitlines() if "=" in ln
+        )
+        if props.get("Class") != "user" or props.get("State") == "closing":
+            continue
+        if not props.get("Name"):
+            continue
+        # Timestamp looks like "Thu 2026-10-08 07:24:23 +07"
+        stamp = props.get("Timestamp", "").split()
+        login_time = (
+            f"{stamp[1]} {stamp[2][:5]}" if len(stamp) >= 3
+            else " ".join(stamp)
+        )
+        users.append({
+            "username": props["Name"],
+            "terminal": props.get("TTY", ""),
+            "loginTime": login_time,
+            "host": props.get("RemoteHost", ""),
+        })
+    return users
+
+
 def get_logged_in_users():
     now = time.time()
     if _cache["data"] is not None and (now - _cache["ts"]) < POLL_CACHE_SEC:
@@ -459,6 +502,10 @@ def get_logged_in_users():
                 })
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         users = []
+
+    # Newer Ubuntu has no /run/utmp, so `who` prints nothing there.
+    if not users:
+        users = _loginctl_users()
 
     users.sort(key=lambda u: u["username"])
     _cache["data"] = users
@@ -1990,10 +2037,9 @@ def _exam_blocked_shells():
 
 
 def _exam_active_users():
-    """Usernames with an active login session (per `who`)."""
+    """Usernames with an active login session."""
     try:
-        r = subprocess.run(["who"], capture_output=True, text=True, timeout=10)
-        return {ln.split()[0] for ln in r.stdout.splitlines() if ln.split()}
+        return {u["username"] for u in get_logged_in_users()}
     except Exception:  # noqa: BLE001
         return set()
 
