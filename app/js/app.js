@@ -1429,7 +1429,8 @@
             markContext.rows = data.mark.rows;
             var who = document.getElementById('mark-who');
             if (who && data.name) who.innerHTML = '<b>' + escapeHtml(data.name) + '</b> ' + escapeHtml(data.id || username);
-            records.innerHTML = renderActivity(data.activity);
+            // Class activities have no oslab records.
+            records.innerHTML = data.activity ? renderActivity(data.activity) : '';
             form.innerHTML = renderMarkForm(data);
             updateMarkTotal();
             // On a wide screen the cursor goes straight to the first empty box.
@@ -1442,15 +1443,15 @@
         })
         .catch(function (err) {
             records.innerHTML = '';
-            form.innerHTML = renderAdminRequestError('Failed to load the lab records and the mark', err);
+            form.innerHTML = renderAdminRequestError('Failed to load the mark', err);
         });
     }
 
-    // The students in the Labs table, in the order shown, so marking can go from one to the next.
+    // The students in the Labs or Activities table, in the order shown, so marking can go from one to the next.
     var markQueue = [];
 
-    function buildMarkQueue() {
-        var rows = document.querySelectorAll('#admin-grades-table tbody tr[data-user]');
+    function buildMarkQueue(tableId) {
+        var rows = document.querySelectorAll('#' + tableId + ' tbody tr[data-user]');
         var queue = [];
         for (var i = 0; i < rows.length; i++) {
             if (rows[i].offsetParent === null) continue;
@@ -1470,14 +1471,44 @@
         return -1;
     }
 
+    function activityTitle(a) {
+        return a ? a.replace('activity', 'Activity ') : a;
+    }
+
+    // The two kinds of marked work: labs (labN) and class activities (activityN).
+    var WORK_KINDS = {
+        labs: {
+            table: 'admin-grades-table',
+            detail: function (u, w) { return '/api/admin/grades?user=' + encodeURIComponent(u) + '&lab=' + encodeURIComponent(w); },
+            tree: function (u, w) { return '/api/admin/tree?user=' + encodeURIComponent(u) + '&lab=' + encodeURIComponent(w); },
+            title: function (w) { return w; },
+            path: function (g) { return g.labPath; },
+            filter: function () { return gradesLabFilter; },
+            list: function (url) { fetchAdminGrades(url, gradesLabFilter); }
+        },
+        activities: {
+            table: 'admin-activities-table',
+            detail: function (u, w) { return '/api/admin/activities?user=' + encodeURIComponent(u) + '&activity=' + encodeURIComponent(w); },
+            tree: function (u, w) { return '/api/admin/activity-tree?user=' + encodeURIComponent(u) + '&activity=' + encodeURIComponent(w); },
+            title: activityTitle,
+            path: function (g) { return g.activityPath; },
+            filter: function () { return activitiesFilter; },
+            list: function (url) { fetchAdminActivities(url, activitiesFilter); }
+        }
+    };
+
+    function markKind() {
+        return WORK_KINDS[(markContext && markContext.kind) || 'labs'];
+    }
+
     window.markStep = function (direction) {
         var target = markQueue[markQueuePos() + direction];
-        if (target) showGradeDetail(target.user, target.lab);
+        if (target) showWorkDetail(markContext.kind, target.user, target.lab);
     };
 
     window.backToGrades = function () {
         var url = serverUrl();
-        if (url) fetchAdminGrades(url, gradesLabFilter);
+        if (url) markKind().list(url);
     };
 
     window.scrollToMarkForm = function () {
@@ -1485,21 +1516,34 @@
         if (form && form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    window.publishLabMarks = function (published) {
+    window.publishMarks = function (kind, published) {
         var url = serverUrl();
-        if (!url || !gradesLabFilter) return;
-        adminPostJson(url + '/api/admin/marks/publish', { lab: gradesLabFilter, published: published })
-        .then(function () { fetchAdminGrades(url, gradesLabFilter); })
+        var work = WORK_KINDS[kind].filter();
+        if (!url || !work) return;
+        adminPostJson(url + '/api/admin/marks/publish', { lab: work, published: published })
+        .then(function () { WORK_KINDS[kind].list(url); })
         .catch(function (err) {
             var container = adminContent();
             if (container) container.innerHTML = renderAdminRequestError('Failed to change the marks', err);
         });
     };
 
+    // The rows of the Labs and Activities tables, by mark: All, To mark, Draft, Shown.
+    function markFilterChips(grades) {
+        var counts = { todo: 0, draft: 0, shown: 0 };
+        grades.forEach(function (g) { counts[markState(g.mark)]++; });
+        return '<span class="admin-lab-filters admin-chip-row">'
+            + '<span class="admin-lab-btn mark-filter-chip" data-state="" onclick="setMarkFilter(\'\')">All ' + grades.length + '</span>'
+            + '<span class="admin-lab-btn mark-filter-chip" data-state="todo" onclick="setMarkFilter(\'todo\')">To mark ' + counts.todo + '</span>'
+            + '<span class="admin-lab-btn mark-filter-chip" data-state="draft" onclick="setMarkFilter(\'draft\')">Draft ' + counts.draft + '</span>'
+            + '<span class="admin-lab-btn mark-filter-chip" data-state="shown" onclick="setMarkFilter(\'shown\')">Shown ' + counts.shown + '</span>'
+            + '</span>';
+    }
+
     // A student sees a mark only after the instructor publishes it.
-    function renderStudentMark(m, full) {
+    function renderStudentMark(m, full, what) {
         if (!m) {
-            return full ? '<div class="mark-box"><span style="color:var(--comment);font-size:11px;">Your instructor has not published a mark for this lab yet.</span></div>' : '';
+            return full ? '<div class="mark-box"><span style="color:var(--comment);font-size:11px;">Your instructor has not published a mark for this ' + (what || 'lab') + ' yet.</span></div>' : '';
         }
         var pct = m.max ? ((m.total || 0) / m.max) * 100 : 0;
         var html = '<div class="mark-box"><div class="mark-title">Instructor mark: <span class="' + gradeClass(pct) + '">'
@@ -1529,8 +1573,10 @@
 
     window.setMarkFilter = function (state) {
         gradesMarkFilter = state || '';
-        var wrap = document.getElementById('admin-grades-table-wrap');
-        if (wrap) wrap.setAttribute('data-markf', gradesMarkFilter);
+        ['admin-grades-table-wrap', 'admin-activities-table-wrap'].forEach(function (id) {
+            var wrap = document.getElementById(id);
+            if (wrap) wrap.setAttribute('data-markf', gradesMarkFilter);
+        });
         var chips = document.querySelectorAll('.mark-filter-chip');
         for (var i = 0; i < chips.length; i++) {
             chips[i].classList.toggle('active', chips[i].getAttribute('data-state') === gradesMarkFilter);
@@ -1551,8 +1597,6 @@
             var grades = data.grades || [];
             var labs = data.labs || [];
             latestAdminGradeExports.labs = grades;
-            var counts = { todo: 0, draft: 0, shown: 0 };
-            grades.forEach(function (g) { counts[markState(g.mark)]++; });
 
             // Lab filter buttons
             var html = '<div class="admin-lab-filters admin-chip-row">'
@@ -1562,19 +1606,14 @@
             });
             html += '</div>'
                 + '<div class="admin-section-header">'
-                + '<span class="admin-lab-filters admin-chip-row">'
-                + '<span class="admin-lab-btn mark-filter-chip" data-state="" onclick="setMarkFilter(\'\')">All ' + grades.length + '</span>'
-                + '<span class="admin-lab-btn mark-filter-chip" data-state="todo" onclick="setMarkFilter(\'todo\')">To mark ' + counts.todo + '</span>'
-                + '<span class="admin-lab-btn mark-filter-chip" data-state="draft" onclick="setMarkFilter(\'draft\')">Draft ' + counts.draft + '</span>'
-                + '<span class="admin-lab-btn mark-filter-chip" data-state="shown" onclick="setMarkFilter(\'shown\')">Shown ' + counts.shown + '</span>'
-                + '</span>'
+                + markFilterChips(grades)
                 + ' <span class="admin-refresh" onclick="fetchAdminGrades_refresh()">&#x21BB; refresh</span>'
                 + adminSearchHtml('admin-search-grades', '🔍 Search by ID, name, score...')
                 + '</div>'
                 + '<div class="admin-actions">' + adminExportButtons('labs');
             if (gradesLabFilter) {
-                html += '<span class="admin-lab-btn" onclick="publishLabMarks(true)">Show all ' + escapeHtml(gradesLabFilter) + ' marks to students</span>'
-                    + '<span class="admin-lab-btn" onclick="publishLabMarks(false)">Hide all ' + escapeHtml(gradesLabFilter) + ' marks</span>';
+                html += '<span class="admin-lab-btn" onclick="publishMarks(\'labs\', true)">Show all ' + escapeHtml(gradesLabFilter) + ' marks to students</span>'
+                    + '<span class="admin-lab-btn" onclick="publishMarks(\'labs\', false)">Hide all ' + escapeHtml(gradesLabFilter) + ' marks</span>';
             }
             html += '</div>';
 
@@ -1624,26 +1663,28 @@
         if (url) fetchAdminGrades(url, gradesLabFilter);
     };
 
-    window.showGradeDetail = function (username, lab) {
+    // The "view and mark" screen of one student's lab or activity.
+    function showWorkDetail(kind, username, work) {
         var url = serverUrl();
         if (!url) return;
+        var K = WORK_KINDS[kind];
         // Opened from the table: remember the rows on screen, in their order.
-        var queue = buildMarkQueue();
+        var queue = buildMarkQueue(K.table);
         if (queue.length) markQueue = queue;
-        markContext = { user: username, lab: lab, rows: null };
+        markContext = { kind: kind, user: username, lab: work, rows: null };
         var container = adminContent();
         if (!container) return;
-        container.innerHTML = '<div class="admin-loading">Loading details for ' + escapeHtml(username) + ' / ' + escapeHtml(lab) + '...</div>';
+        container.innerHTML = '<div class="admin-loading">Loading details for ' + escapeHtml(username) + ' / ' + escapeHtml(K.title(work)) + '...</div>';
 
         // Fetch grade detail and file tree in parallel
         Promise.all([
-            adminRequestJson(url + '/api/admin/grades?user=' + encodeURIComponent(username) + '&lab=' + encodeURIComponent(lab)),
-            fetch(url + '/api/admin/tree?user=' + encodeURIComponent(username) + '&lab=' + encodeURIComponent(lab), {
+            adminRequestJson(url + K.detail(username, work)),
+            fetch(url + K.tree(username, work), {
                 mode: 'cors', headers: { 'Authorization': 'Bearer ' + authToken }
             }).then(function (r) { return r.ok ? r.json() : null; })
         ])
         .then(function (results) {
-            if (!markContext || markContext.user !== username || markContext.lab !== lab) return;
+            if (!markContext || markContext.user !== username || markContext.lab !== work) return;
             var g = results[0];
             var tree = results[1];
             var pos = markQueuePos();
@@ -1658,14 +1699,14 @@
                 + '<button type="button" class="mark-nav-btn" onclick="markStep(1)"' + (pos >= 0 && pos < markQueue.length - 1 ? '' : ' disabled') + '>next ›</button>'
                 + '<span class="mark-nav-who"><span id="mark-who">'
                 + (entry && entry.name ? '<b>' + escapeHtml(entry.name) + '</b> ' + escapeHtml(entry.id || username) : '<b>' + escapeHtml(username) + '</b>')
-                + '</span> · ' + escapeHtml(lab) + '</span>'
+                + '</span> · ' + escapeHtml(K.title(work)) + '</span>'
                 + '<span class="mark-nav-auto">files <span class="' + gradeClass(finalPct) + '">' + scoreDisplay + '</span></span>'
                 + '<span class="admin-detail-btn mark-nav-jump" onclick="scrollToMarkForm()">mark ↓</span>'
                 + '</div>'
                 + '<div class="mark-layout"><div class="mark-work">';
 
-            if (g.labPath) {
-                html += '<div style="color:var(--comment);font-size:11px;margin-bottom:6px;overflow-wrap:anywhere;">' + escapeHtml(g.labPath) + '</div>';
+            if (K.path(g)) {
+                html += '<div style="color:var(--comment);font-size:11px;margin-bottom:6px;overflow-wrap:anywhere;">' + escapeHtml(K.path(g)) + '</div>';
             }
 
             // Deadline & penalty summary
@@ -1697,7 +1738,7 @@
                     + detail + commitInfo
                     + '</div>';
             });
-            if (!(g.items || []).length && g.feedback && g.feedback.length) {
+            if (g.feedback && g.feedback.length && (kind === 'activities' || !(g.items || []).length)) {
                 g.feedback.forEach(function (f) { html += '<div class="grade-feedback">• ' + escapeHtml(f) + '</div>'; });
             }
             html += '</div></div>';
@@ -1705,16 +1746,24 @@
             if (tree && tree.tree) html += '</div>'; // close columns
 
             if (tree && tree.tree) html += renderFileChips(tree.tree);
-            html += '<div id="mark-records"><div class="admin-loading">Loading the lab records...</div></div>'
+            html += '<div id="mark-records">' + (kind === 'labs' ? '<div class="admin-loading">Loading the lab records...</div>' : '') + '</div>'
                 + '</div><div class="mark-side"><div id="mark-form"><div class="admin-loading">Loading the mark...</div></div></div></div>';
             container.innerHTML = html;
             var scroller = container.closest('.terminal-body');
             if (scroller) scroller.scrollTop = 0;
-            loadMarkPanel(username, lab);
+            loadMarkPanel(username, work);
         })
         .catch(function (err) {
-            container.innerHTML = renderAdminRequestError('Failed to load grade detail', err);
+            container.innerHTML = renderAdminRequestError('Failed to load the details', err);
         });
+    }
+
+    window.showGradeDetail = function (username, lab) {
+        showWorkDetail('labs', username, lab);
+    };
+
+    window.showActivityGradeDetail = function (username, activity) {
+        showWorkDetail('activities', username, activity);
     };
 
     // ── Helpers for admin detail views (deadline + per-file dates) ──
@@ -2016,42 +2065,55 @@
             var activities = data.activities || [];
             latestAdminGradeExports.activities = grades;
 
-            var html = '<div class="admin-section-header">Activity Grading'
-                + ' <span style="color:var(--cyan);cursor:pointer;font-size:11px;border-bottom:1px dashed var(--cyan);margin-left:12px;" onclick="fetchAdminActivities_refresh()">&#x21BB; refresh</span>'
-                + adminSearchHtml('admin-search-activities', '\uD83D\uDD0D Search by ID, name, score...')
-                + '</div>'
-                + '<div class="admin-lab-filters">'
+            // Activity filter buttons
+            var html = '<div class="admin-lab-filters admin-chip-row">'
                 + '<span class="admin-lab-btn' + (!activitiesFilter ? ' active' : '') + '" onclick="filterActivities(null)">All Activities</span>';
             activities.forEach(function (a) {
-                var label = a.replace('activity', 'Activity ');
-                html += '<span class="admin-lab-btn' + (activitiesFilter === a ? ' active' : '') + '" onclick="filterActivities(\'' + escapeHtml(a) + '\')">' + escapeHtml(label) + '</span>';
+                html += '<span class="admin-lab-btn' + (activitiesFilter === a ? ' active' : '') + '" onclick="filterActivities(\'' + escapeHtml(a) + '\')">' + escapeHtml(activityTitle(a)) + '</span>';
             });
-            html += '</div>' + adminExportButtons('activities');
+            html += '</div>'
+                + '<div class="admin-section-header">'
+                + markFilterChips(grades)
+                + ' <span class="admin-refresh" onclick="fetchAdminActivities_refresh()">&#x21BB; refresh</span>'
+                + adminSearchHtml('admin-search-activities', '🔍 Search by ID, name, score...')
+                + '</div>'
+                + '<div class="admin-actions">' + adminExportButtons('activities');
+            if (activitiesFilter) {
+                html += '<span class="admin-lab-btn" onclick="publishMarks(\'activities\', true)">Show all ' + escapeHtml(activityTitle(activitiesFilter)) + ' marks to students</span>'
+                    + '<span class="admin-lab-btn" onclick="publishMarks(\'activities\', false)">Hide all ' + escapeHtml(activityTitle(activitiesFilter)) + ' marks</span>';
+            }
+            html += '</div>';
 
             if (grades.length === 0) {
                 html += '<div style="color:var(--comment);padding:12px;">No submissions found.</div>';
             } else {
+                var actCol = !activitiesFilter;
                 html += adminTableStart('admin-activities-table', '')
-                    + '<thead><tr><th class="pin-col pin-id" onclick="adminSortTable(this)">ID</th><th class="pin-col pin-name" onclick="adminSortTable(this)">Name</th><th onclick="adminSortTable(this)">Activity</th><th onclick="adminSortTable(this)">Score</th><th onclick="adminSortTable(this)">%</th><th onclick="adminSortTable(this)">Late</th><th onclick="adminSortTable(this)">Status</th><th>Details</th></tr></thead>'
+                    + '<thead><tr><th class="pin-col pin-id" onclick="adminSortTable(this)">ID</th><th class="pin-col pin-name" onclick="adminSortTable(this)">Name</th>'
+                    + (actCol ? '<th onclick="adminSortTable(this)">Activity</th>' : '')
+                    + '<th onclick="adminSortTable(this)">Mark</th><th onclick="adminSortTable(this)">Files</th><th onclick="adminSortTable(this)">%</th><th onclick="adminSortTable(this)">Late</th><th onclick="adminSortTable(this)">Status</th><th>Details</th></tr></thead>'
                     + '<tbody>';
                 grades.forEach(function (g) {
                     var pct = g.finalPercentage !== undefined ? g.finalPercentage : scorePercent(actualScore(g), g.total || 0);
-                    var statusIcon = g.found ? (pct === 100 ? '\u2705' : '\u26A0\uFE0F') : '\u274C';
-                    var actLabel = g.activity ? g.activity.replace('activity', 'Activity ') : g.activity;
-                    html += '<tr>'
+                    var statusIcon = g.found ? (pct === 100 ? '✅' : '⚠️') : '❌';
+                    var open = 'showActivityGradeDetail(\'' + escapeHtml(g.username) + '\',\'' + escapeHtml(g.activity) + '\')';
+                    html += '<tr data-user="' + escapeHtml(g.username) + '" data-lab="' + escapeHtml(g.activity) + '" data-mark="' + markState(g.mark)
+                        + '" data-name="' + escapeHtml(g.name || g.username) + '" data-id="' + escapeHtml(g.id || g.username) + '">'
                         + '<td class="admin-user pin-col pin-id">' + escapeHtml(g.id || g.username) + '</td>'
-                        + '<td class="pin-col pin-name">' + escapeHtml(g.name || g.username) + '</td>'
-                        + '<td>' + escapeHtml(actLabel) + '</td>'
+                        + '<td class="pin-col pin-name admin-row-open" onclick="' + open + '">' + escapeHtml(g.name || g.username) + '</td>'
+                        + (actCol ? '<td>' + escapeHtml(activityTitle(g.activity)) + '</td>' : '')
+                        + '<td>' + renderMarkCell(g.mark) + '</td>'
                         + '<td>' + renderScoreValue(g) + '</td>'
                         + '<td>' + renderScorePercent(g) + '</td>'
                         + '<td>' + renderLateBadge(g) + '</td>'
                         + '<td>' + statusIcon + '</td>'
-                        + '<td><span class="admin-detail-btn" onclick="showActivityGradeDetail(\'' + escapeHtml(g.username) + '\',\'' + escapeHtml(g.activity) + '\')">view</span></td>'
+                        + '<td><span class="admin-detail-btn" onclick="' + open + '">view and mark</span></td>'
                         + '</tr>';
                 });
                 html += '</tbody>' + adminTableEnd();
             }
             container.innerHTML = html;
+            setMarkFilter(gradesMarkFilter);
         })
         .catch(function (err) {
             container.innerHTML = renderAdminRequestError('Failed to load activity grades', err);
@@ -2066,83 +2128,6 @@
     window.fetchAdminActivities_refresh = function () {
         var url = serverUrl();
         if (url) fetchAdminActivities(url, activitiesFilter);
-    };
-
-    window.showActivityGradeDetail = function (username, activity) {
-        var url = serverUrl();
-        if (!url) return;
-        var container = adminContent();
-        if (!container) return;
-        var actLabel = activity ? activity.replace('activity', 'Activity ') : activity;
-        container.innerHTML = '<div class="admin-loading">Loading details for ' + escapeHtml(username) + ' / ' + escapeHtml(actLabel) + '...</div>';
-
-        Promise.all([
-            adminRequestJson(url + '/api/admin/activities?user=' + encodeURIComponent(username) + '&activity=' + encodeURIComponent(activity)),
-            fetch(url + '/api/admin/activity-tree?user=' + encodeURIComponent(username) + '&activity=' + encodeURIComponent(activity), {
-                mode: 'cors', headers: { 'Authorization': 'Bearer ' + authToken }
-            }).then(function (r) { return r.ok ? r.json() : null; })
-        ])
-        .then(function (results) {
-            var g = results[0];
-            var tree = results[1];
-
-            var finalPct = g.finalPercentage !== undefined ? g.finalPercentage : scorePercent(actualScore(g), g.total || 0);
-            var scoreDisplay = renderScoreValue(g) + ' (' + finalPct + '%)';
-            var html = '<div class="admin-section-header">'
-                + '<span class="admin-back-btn" onclick="switchAdminTab(\'activities\')">' + '\u2190 back</span> '
-                + escapeHtml(username) + ' / ' + escapeHtml(actLabel)
-                + ' \u2014 <span class="' + gradeClass(finalPct) + '">'
-                + scoreDisplay + '</span>'
-                + '</div>';
-
-            if (g.activityPath) {
-                html += '<div style="color:var(--comment);font-size:11px;margin-bottom:8px;">' + escapeHtml(g.activityPath) + '</div>';
-            }
-
-            // Deadline & penalty summary
-            html += renderDeadlineSummary(g);
-
-            if (tree && tree.tree) {
-                html += '<div class="grade-detail-columns"><div class="grade-tree-col">'
-                    + '<div style="color:var(--cyan);font-size:12px;margin-bottom:4px;">File Tree:</div>'
-                    + '<pre class="grade-tree">' + renderTreeText(tree.tree, '') + '</pre>'
-                    + '</div>';
-            }
-
-            // Items checklist with per-file commit dates
-            var deadlineDt = g.deadline && g.deadline.due ? new Date(g.deadline.due).getTime() : null;
-            html += '<div class="grade-items-col">'
-                + '<div style="color:var(--cyan);font-size:12px;margin-bottom:4px;">Checklist:</div>'
-                + '<div class="grade-items">';
-            (g.items || []).forEach(function (item) {
-                var icon = item.status === 'ok' ? '\u2705' : item.status === 'case_mismatch' ? '\u26A0\uFE0F' : '\u274C';
-                var cls = item.status === 'ok' ? 'item-ok' : item.status === 'case_mismatch' ? 'item-warn' : 'item-miss';
-                var detail = '';
-                if (item.status === 'case_mismatch') detail = ' (found as: ' + escapeHtml(item.actual) + ')';
-                // Per-file commit date
-                var commitInfo = renderFileCommitDate(item.expected, g.fileDates, deadlineDt);
-                html += '<div class="grade-item ' + cls + '">'
-                    + icon + ' <span class="grade-item-name">' + escapeHtml(item.expected) + '</span>'
-                    + ' <span class="grade-item-pts">' + item.points + '/' + item.maxPoints + '</span>'
-                    + detail + commitInfo
-                    + '</div>';
-            });
-            html += '</div></div>';
-
-            if (tree && tree.tree) html += '</div>';
-
-            if (g.feedback && g.feedback.length > 0) {
-                html += '<div style="margin-top:12px;"><div style="color:var(--red);font-size:12px;margin-bottom:4px;">Feedback:</div>';
-                g.feedback.forEach(function (f) {
-                    html += '<div class="grade-feedback">\u2022 ' + escapeHtml(f) + '</div>';
-                });
-                html += '</div>';
-            }
-            container.innerHTML = html;
-        })
-        .catch(function (err) {
-            container.innerHTML = renderAdminRequestError('Failed to load activity detail', err);
-        });
     };
 
     // ──────────────────────────────────────
@@ -2586,6 +2571,7 @@
                     + '<span class="' + pctClass + '">' + renderScoreValue(g) + ' (' + pct + '%)</span>'
                     + ' <span class="admin-detail-btn" onclick="showStudentActivityDetail(\'' + escapeHtml(g.activity) + '\')">view details</span>'
                     + '</div>';
+                html += renderStudentMark(g.mark, false);
 
                 if (g.items && g.items.length > 0) {
                     var okCount = 0, warnCount = 0, missCount = 0;
@@ -2751,6 +2737,8 @@
             if (g.activityPath) {
                 html += '<div style="color:var(--comment);font-size:11px;margin-bottom:8px;">' + escapeHtml(g.activityPath) + '</div>';
             }
+
+            html += renderStudentMark(g.mark, true, 'activity');
 
             // Deadline & penalty summary
             html += renderDeadlineSummary(g);

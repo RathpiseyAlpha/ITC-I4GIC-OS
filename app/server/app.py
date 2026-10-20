@@ -1582,6 +1582,38 @@ def _lab_rubric(lab):
     return rows or [{"key": "r1", "label": "Lab mark", "max": 10.0}]
 
 
+def _activity_rubric(activity):
+    """Rows of the Grading Criteria table in the class activity. Its rows
+    may have a description column after the points, and a Total row."""
+    path = _ACTIVITY_MD_DIR / f"class-{activity}.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    rows = []
+    parts = text.split("## Grading Criteria", 1)
+    if len(parts) == 2:
+        section = parts[1].split("\n## ", 1)[0]
+        found = re.findall(
+            r"^\|\s*([^|\n]+?)\s*\|\s*\**\s*(\d+(?:\.\d+)?)\s*\**\s*\|", section, re.M
+        )
+        for label, points in found:
+            label = label.replace("`", "").replace("**", "").strip()
+            if label.lower() == "total":
+                continue
+            rows.append({
+                "key": f"r{len(rows) + 1}",
+                "label": label,
+                "max": float(points),
+            })
+    return rows or [{"key": "r1", "label": "Activity mark", "max": 100.0}]
+
+
+def _rubric(work):
+    """The rubric of a lab (labN) or a class activity (activityN)."""
+    return _activity_rubric(work) if work in ACTIVITY_SPECS else _lab_rubric(work)
+
+
 def _load_marks():
     try:
         with open(_MARKS_FILE, "r", encoding="utf-8") as f:
@@ -1602,7 +1634,7 @@ def _save_marks(data):
 
 def _mark_view(lab, entry, rubric=None):
     """A stored mark with its rubric rows and totals. entry may be None."""
-    rubric = rubric or _lab_rubric(lab)
+    rubric = rubric or _rubric(lab)
     entry = entry or {}
     given = entry.get("rows", {})
     rows, total, marked = [], 0.0, 0
@@ -1767,7 +1799,10 @@ def _student_file(username, lab, rel):
     """Read one file of a student's lab folder. Returns (data, error).
     Refuses anything that leaves the lab folder or the student's home,
     because the service account can read more than a student may show."""
-    root = _find_lab_root(username, lab)
+    if lab in ACTIVITY_SPECS:
+        root = _find_activity_root(username, lab)
+    else:
+        root = _find_lab_root(username, lab)
     if not root:
         return None, "Lab directory not found."
     if not rel or rel.startswith(("/", "\\")) or ".." in Path(rel).parts:
@@ -2031,9 +2066,14 @@ def route_admin_deadlines_post():
 def route_admin_activities():
     activity = request.args.get("activity")
     user = request.args.get("user")
+    marks = _load_marks()
     if user and activity:
-        return jsonify(grade_student_activity(user, activity))
+        grade = grade_student_activity(user, activity)
+        grade["mark"] = _mark_summary(activity, user, marks)
+        return jsonify(grade)
     grades = grade_all_activities(activity)
+    for g in grades:
+        g["mark"] = _mark_summary(g.get("activity"), g.get("username"), marks)
     return jsonify({
         "grades": grades, "activities": list(ACTIVITY_SPECS.keys()),
     })
@@ -2060,8 +2100,8 @@ def _mark_target():
     body = request.get_json(silent=True) or {}
     user = request.args.get("user") or body.get("user")
     lab = request.args.get("lab") or body.get("lab")
-    if lab not in LAB_SPECS:
-        return None, None, (jsonify({"error": "Unknown lab."}), 400)
+    if lab not in LAB_SPECS and lab not in ACTIVITY_SPECS:
+        return None, None, (jsonify({"error": "Unknown lab or activity."}), 400)
     if user not in _USER_TO_SID:
         return None, None, (jsonify({"error": "Student not found in roster."}), 404)
     return user, lab, None
@@ -2073,13 +2113,14 @@ def route_admin_mark():
     user, lab, error = _mark_target()
     if error:
         return error
-    rubric = _lab_rubric(lab)
-    activity = _oslab_activity(user, lab)
+    rubric = _rubric(lab)
+    # Class activities have no oslab records, so nothing to suggest from.
+    activity = None if lab in ACTIVITY_SPECS else _oslab_activity(user, lab)
     sid = _USER_TO_SID[user]
     return jsonify({
         "user": user, "lab": lab, "id": sid, "name": STUDENTS[sid]["name"],
         "mark": _mark_view(lab, _load_marks().get(lab, {}).get(user), rubric),
-        "suggested": _mark_suggestions(rubric, activity),
+        "suggested": _mark_suggestions(rubric, activity) if activity else {},
         "activity": activity,
     })
 
@@ -2093,7 +2134,7 @@ def route_admin_mark_post():
     body = request.get_json(silent=True) or {}
     given = body.get("rows") if isinstance(body.get("rows"), dict) else {}
     rows = {}
-    for r in _lab_rubric(lab):
+    for r in _rubric(lab):
         value = given.get(r["key"])
         if value is None or value == "":
             continue
@@ -2123,8 +2164,8 @@ def route_admin_mark_post():
 def route_admin_marks_publish():
     body = request.get_json(silent=True) or {}
     lab = body.get("lab")
-    if lab not in LAB_SPECS:
-        return jsonify({"error": "Unknown lab."}), 400
+    if lab not in LAB_SPECS and lab not in ACTIVITY_SPECS:
+        return jsonify({"error": "Unknown lab or activity."}), 400
     published = bool(body.get("published"))
     with _marks_lock:
         marks = _load_marks()
@@ -2250,6 +2291,10 @@ def route_my_activities():
                 "items": [],
                 "feedback": ["Cannot access activity directory."],
             })
+    marks = _load_marks()
+    for g in grades:
+        entry = marks.get(g.get("activity"), {}).get(linux_user)
+        g["mark"] = _mark_view(g["activity"], entry) if entry and entry.get("published") else None
     return jsonify({"grades": grades, "activities": acts})
 
 
