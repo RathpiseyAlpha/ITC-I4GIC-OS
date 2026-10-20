@@ -13,10 +13,12 @@ const CONFIG = {
     },
 
     // Presence server (tracks logged-in Linux users on the server)
-    // The URL is loaded from app/js/env.js (excluded from version control).
+    // The URL is loaded from app/js/env.js (excluded from version control). The
+    // Pages workflow writes env.js; the fallback keeps login working when a deploy
+    // publishes the site without it.
     // See app/server/README.md for setup instructions (systemd, nginx, etc.)
     server: {
-        url: (window.__ENV && window.__ENV.serverUrl) || '',
+        url: (window.__ENV && window.__ENV.serverUrl) || 'https://api-os.rathpisey.site',
         pollInterval: 10000 // poll /api/users every 10 seconds
     },
 
