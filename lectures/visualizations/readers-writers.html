@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Readers–Writers</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  select{min-width:0;max-width:100%}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  .zone{border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--s7);margin-bottom:12px;min-height:84px}
+  .zone .ttl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between}
+  .zone.db{border-width:2px}
+  .zone.db.reading{border-color:var(--c0)} .zone.db.writing{border-color:var(--c2)}
+  .people{display:flex;gap:8px;flex-wrap:wrap;min-height:40px;align-items:center}
+  .p{border:none;border-radius:10px;padding:8px 12px;font-weight:700;color:#fff;font-size:14px;display:inline-flex;flex-direction:column;align-items:center;line-height:1.2}
+  .p small{font-weight:500;font-size:10px;opacity:.9}
+  .p.R{background:var(--c0)} .p.W{background:var(--c2);color:#1c1300}
+  .p.wait{opacity:.85;outline:2px dashed var(--bad);outline-offset:2px;cursor:default}
+  .p.old{outline-style:solid}
+  .none{color:var(--muted);font-size:12px}
+  .vars{display:flex;gap:10px;flex-wrap:wrap}
+  .var{border:1px solid var(--border);border-radius:9px;padding:8px 14px;background:var(--s7);text-align:center;min-width:96px}
+  .var .n{font-size:11px;color:var(--muted);font-family:Consolas,monospace}
+  .var .v{font-size:22px;font-weight:800}
+  .log{font-size:12.5px;line-height:1.6;max-height:150px;overflow:auto;color:var(--t1);border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--s1)}
+  .code{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:12px;line-height:1.55;background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:10px 12px;white-space:pre;overflow-x:auto;color:var(--t1)}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>Readers–Writers</h1>
+  <div class="sub">Week 8 — send readers and writers to a shared database and see who gets in, who waits, and <b>who starves</b> under three policies</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>State the rule: many readers may read together, but a writer needs the data alone.</li><li>Trace <code>read_count</code>, <code>mutex</code> and <code>rw_mutex</code> in the readers-preference solution.</li><li>Show a sequence of arrivals that starves a writer under readers-preference, and one that starves readers under writers-preference.</li><li>Explain how a fair (first-come, first-served) policy bounds the waiting time.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <div class="zone"><div class="ttl"><span>Waiting to enter (arrival order, oldest on the left)</span><span id="waitInfo"></span></div><div class="people" id="waitBox"></div></div>
+    <div class="zone db" id="db"><div class="ttl"><span>Shared database — click someone inside to make them leave</span><span id="dbInfo"></span></div><div class="people" id="dbBox"></div></div>
+    <p class="blockTitle">Semaphore state (readers-preference implementation)</p>
+    <div class="vars" id="vars"></div>
+    <p class="blockTitle" style="margin-top:16px">Event log</p>
+    <div class="log" id="log"></div>
+  </div>
+  <div class="side">
+    <div class="tabgroup"><div class="algos" id="algos"></div></div>
+    <div class="controls">
+      <button class="primary" onclick="arrive('R')">+ Reader arrives</button>
+      <button class="primary" onclick="arrive('W')" style="background:var(--c2);border-color:var(--c2)">+ Writer arrives</button>
+      <button onclick="leaveOldest()">Oldest inside leaves</button>
+      <button onclick="reset()">↻ Reset</button>
+    </div>
+    <div class="controls">
+      <button id="demoBtn" onclick="toggleDemo('readers')">▶ Demo: stream of readers</button>
+      <button id="demoBtn2" onclick="toggleDemo('writers')">▶ Demo: stream of writers</button>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="builder">
+      <h3>Reader code (readers-preference)</h3>
+      <div class="code">wait(mutex);
+read_count++;
+if (read_count == 1) wait(rw_mutex);  // first reader locks writers out
+signal(mutex);
+    /* read */
+wait(mutex);
+read_count--;
+if (read_count == 0) signal(rw_mutex); // last reader lets a writer in
+signal(mutex);</div>
+      <div class="hint">A writer simply does <code>wait(rw_mutex); /* write */ signal(rw_mutex);</code></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const POL=[
+ {id:'rp', name:'Readers-preference', about:'A reader enters whenever no writer is <i>inside</i>, even if a writer has been waiting. Readers never wait for other readers.'},
+ {id:'wp', name:'Writers-preference', about:'As soon as a writer is waiting, new readers must queue behind it. Writers get in as early as possible.'},
+ {id:'fair', name:'Fair (FIFO)', about:'Everyone is served in arrival order. Readers that are next to each other in the queue still enter together.'},
+];
+const $=id=>document.getElementById(id);
+let pol=POL[0], people, clock, nR, nW, log, last, demo=null, demoTimer=null;
+function reset(){ stopDemo(); people=[]; clock=0; nR=nW=0; log=[]; last=''; render(); }
+const waiting=()=>people.filter(p=>p.st==='wait'), inside=()=>people.filter(p=>p.st==='in');
+function admit(){
+  const got=[];
+  const enter=p=>{ p.st='in'; p.start=clock; got.push(p); };
+  const wIn=()=>inside().some(p=>p.t==='W'), rIn=()=>inside().filter(p=>p.t==='R').length;
+  if(pol.id==='rp'){ if(!wIn()){ waiting().filter(p=>p.t==='R').forEach(enter); if(!inside().length){ const w=waiting().find(p=>p.t==='W'); if(w) enter(w); } } }
+  else if(pol.id==='wp'){ if(!wIn()){ const w=waiting().find(p=>p.t==='W'); if(w){ if(!rIn()) enter(w); } else waiting().forEach(enter); } }
+  else { for(const p of waiting()){ if(p.t==='R'){ if(wIn()) break; enter(p); } else { if(!inside().length) enter(p); break; } } }
+  return got;
+}
+function say(m){ log.unshift('<b>'+clock+'.</b> '+m); last=m; }
+function arrive(t,quiet){ clock++; const p={t, id:t+(t==='R'?++nR:++nW), st:'wait', arr:clock}; people.push(p);
+  const got=admit(); let m='<b>'+p.id+'</b> arrives';
+  if(got.includes(p)) m+=' and enters at once'+(t==='R'&&inside().length>1?' — it joins the readers already inside.':'.');
+  else { const wIn=inside().find(x=>x.t==='W'); m+=' and must <b>wait</b>: '+(wIn?wIn.id+' is writing.':t==='W'?inside().length+' reader'+(inside().length>1?'s are':' is')+' inside.':pol.id==='wp'?'a writer is waiting, and writers go first.':'it queues behind a writer that arrived earlier.'); }
+  say(m); render(); }
+function leave(id){ const p=people.find(x=>x.id===id&&x.st==='in'); if(!p) return; clock++; p.st='done'; const got=admit();
+  say('<b>'+p.id+'</b> leaves.'+(got.length?' → '+got.map(g=>'<b>'+g.id+'</b>').join(', ')+' enter'+(got.length>1?'':'s')+' (waited '+got.map(g=>clock-g.arr).join(', ')+').':'')); render(); }
+function leaveOldest(){ const i=inside()[0]; if(i) leave(i.id); }
+function setPol(id){ pol=POL.find(p=>p.id===id); reset(); }
+
+/* demos: a script of events that keeps the database busy for one side */
+function toggleDemo(kind){ if(demo){ stopDemo(); render(); return; } reset(); demo=kind; let k=0;
+  const seq = kind==='readers' ? ['aR','aW','aR','l','aR','l','aR','l','aR','l','aR','l','l'] : ['aW','aR','aW','l','aW','l','aW','l','aW','l','l'];
+  demoTimer=setInterval(()=>{ if(k>=seq.length){ stopDemo(); render(); return; } const e=seq[k++]; if(e==='l') leaveOldest(); else arrive(e[1]); },900); render(); }
+function stopDemo(){ clearInterval(demoTimer); demo=null; }
+
+function render(){
+  const w=waiting(), ins=inside(), rc=ins.filter(p=>p.t==='R').length, wr=ins.some(p=>p.t==='W');
+  const maxWait=w.length?Math.max(...w.map(p=>clock-p.arr)):0;
+  $('waitBox').innerHTML=w.length?w.map(p=>'<span class="p wait '+p.t+(clock-p.arr>=4?' old':'')+'">'+p.id+'<small>waited '+(clock-p.arr)+'</small></span>').join(''):'<span class="none">nobody is waiting</span>';
+  $('dbBox').innerHTML=ins.length?ins.map(p=>'<button class="p '+p.t+'" onclick="leave(\''+p.id+'\')" title="Click: '+p.id+' leaves">'+p.id+'<small>'+(p.t==='R'?'reading':'writing')+'</small></button>').join(''):'<span class="none">empty</span>';
+  $('db').className='zone db'+(wr?' writing':rc?' reading':'');
+  $('dbInfo').textContent=wr?'1 writer, exclusive':rc?rc+' reader'+(rc>1?'s':'')+', shared':'';
+  $('waitInfo').textContent=w.length?'longest wait: '+maxWait+' events':'';
+  $('vars').innerHTML=[['read_count',rc],['rw_mutex',ins.length?0:1],['readers waiting',w.filter(p=>p.t==='R').length],['writers waiting',w.filter(p=>p.t==='W').length]]
+    .map(v=>'<div class="var"><div class="n">'+v[0]+'</div><div class="v">'+v[1]+'</div></div>').join('');
+  $('log').innerHTML=log.length?log.join('<br>'):'<span class="none">No events yet.</span>';
+  $('algos').innerHTML=POL.map(p=>'<button class="'+(p===pol?'active':'')+'" onclick="setPol(\''+p.id+'\')">'+p.name+'</button>').join('');
+  $('stepLabel').textContent=pol.name+' · event '+clock;
+  $('captionText').innerHTML=last||pol.about+' Add readers and writers, then click people inside the database to make them leave. Or run a demo and switch policy to compare.';
+  let v='', vc=''; const starving=w.find(p=>clock-p.arr>=6);
+  if(starving){ v='⚠ '+starving.id+' has waited '+(clock-starving.arr)+' events while others kept entering — starvation'; vc='bad'; }
+  else if(clock>=8&&!w.length){ v='✓ Nobody is left waiting'; vc='ok'; }
+  $('verdict').textContent=v; $('verdict').className='verdict '+vc;
+  $('demoBtn').textContent=(demo==='readers'?'⏸ Stop demo':'▶ Demo: stream of readers'); $('demoBtn2').textContent=(demo==='writers'?'⏸ Stop demo':'▶ Demo: stream of writers');
+}
+document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select') return;
+  if(e.key==='r'||e.key==='R') arrive('R'); else if(e.key==='w'||e.key==='W') arrive('W'); else if(e.key==='ArrowRight') leaveOldest(); });
+reset();
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

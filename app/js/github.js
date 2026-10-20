@@ -3,11 +3,20 @@
 
 const GitHubAPI = (function () {
     const repoIdentity = [CONFIG.github.owner, CONFIG.github.repo, CONFIG.github.branch].join('/');
-    const CACHE_KEY = 'itc-os-repo-tree-v5-' + repoIdentity;
-    const CACHE_TS_KEY = 'itc-os-repo-tree-ts-v5-' + repoIdentity;
+    const CACHE_KEY = 'itc-os-repo-tree-v6-' + repoIdentity;
+    const CACHE_TS_KEY = 'itc-os-repo-tree-ts-v6-' + repoIdentity;
 
-    // Top-level entries hidden from the file browser (tooling/config/app source).
-    const HIDDEN_TOP = ['.claude', '.github', '.vscode', 'app', '.gitignore', '.nojekyll'];
+    // Top-level entries hidden from the file browser (tooling, app source, and
+    // instructor material: plans, solutions, server scripts, question banks).
+    const HIDDEN_TOP = ['.claude', '.github', '.vscode', 'app', '.gitignore', '.nojekyll', '.gitattributes',
+        'index.html', 'teaching', 'server', 'tools', 'exam'];
+    // Deeper folders hidden the same way (slide generator sources).
+    const HIDDEN_PREFIXES = ['lectures/files/decks/'];
+
+    function isHidden(path) {
+        return HIDDEN_TOP.indexOf(path.split('/')[0]) !== -1
+            || HIDDEN_PREFIXES.some(p => (path + '/').indexOf(p) === 0);
+    }
 
     let fileTree = null; // { '': { dirs: [], files: [] }, 'labs': {...}, ... }
     let allFiles = null; // Set of all file paths for existence checks
@@ -15,34 +24,34 @@ const GitHubAPI = (function () {
     // Generated snapshot of the repo file list, used only when the GitHub API is
     // unreachable (e.g. the unauthenticated 60/hr rate limit) AND nothing is cached.
     // The live API supersedes this whenever it succeeds; regenerate with:
-    //   git ls-files
+    //   git ls-files  (leaving out the hidden paths above)
     const FALLBACK_PATHS = [
-        ".claude/settings.local.json", ".github/workflows/deploy.yml", ".gitignore", ".nojekyll", ".vscode/settings.json", "README.md",
-        "app/css/2d92accdc77f74ad3949c6edb5b49686.gif", "app/css/penguin-walking-transparent-big.gif", "app/css/running-pose-only-transparent.gif", "app/css/styles.css", "app/js/app.js", "app/js/config.js",
-        "app/js/env.example.js", "app/js/github.js", "app/js/presence.js", "app/server/.dockerignore", "app/server/Dockerfile", "app/server/README.md",
-        "app/server/app.py", "app/server/auto-deploy.sh", "app/server/docker-compose.yml", "app/server/itc-os-presence.service", "app/server/requirements.txt", "course-outline.md",
-        "index.html", "labs/lab1/README.md", "labs/lab1/guides/images/page12_img0.png", "labs/lab1/guides/images/page15_img0.png", "labs/lab1/guides/images/page1_img0.png", "labs/lab1/guides/images/page2_img0.png",
-        "labs/lab1/guides/images/page4_img0.png", "labs/lab1/guides/images/page4_img1.jpg", "labs/lab1/guides/images/page4_img2.png", "labs/lab1/guides/images/page4_img3.png", "labs/lab1/guides/images/page5_img0.png", "labs/lab1/guides/images/page6_img0.png",
-        "labs/lab1/guides/images/page7_img0.png", "labs/lab1/guides/images/page8_img0.jpg", "labs/lab1/guides/lab1-guides.pdf", "labs/lab1/guides/slides.html", "labs/lab1/lab1-instruction.md", "labs/lab1/pictures/image.png",
-        "labs/lab1/pictures/lab-workflow.png", "labs/lab2/README.md", "labs/lab2/guides/images/page10_img0.png", "labs/lab2/guides/images/page11_img0.png", "labs/lab2/guides/images/page12_img0.png", "labs/lab2/guides/images/page12_img1.png",
+        "README.md", "course-outline.md", "labs/INDEX.md", "labs/REPORT-TEMPLATE.md", "labs/SETUP.md", "labs/lab1/README.md",
+        "labs/lab1/extensions.md", "labs/lab1/guides/images/page12_img0.png", "labs/lab1/guides/images/page15_img0.png", "labs/lab1/guides/images/page1_img0.png", "labs/lab1/guides/images/page2_img0.png", "labs/lab1/guides/images/page4_img0.png",
+        "labs/lab1/guides/images/page4_img1.jpg", "labs/lab1/guides/images/page4_img2.png", "labs/lab1/guides/images/page4_img3.png", "labs/lab1/guides/images/page5_img0.png", "labs/lab1/guides/images/page6_img0.png", "labs/lab1/guides/images/page7_img0.png",
+        "labs/lab1/guides/images/page8_img0.jpg", "labs/lab1/guides/lab1-guides.pdf", "labs/lab1/guides/slides.html", "labs/lab1/lab1-instruction.md", "labs/lab1/pictures/image.png", "labs/lab1/pictures/lab-workflow.png",
+        "labs/lab10/README.md", "labs/lab10/extensions.md", "labs/lab10/lab10-instruction.md", "labs/lab11/README.md", "labs/lab11/extensions.md", "labs/lab11/lab11-instruction.md",
+        "labs/lab2/README.md", "labs/lab2/extensions.md", "labs/lab2/guides/images/page10_img0.png", "labs/lab2/guides/images/page11_img0.png", "labs/lab2/guides/images/page12_img0.png", "labs/lab2/guides/images/page12_img1.png",
         "labs/lab2/guides/images/page13_img0.png", "labs/lab2/guides/images/page13_img1.png", "labs/lab2/guides/images/page14_img0.png", "labs/lab2/guides/images/page14_img1.png", "labs/lab2/guides/images/page15_img0.png", "labs/lab2/guides/images/page15_img1.png",
         "labs/lab2/guides/images/page17_img0.png", "labs/lab2/guides/images/page1_img0.png", "labs/lab2/guides/images/page3_img0.jpeg", "labs/lab2/guides/images/page4_img0.png", "labs/lab2/guides/images/page5_img0.png", "labs/lab2/guides/images/page5_img1.png",
         "labs/lab2/guides/images/page6_img0.png", "labs/lab2/guides/images/page7_img0.png", "labs/lab2/guides/images/page8_img0.png", "labs/lab2/guides/images/page9_img0.png", "labs/lab2/guides/images/page9_img1.png", "labs/lab2/guides/lab2-guides.pdf",
-        "labs/lab2/guides/slides.html", "labs/lab2/lab2-instruction.md", "labs/lab3/README.md", "labs/lab3/guides/slides.html", "labs/lab3/lab3-instruction.md", "labs/lab4/README.md",
-        "labs/lab4/guides/slides.html", "labs/lab4/lab4-challenge.md", "labs/lab4/lab4-instruction.md", "labs/lab5/README.md", "labs/lab5/guides/slides.html", "labs/lab5/lab5-instruction.md",
-        "labs/lab6/README.md", "labs/lab6/guides/slides.html", "labs/lab6/lab6-instruction.md", "labs/lab7/README.md", "labs/lab7/lab7-instruction.md", "labs/lab8/README.md",
-        "labs/lab8/lab8-instruction.md", "labs/lab9/README.md", "labs/lab9/lab9-instruction.md", "lectures/class-activity/README.md", "lectures/class-activity/class-activity1.md", "lectures/class-activity/class-activity1.pdf",
-        "lectures/class-activity/class-activity2.md", "lectures/class-activity/class-activity3.md", "lectures/class-activity/class-activity4.md", "lectures/class-activity/class-activity5.md", "lectures/class-activity/class-activity6.md", "lectures/class-activity/class-activity7.md",
-        "lectures/class-activity/class-activity8.md", "lectures/files/ch1.pdf", "lectures/files/ch10.pdf", "lectures/files/ch2.pdf", "lectures/files/ch3.pdf", "lectures/files/ch4.pdf",
-        "lectures/files/ch5.pdf", "lectures/files/ch6.pdf", "lectures/files/ch7.pdf", "lectures/files/ch8.pdf", "lectures/files/ch9.pdf", "lectures/notes/README.md",
-        "lectures/notes/week01-introduction-to-os.md", "lectures/notes/week02-os-structures-interfaces.md", "lectures/notes/week03-processes.md", "lectures/notes/week04-threads-multicore.md", "lectures/notes/week05-cpu-scheduling-1.md", "lectures/notes/week06-cpu-scheduling-2.md",
-        "lectures/notes/week07-critical-sections.md", "lectures/notes/week08-semaphores-sync.md", "lectures/notes/week09-deadlocks.md", "lectures/notes/week10-memory-management.md", "lectures/notes/week11-virtual-memory.md", "lectures/notes/week12-file-systems.md",
-        "lectures/visualizations/README.md", "lectures/visualizations/bankers-algorithm.html", "lectures/visualizations/deadlock-detection.html", "lectures/visualizations/index.html", "lectures/visualizations/rag-deadlock.html", "tools/create-2026-expanded-qbank.ps1",
-        "tools/fix-linux-tree-prompts.ps1", "tools/preview-moodle-qbank.ps1", "tools/revise-linux-qbank-and-add-lecture-short.ps1",
-        "labs/REPORT-TEMPLATE.md", "labs/lab10/README.md", "labs/lab10/lab10-instruction.md", "labs/lab11/README.md", "labs/lab11/lab11-instruction.md",
-        "server/RUNBOOK.md", "server/oslab.py", "server/lab10_cron.py", "teaching/REVISION-AUDIT.md", "teaching/IMPLEMENTATION-PLAN.md", "teaching/VALIDATION.md",
-        "labs/lab1/extensions.md", "labs/lab2/extensions.md", "labs/lab3/extensions.md", "labs/lab4/extensions.md", "labs/lab5/extensions.md", "labs/lab6/extensions.md",
-        "labs/lab7/extensions.md", "labs/lab8/extensions.md", "labs/lab9/extensions.md", "labs/lab10/extensions.md", "labs/lab11/extensions.md"
+        "labs/lab2/guides/slides.html", "labs/lab2/lab2-instruction.md", "labs/lab3/README.md", "labs/lab3/extensions.md", "labs/lab3/guides/slides.html", "labs/lab3/lab3-instruction.md",
+        "labs/lab4/README.md", "labs/lab4/extensions.md", "labs/lab4/guides/slides.html", "labs/lab4/lab4-challenge.md", "labs/lab4/lab4-instruction.md", "labs/lab5/README.md",
+        "labs/lab5/extensions.md", "labs/lab5/guides/slides.html", "labs/lab5/lab5-instruction.md", "labs/lab6/README.md", "labs/lab6/extensions.md", "labs/lab6/guides/slides.html",
+        "labs/lab6/lab6-instruction.md", "labs/lab7/README.md", "labs/lab7/bash-script-1.pdf", "labs/lab7/extensions.md", "labs/lab7/lab7-instruction.md", "labs/lab8/README.md",
+        "labs/lab8/extensions.md", "labs/lab8/lab8-instruction.md", "labs/lab9/README.md", "labs/lab9/extensions.md", "labs/lab9/lab9-instruction.md", "lectures/class-activity/README.md",
+        "lectures/class-activity/class-activity1.md", "lectures/class-activity/class-activity1.pdf", "lectures/class-activity/class-activity2.md", "lectures/class-activity/class-activity3.md", "lectures/class-activity/class-activity4.md", "lectures/class-activity/class-activity5.md",
+        "lectures/class-activity/class-activity6.md", "lectures/class-activity/class-activity7.md", "lectures/class-activity/class-activity8.md", "lectures/class-activity/semaphore and deadlock worksheet.pdf", "lectures/files/Converted Slides/Operating Systems — Lab 1.pdf", "lectures/files/Converted Slides/Operating Systems — Week 1.pdf",
+        "lectures/files/Converted Slides/Operating Systems — Week 10.pdf", "lectures/files/Converted Slides/Operating Systems — Week 11.pdf", "lectures/files/Converted Slides/Operating Systems — Week 12.pdf", "lectures/files/Converted Slides/Operating Systems — Week 13.pdf", "lectures/files/Converted Slides/Operating Systems — Week 2.pdf", "lectures/files/Converted Slides/Operating Systems — Week 3.pdf",
+        "lectures/files/Converted Slides/Operating Systems — Week 4.pdf", "lectures/files/Converted Slides/Operating Systems — Week 5.pdf", "lectures/files/Converted Slides/Operating Systems — Week 6.pdf", "lectures/files/Converted Slides/Operating Systems — Week 9.pdf", "lectures/files/ch1.pdf", "lectures/files/ch10.pdf",
+        "lectures/files/ch2.pdf", "lectures/files/ch3.pdf", "lectures/files/ch4.pdf", "lectures/files/ch5.pdf", "lectures/files/ch6.pdf", "lectures/files/ch7.pdf",
+        "lectures/files/ch8.pdf", "lectures/files/ch9.pdf", "lectures/notes/README.md", "lectures/notes/week01-introduction-to-os.md", "lectures/notes/week02-os-structures-interfaces.md", "lectures/notes/week03-processes.md",
+        "lectures/notes/week04-threads-multicore.md", "lectures/notes/week05-cpu-scheduling-1.md", "lectures/notes/week06-cpu-scheduling-2.md", "lectures/notes/week07-critical-sections.md", "lectures/notes/week08-semaphores-sync.md", "lectures/notes/week09-deadlocks.md",
+        "lectures/notes/week10-memory-management.md", "lectures/notes/week11-virtual-memory.md", "lectures/notes/week12-file-systems.md", "lectures/visualizations/README.md", "lectures/visualizations/amdahls-law.html", "lectures/visualizations/bankers-algorithm.html",
+        "lectures/visualizations/contiguous-allocation.html", "lectures/visualizations/cpu-scheduling.html", "lectures/visualizations/critical-section.html", "lectures/visualizations/deadlock-detection.html", "lectures/visualizations/demand-paging.html", "lectures/visualizations/dining-philosophers.html",
+        "lectures/visualizations/eat-calculator.html", "lectures/visualizations/file-allocation.html", "lectures/visualizations/file-permissions.html", "lectures/visualizations/fork-tree.html", "lectures/visualizations/index.html", "lectures/visualizations/interrupts-dual-mode.html",
+        "lectures/visualizations/mlfq.html", "lectures/visualizations/page-replacement.html", "lectures/visualizations/paging-translation.html", "lectures/visualizations/pc-sandbox.html", "lectures/visualizations/process-states.html", "lectures/visualizations/producer-consumer.html",
+        "lectures/visualizations/rag-deadlock.html", "lectures/visualizations/readers-writers.html", "lectures/visualizations/system-call-path.html", "lectures/visualizations/threading-models.html", "lectures/visualizations/tlb.html"
     ];
 
     // Persisted cache (localStorage so it survives reloads/new tabs, unlike sessionStorage).
@@ -77,7 +86,7 @@ const GitHubAPI = (function () {
         const fileSet = new Set();
 
         // Drop hidden tooling/config directories (and their contents).
-        entries = entries.filter(e => HIDDEN_TOP.indexOf(e.path.split('/')[0]) === -1);
+        entries = entries.filter(e => !isHidden(e.path));
 
         // Collect all directories (including implicit parents)
         entries.forEach(e => {
@@ -229,6 +238,7 @@ const GitHubAPI = (function () {
         fileExists,
         getAllFiles,
         getNodeInfo,
+        isHidden,
         refresh
     };
 })();

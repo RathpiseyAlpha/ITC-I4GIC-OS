@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Threading Models — user threads and kernel threads</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px 70px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  select{min-width:0;max-width:100%}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  svg#map{width:100%;display:block}
+  .lay{font-size:11px;fill:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+  .band{fill:var(--s7);stroke:var(--border)}
+  .ut{cursor:pointer}
+  .ut circle{stroke-width:3;stroke:transparent}
+  .ut:hover circle{stroke:var(--ink)}
+  .ut text,.kt text,.cpu text{font-size:12px;font-weight:700;fill:#fff;text-anchor:middle;pointer-events:none}
+  .ut text.small,.kt text.small{font-size:10.5px;font-weight:500;fill:var(--muted)}
+  .kt rect{stroke:var(--border);stroke-width:2}
+  .cpu rect{fill:var(--s5);stroke:var(--s6);stroke-width:2}
+  .cpu.busy rect{fill:var(--ok)}
+  .cpu.busy text{fill:#06121f}
+  .cpu text{fill:var(--muted)}
+  .lnk{stroke-width:2.5;fill:none}
+  .lnk.idle{stroke:var(--s6);stroke-dasharray:4 4;stroke-width:1.5}
+  .srow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .srow label{flex:0 0 132px}
+  .srow output{min-width:20px;font-weight:800;text-align:right}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>Threading Models — user threads and kernel threads</h1>
+  <div class="sub">Week 4 — map user threads onto kernel threads <b>many-to-one, one-to-one or many-to-many</b>, then block one of them and see who else stops</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Tell a user thread from a kernel thread, and say which one the OS scheduler can see.</li><li>Describe the many-to-one, one-to-one and many-to-many models.</li><li>Predict what happens to the other threads when one thread makes a blocking system call in each model.</li><li>Explain which models can use several cores at the same time, and what each one costs.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <svg id="map" viewBox="0 0 720 400" role="img" aria-label="User threads mapped to kernel threads and CPU cores"></svg>
+    <div class="stats">
+      <div class="stat"><div class="big" id="sRun" style="color:var(--ok)">0</div><div class="lab">threads running right now</div></div>
+      <div class="stat"><div class="big" id="sWait" style="color:var(--pick)">0</div><div class="lab">runnable but waiting for a turn</div></div>
+      <div class="stat"><div class="big" id="sBlk" style="color:var(--bad)">0</div><div class="lab">cannot run (blocked)</div></div>
+      <div class="stat"><div class="big" id="sK" style="color:var(--accent)">0</div><div class="lab">kernel threads the OS must manage</div></div>
+    </div>
+  </div>
+  <div class="side">
+    <div class="tabgroup"><div class="algos" id="algos"></div></div>
+    <div class="controls">
+      <button class="primary" onclick="tick()">Next time slice ▶</button>
+      <button id="playBtn" onclick="togglePlay()">▶ Play</button>
+      <button onclick="unblockAll()">Unblock all</button>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="builder">
+      <h3>Set-up</h3>
+      <div class="srow"><label class="lbl" for="nu">User threads</label><input type="range" id="nu" min="2" max="6" value="4"><output id="nuO"></output></div>
+      <div class="srow"><label class="lbl" for="nc">CPU cores</label><input type="range" id="nc" min="1" max="4" value="2"><output id="ncO"></output></div>
+      <div class="srow" id="nkRow"><label class="lbl" for="nk">Kernel threads (M:N)</label><input type="range" id="nk" min="1" max="4" value="2"><output id="nkO"></output></div>
+      <div class="hint"><b>Click a user thread</b> to make it call a blocking system call such as <code>read()</code>; click again when its I/O is done.</div>
+    </div>
+    <div class="legend">
+      <div class="row"><span class="sq" style="background:var(--ok)"></span> Running on a core</div>
+      <div class="row"><span class="sq" style="background:var(--pick)"></span> Runnable, waiting for a kernel thread or a core</div>
+      <div class="row"><span class="sq" style="background:var(--bad)"></span> In a blocking system call</div>
+      <div class="row"><span class="sq" style="background:var(--muted)"></span> Runnable, but stuck behind a blocked kernel thread</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MODELS=[
+ {id:'m1', name:'Many-to-one', about:'All user threads share <b>one kernel thread</b>. Thread switches happen in a user-level library and are very cheap, but the OS sees just one thing to schedule.'},
+ {id:'11', name:'One-to-one', about:'Every user thread has <b>its own kernel thread</b> (Linux, Windows). The OS schedules each one separately. Creating a thread costs a kernel thread.'},
+ {id:'mn', name:'Many-to-many', about:'Many user threads are multiplexed over a <b>smaller pool</b> of kernel threads. The library moves user threads between kernel threads as they become free.'},
+];
+const $=id=>document.getElementById(id);
+let M=MODELS[0], nu=4, nc=2, nk=2, blocked=new Set(), rot=0, playing=false, timer=null, note='';
+
+/* Decide who runs in this time slice. Returns per-user-thread status and the mapping to kernel threads and cores. */
+function solve(){
+  const U=[...Array(nu).keys()], K = M.id==='m1'?1 : M.id==='11'?nu : Math.min(nk,nu);
+  const st=Array(nu).fill('wait'), ukt=Array(nu).fill(-1), ktState=Array(K).fill('idle'), ktCore=Array(K).fill(-1);
+  blocked.forEach(u=>{ if(u<nu) st[u]='blocked'; });
+  if(M.id==='m1'){
+    U.forEach(u=>ukt[u]=0);
+    const b=U.find(u=>blocked.has(u));
+    if(b!==undefined){ ktState[0]='blocked'; U.forEach(u=>{ if(st[u]!=='blocked') st[u]='stuck'; }); }
+    else { const u=rot%nu; st[u]='run'; ktState[0]='run'; ktCore[0]=0; }
+  } else if(M.id==='11'){
+    U.forEach(u=>{ ukt[u]=u; if(blocked.has(u)) ktState[u]='blocked'; });
+    const ready=U.filter(u=>!blocked.has(u)), n=Math.min(nc,ready.length);
+    for(let i=0;i<n;i++){ const u=ready[(rot+i)%ready.length]; st[u]='run'; ktState[u]='run'; ktCore[u]=i; }
+  } else {
+    let kt=0; const bl=U.filter(u=>blocked.has(u));
+    bl.forEach(u=>{ if(kt<K){ ukt[u]=kt; ktState[kt]='blocked'; kt++; } });         // a blocked thread keeps its kernel thread
+    const free=K-kt, ready=U.filter(u=>!blocked.has(u)), n=Math.min(free,ready.length);
+    for(let i=0;i<n;i++){ const u=ready[(rot+i)%ready.length]; ukt[u]=kt+i; if(i<nc){ st[u]='run'; ktState[kt+i]='run'; ktCore[kt+i]=i; } else ktState[kt+i]='ready'; }
+    if(free===0) ready.forEach(u=>st[u]='stuck');
+  }
+  return {K,st,ukt,ktState,ktCore};
+}
+function render(){
+  const R=solve(), {K,st,ukt,ktState,ktCore}=R, W=720;
+  const ux=u=>W*(u+1)/(nu+1), kx=k=>W*(k+1)/(K+1), cx=c=>W*(c+1)/(nc+1), UY=78, KY=206, CY=334;
+  const col={run:'var(--ok)',wait:'var(--pick)',blocked:'var(--bad)',stuck:'var(--muted)'}, lab={run:'running',wait:'waiting',blocked:'blocked',stuck:'stuck'};
+  let g='<rect class="band" x="6" y="22" width="708" height="104" rx="12"/><rect class="band" x="6" y="152" width="708" height="104" rx="12"/><rect class="band" x="6" y="280" width="708" height="104" rx="12"/>'+
+    '<text class="lay" x="18" y="40">User space — threads your program creates</text><text class="lay" x="18" y="170">Kernel — kernel threads, the only thing the scheduler sees</text><text class="lay" x="18" y="298">Hardware — CPU cores</text>';
+  for(let u=0;u<nu;u++) if(ukt[u]>=0){ const s=st[u]; g+='<path class="lnk'+(s==='run'||s==='blocked'?'':' idle')+'" stroke="'+col[s]+'" d="M'+ux(u)+','+(UY+44)+' L'+kx(ukt[u])+','+(KY-20)+'"/>'; }
+  for(let k=0;k<K;k++) if(ktCore[k]>=0) g+='<path class="lnk" stroke="var(--ok)" d="M'+kx(k)+','+(KY+40)+' L'+cx(ktCore[k])+','+(CY-20)+'"/>';
+  for(let u=0;u<nu;u++){ const s=st[u]; g+='<g class="ut" onclick="toggle('+u+')" tabindex="0" role="button" aria-label="User thread '+u+', '+lab[s]+'" onkeydown="if(event.key===\'Enter\')toggle('+u+')"><circle cx="'+ux(u)+'" cy="'+UY+'" r="22" fill="'+col[s]+'"/><text x="'+ux(u)+'" y="'+(UY+4)+'" style="fill:'+(s==='blocked'?'#fff':'#06121f')+'">T'+u+'</text><text class="small" x="'+ux(u)+'" y="'+(UY+38)+'">'+lab[s]+'</text></g>'; }
+  for(let k=0;k<K;k++){ const s=ktState[k], f=s==='run'?'var(--ok)':s==='blocked'?'var(--bad)':'var(--s5)';
+    g+='<g class="kt"><rect x="'+(kx(k)-26)+'" y="'+(KY-18)+'" width="52" height="36" rx="8" fill="'+f+'"/><text x="'+kx(k)+'" y="'+(KY+4)+'" style="fill:'+(s==='run'?'#06121f':s==='blocked'?'#fff':'var(--muted)')+'">K'+k+'</text><text class="small" x="'+kx(k)+'" y="'+(KY+34)+'">'+(s==='run'?'on a core':s==='blocked'?'blocked in the kernel':s==='ready'?'ready, no free core':'idle')+'</text></g>'; }
+  for(let c=0;c<nc;c++){ const busy=ktCore.includes(c); g+='<g class="cpu'+(busy?' busy':'')+'"><rect x="'+(cx(c)-34)+'" y="'+(CY-20)+'" width="68" height="40" rx="6"/><text x="'+cx(c)+'" y="'+(CY+4)+'">core '+c+'</text></g>'; }
+  $('map').innerHTML=g;
+  const cnt=k=>st.filter(s=>s===k).length, run=cnt('run'), stuck=cnt('stuck');
+  $('sRun').textContent=run; $('sWait').textContent=cnt('wait'); $('sBlk').textContent=cnt('blocked')+stuck; $('sK').textContent=K;
+  $('algos').innerHTML=MODELS.map(m=>'<button class="'+(m===M?'active':'')+'" onclick="setModel(\''+m.id+'\')">'+m.name+'</button>').join('');
+  $('nuO').textContent=nu; $('ncO').textContent=nc; $('nkO').textContent=Math.min(nk,nu); $('nkRow').style.opacity=M.id==='mn'?1:.4; $('nk').disabled=M.id!=='mn';
+  $('stepLabel').textContent=M.name+' · '+nu+' user threads, '+K+' kernel thread'+(K>1?'s':'')+', '+nc+' core'+(nc>1?'s':'');
+  let t=M.about, v='', vc='';
+  const nb=cnt('blocked');
+  if(M.id==='m1'){
+    if(nb){ t+=' T'+[...blocked].filter(u=>u<nu)[0]+' made a blocking system call, so the <b>single kernel thread is blocked</b> inside the kernel. The library cannot switch to another user thread, because the library itself is not running.'; v='✗ One blocking call stopped all '+nu+' threads'; vc='bad'; }
+    else { t+=' Only one user thread runs at a time'+(nc>1?', even though '+(nc-1)+' core'+(nc>2?'s are':' is')+' idle: the OS has only one kernel thread to place on a core.':'.'); v=nc>1?'⚠ No parallelism: 1 running, '+(nc-1)+' core'+(nc>2?'s':'')+' unused':''; vc='warn'; }
+  } else if(M.id==='11'){
+    if(nb){ t+=' The blocked thread blocks only <b>its own</b> kernel thread. The others keep running.'; v='✓ '+run+' thread'+(run!==1?'s':'')+' still running'; vc='ok'; }
+    else { t+=' Up to '+nc+' thread'+(nc>1?'s run':' runs')+' truly in parallel, one per core.'; v=run>1?'✓ '+run+' threads run in parallel':''; vc='ok'; }
+    t+=' Cost: '+nu+' kernel threads for '+nu+' user threads. A program with thousands of threads puts a heavy load on the kernel.';
+  } else {
+    if(stuck){ t+=' Every kernel thread in the pool is held by a blocked user thread, so the remaining threads are <b>stuck</b> although they are runnable. Real systems ask the kernel for another kernel thread at this point (scheduler activations).'; v='✗ The pool is exhausted'; vc='bad'; }
+    else if(nb){ t+=' The blocked thread holds one kernel thread. The library runs the other user threads on the <b>remaining</b> '+(K-nb)+'.'; v='✓ '+run+' thread'+(run!==1?'s':'')+' still running with only '+K+' kernel threads'; vc='ok'; }
+    else { t+=' '+Math.min(K,nc)+' thread'+(Math.min(K,nc)>1?'s run':' runs')+' in parallel, limited by the smaller of kernel threads ('+K+') and cores ('+nc+').'; v=''; }
+  }
+  $('captionText').innerHTML=t+(note?' <br>'+note:''); $('verdict').textContent=v; $('verdict').className='verdict '+vc;
+}
+function toggle(u){ blocked.has(u)?blocked.delete(u):blocked.add(u); note=''; render(); }
+function tick(){ rot++; note='Time slice '+rot+': the runnable threads take turns.'; render(); }
+function unblockAll(){ blocked.clear(); note=''; render(); }
+function setModel(id){ M=MODELS.find(m=>m.id===id); note=''; render(); }
+function togglePlay(){ if(playing){ playing=false; clearInterval(timer); $('playBtn').textContent='▶ Play'; } else { playing=true; $('playBtn').textContent='⏸ Pause'; timer=setInterval(tick,900); } }
+$('nu').addEventListener('input',e=>{ nu=+e.target.value; [...blocked].forEach(u=>{ if(u>=nu) blocked.delete(u); }); render(); });
+$('nc').addEventListener('input',e=>{ nc=+e.target.value; render(); });
+$('nk').addEventListener('input',e=>{ nk=+e.target.value; render(); });
+document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select') return;
+  if(e.key==='ArrowRight') tick(); else if(e.key===' '){ e.preventDefault(); togglePlay(); } else if(e.key>='0'&&e.key<='5'&&+e.key<nu) toggle(+e.key); });
+render();
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

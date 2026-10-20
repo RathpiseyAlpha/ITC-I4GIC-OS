@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Calls and Kernel Structures</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px 70px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  select{min-width:0;max-width:100%}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  .zone{border:1px dashed var(--s6);border-radius:12px;padding:10px 12px 12px;margin-bottom:10px;position:relative}
+  .zone.user{background:rgba(59,130,246,.06)} .zone.kern{background:rgba(236,72,153,.07)} .zone.hw{background:rgba(245,158,11,.06)}
+  .zone>.zl{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;font-weight:700}
+  .boxes{display:flex;gap:8px;flex-wrap:wrap}
+  .zone.stack .boxes{flex-direction:column}
+  .b{flex:1 1 130px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;background:var(--panel);font-size:13px;font-weight:600;transition:.2s;position:relative}
+  .b small{display:block;font-weight:400;color:var(--muted);font-size:11px;margin-top:2px}
+  .b.seen{border-color:var(--s6);background:var(--s12)}
+  .b.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+  .b.on::after{content:attr(data-dir);position:absolute;right:10px;top:8px;font-size:15px;color:var(--accent)}
+  .regs{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .reg{border:1px solid var(--border);border-radius:8px;padding:6px 12px;background:var(--s7);font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:12.5px}
+  .reg b{color:var(--pick)}
+  .reg span{color:var(--muted)}
+  table.t td.l{text-align:left}
+  table.t tr.pickable{cursor:pointer}
+  table.t tr.pickable:hover td{background:rgba(96,165,250,.09)}
+  table.t tr.sel td{background:rgba(96,165,250,.16);font-weight:700}
+  .scroll{overflow-x:auto}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>System Calls and Kernel Structures</h1>
+  <div class="sub">Week 2 — follow one request from your C program down to the hardware, through a <b>monolithic</b>, a <b>layered</b> and a <b>microkernel</b> operating system</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Trace a system call from the library wrapper, through the trap and the system-call table, to the kernel routine and back.</li><li>Explain how the kernel knows which service is wanted, and how the arguments and the result are passed.</li><li>Classify a system call as process control, file management, device management, information or communication.</li><li>Compare monolithic, layered and microkernel structures by the number of boundary crossings one request costs.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <div id="diagram"></div>
+    <div class="stats">
+      <div class="stat"><div class="big" id="nSw" style="color:var(--c4)">0</div><div class="lab">user ↔ kernel mode switches</div></div>
+      <div class="stat"><div class="big" id="nMsg" style="color:var(--pick)">0</div><div class="lab">messages between servers (IPC)</div></div>
+      <div class="stat"><div class="big" id="nHop" style="color:var(--accent)">0</div><div class="lab">components visited</div></div>
+    </div>
+    <p class="blockTitle" style="margin-top:14px">CPU registers (Linux x86-64 convention)</p>
+    <div class="regs" id="regs"></div>
+
+    <p class="blockTitle" style="margin-top:18px">Pick the system call to trace</p>
+    <div class="scroll"><table class="t" id="calls"></table></div>
+    <p class="blockTitle" style="margin-top:18px">Cost of this request in each structure</p>
+    <div class="scroll"><table class="t" id="cmp"></table></div>
+  </div>
+  <div class="side">
+    <div class="tabgroup"><div class="algos" id="algos"></div></div>
+    <div class="controls">
+      <button id="prevBtn" onclick="prev()">◀ Prev</button>
+      <button id="nextBtn" class="primary" onclick="next()">Next ▶</button>
+      <button id="playBtn" onclick="togglePlay()">▶ Play</button>
+      <button onclick="go(0)">↻ Reset</button>
+      <span class="progress" id="progress"></span>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="builder">
+      <h3>About this structure</h3>
+      <div class="hint" id="about" style="font-size:13px;margin:0"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Linux x86-64 system-call numbers */
+const CALLS=[
+ {n:'read',  num:0,  cat:'File management',  c:'read(fd, buf, 100)',     args:['fd = 3','buf = 0x7ffd10','count = 100'], ret:'100 (bytes read)', srv:'fs',   dev:'Disk',     work:'find the file’s blocks and copy 100 bytes into the user buffer'},
+ {n:'write', num:1,  cat:'File management',  c:'write(1, "hi\\n", 3)',    args:['fd = 1','buf = 0x402010','count = 3'], ret:'3 (bytes written)', srv:'fs',   dev:'Terminal', work:'send the 3 bytes to the device behind file descriptor 1'},
+ {n:'open',  num:2,  cat:'File management',  c:'open("notes.txt", O_RDONLY)', args:['path = 0x402020','flags = O_RDONLY','mode = 0'], ret:'3 (new file descriptor)', srv:'fs', dev:'Disk', work:'walk the directories, check permissions, and create an open-file entry'},
+ {n:'getpid',num:39, cat:'Information maintenance', c:'getpid()',         args:['—','—','—'], ret:'4821 (the PID)', srv:'proc', dev:null,       work:'read the PID from the current process’s PCB'},
+ {n:'fork',  num:57, cat:'Process control',  c:'fork()',                 args:['—','—','—'], ret:'4822 in the parent (the child’s PID), 0 in the child', srv:'proc', dev:null, work:'copy the PCB and address space to create a child process'},
+ {n:'kill',  num:62, cat:'Communication (signals)', c:'kill(4900, SIGTERM)', args:['pid = 4900','sig = 15','—'], ret:'0 (success)', srv:'proc', dev:null, work:'check permission, then mark the signal as pending in the target’s PCB'},
+ {n:'ioctl', num:16, cat:'Device management', c:'ioctl(fd, TIOCGWINSZ, &ws)', args:['fd = 1','request = TIOCGWINSZ','arg = 0x7ffd40'], ret:'0 (success)', srv:'fs', dev:'Terminal', work:'pass the device-specific request to the terminal driver'},
+];
+const STRUCTS=[
+ {id:'mono', name:'Monolithic', about:'<b>Monolithic kernel</b> (Linux, traditional UNIX). All OS services live in one big program running in kernel mode. Components call each other with plain function calls, so it is <b>fast</b>. The price: a bug in any driver can crash the whole kernel.'},
+ {id:'layer', name:'Layered', about:'<b>Layered structure</b> (THE, early designs). The OS is a stack of layers; each layer uses only the one directly below. It is easy to reason about and test layer by layer, but a request must pass through <b>every</b> layer, and deciding the order of the layers is hard.'},
+ {id:'micro', name:'Microkernel', about:'<b>Microkernel</b> (Mach, QNX, MINIX 3). The kernel keeps only the minimum: scheduling, memory and message passing. The file system and the drivers are ordinary <b>user-mode server processes</b>. A crashed driver can be restarted, but every request costs several messages and mode switches.'},
+];
+const $=id=>document.getElementById(id);
+let call=CALLS[0], S=STRUCTS[0], steps=[], k=0, playing=false, timer=null;
+
+/* Build the diagram (zones → boxes) and the list of steps for the chosen structure and call. */
+function plan(S,call){
+  const isFs=call.srv==='fs', srvName=isFs?'File system':'Process manager', dev=call.dev, drv=dev?(dev==='Disk'?'Disk driver':'Terminal driver'):null;
+  const app={id:'app',t:'Your program',s:call.c}, libc={id:'libc',t:'C library wrapper',s:call.n+'() in libc'};
+  const hw=dev?{id:'hw',t:dev+' controller',s:'hardware'}:null;
+  let zones, st=[];
+  const S1={at:'app', dir:'↓', t:'Your program calls <code>'+call.c.replace(/</g,'&lt;')+'</code>. It looks like a normal function call. So far everything is in user mode.'};
+  const S2={at:'libc', dir:'↓', t:'The C library wrapper puts the <b>system-call number '+call.num+'</b> (the number that means <code>'+call.n+'</code>) in register <code>rax</code> and the arguments in <code>rdi</code>, <code>rsi</code>, <code>rdx</code>. Then it executes the <code>syscall</code> instruction.', regs:1};
+  const back=(sw,extra)=>[{at:'libc', dir:'↑', sw, t:(extra||'')+'The kernel puts the <b>result</b> in <code>rax</code> and returns to user mode, right after the <code>syscall</code> instruction. The wrapper checks for an error (a negative value becomes <code>errno</code>).', ret:1},
+                   {at:'app', dir:'✓', t:'<code>'+call.n+'()</code> returns <b>'+call.ret+'</b> to your program, which continues as if it had called an ordinary function.', ret:1, done:1}];
+  if(S.id==='mono'){
+    zones=[{c:'user',l:'User mode',b:[app,libc]},{c:'kern',l:'Kernel mode — one program, everything linked together',b:[{id:'entry',t:'System-call entry',s:'trap handler'},{id:'table',t:'System-call table',s:'sys_call_table['+call.num+']'},{id:'srv',t:srvName,s:'sys_'+call.n+'()'},...(drv?[{id:'drv',t:drv,s:'in the kernel'}]:[])]},...(hw?[{c:'hw',l:'Hardware',b:[hw]}]:[])];
+    st=[S1,S2,{at:'entry',dir:'↓',sw:1,t:'<b>Trap.</b> The CPU switches to kernel mode and jumps to the kernel’s single system-call entry point. The kernel saves the user registers.',regs:1},
+      {at:'table',dir:'↓',t:'The kernel uses the number in <code>rax</code> as an index: <code>sys_call_table['+call.num+']</code> holds the address of <code>sys_'+call.n+'</code>. This table is how one entry point serves hundreds of services.',regs:1},
+      {at:'srv',dir:drv?'↓':'↑',t:'<code>sys_'+call.n+'()</code> runs: check the arguments, then '+call.work+'. '+(drv?'It needs the device, so it <b>calls a function</b> in the driver.':'No device is needed.'),regs:1}];
+    if(drv) st.push({at:'drv',dir:'↓',t:'The '+drv.toLowerCase()+' is part of the same kernel, so this was an ordinary function call: no message, no mode switch. It sends commands to the controller.'},{at:'hw',dir:'↑',t:'The '+dev.toLowerCase()+' does the physical work and signals completion with an interrupt.'});
+    st.push(...back(1));
+  } else if(S.id==='layer'){
+    zones=[{c:'user',l:'Layer 5 — user programs',b:[app,libc]},{c:'kern stack',l:'Kernel mode — each layer may call only the layer below it',b:[{id:'entry',t:'System-call interface',s:'layer 4 entry'},{id:'L4',t:'Layer 4 — file system',s:isFs?'handles this call':'passes the request down'},{id:'L3',t:'Layer 3 — I/O and device management',s:drv?drv:'passes the request down'},{id:'L2',t:'Layer 2 — memory management',s:'buffers, address checks'},{id:'L1',t:'Layer 1 — process management and CPU scheduling',s:!isFs?'handles this call':'blocks the caller if it must wait'}]},{c:'hw',l:'Layer 0 — hardware',b:[hw||{id:'hw',t:'CPU and memory',s:'hardware'}]}];
+    st=[S1,S2,{at:'entry',dir:'↓',sw:1,t:'<b>Trap.</b> The CPU switches to kernel mode and enters the top kernel layer, which looks up call number '+call.num+'.',regs:1},
+      {at:'L4',dir:'↓',t:isFs?'The file-system layer does its part: '+call.work+'. For the device work it must call the layer below.':'The file-system layer has nothing to do for <code>'+call.n+'</code>, but the request still has to pass through it.',regs:1},
+      {at:'L3',dir:'↓',t:drv?'The I/O layer runs the '+drv.toLowerCase()+'. It needs buffers, so it calls the layer below.':'The I/O layer also only passes the request on. This is the overhead of strict layering.'},
+      {at:'L2',dir:'↓',t:'The memory layer checks the user addresses and provides kernel buffers.'},
+      {at:'L1',dir:'↓',t:!isFs?'The process-management layer does the real work: '+call.work+'.':'The process layer puts the caller to sleep until the device is done, and runs something else meanwhile.'},
+      {at:'hw',dir:'↑',t:hw?'The '+dev.toLowerCase()+' does the physical work. The result now travels back up through <b>every layer</b> in reverse.':'The hardware state is updated. The result now travels back up through <b>every layer</b> in reverse.'},
+      ...back(1,'Back up through layers 1 → 2 → 3 → 4. ')];
+  } else {
+    zones=[{c:'user',l:'User mode — applications and OS servers are all ordinary processes',b:[app,libc,{id:'srv',t:srvName+' server',s:'a user-mode process'},...(drv?[{id:'drv',t:drv+' server',s:'a user-mode process'}]:[])]},{c:'kern',l:'Kernel mode — the microkernel: only IPC, scheduling and basic memory',b:[{id:'ipc',t:'Microkernel',s:'message passing (IPC)'}]},...(hw?[{c:'hw',l:'Hardware',b:[hw]}]:[])];
+    st=[S1,{...S2,t:'The library wrapper builds a <b>message</b> “'+call.n+', with these arguments” addressed to the '+srvName.toLowerCase()+' server, and traps into the kernel to send it.'},
+      {at:'ipc',dir:'→',sw:1,msg:1,t:'<b>Trap.</b> The microkernel does not know what <code>'+call.n+'</code> means. It only copies the message to the '+srvName.toLowerCase()+' server’s mailbox and switches to that process.',regs:1},
+      {at:'srv',dir:drv?'→':'←',sw:1,t:'The '+srvName.toLowerCase()+' server runs <b>in user mode</b>: check the arguments, then '+call.work+'. '+(drv?'It cannot touch the device itself, so it sends a message to the driver server.':'')}];
+    if(drv) st.push({at:'ipc',dir:'→',sw:1,msg:1,t:'Another trap: the kernel delivers the message from the '+srvName.toLowerCase()+' server to the '+drv.toLowerCase()+' server.'},
+      {at:'drv',dir:'↓',sw:1,t:'The '+drv.toLowerCase()+' server, also a user process, is allowed (by the kernel) to talk to its one device. If this driver crashes, only this process dies and can be restarted.'},
+      {at:'hw',dir:'↑',t:'The '+dev.toLowerCase()+' does the physical work and interrupts; the kernel turns the interrupt into a message for the driver.'},
+      {at:'ipc',dir:'←',sw:1,msg:1,t:'The driver replies with a message to the '+srvName.toLowerCase()+' server, through the kernel again.'},
+      {at:'srv',dir:'←',sw:1,t:'The '+srvName.toLowerCase()+' server finishes the request and sends the reply message to your program.'});
+    st.push({at:'ipc',dir:'←',sw:1,msg:1,t:'The kernel delivers the reply message to your process and schedules it.'},...back(1));
+  }
+  return {zones,steps:st};
+}
+let P=null;
+function totals(st,upto){ let sw=0,msg=0; for(let i=0;i<=upto;i++){ sw+=st[i].sw||0; msg+=st[i].msg||0; } return [sw,msg]; }
+function build(){ P=plan(S,call); steps=P.steps; k=0; render(); }
+function render(){
+  const s=steps[k], seen=new Set(steps.slice(0,k).map(x=>x.at));
+  $('diagram').innerHTML=P.zones.map(z=>'<div class="zone '+z.c+'"><div class="zl">'+z.l+'</div><div class="boxes">'+z.b.map(b=>'<div class="b'+(s.at===b.id?' on':seen.has(b.id)?' seen':'')+'" data-dir="'+(s.at===b.id?s.dir:'')+'">'+b.t+'<small>'+b.s.replace(/</g,'&lt;')+'</small></div>').join('')+'</div></div>').join('');
+  const [sw,msg]=totals(steps,k); $('nSw').textContent=sw; $('nMsg').textContent=msg; $('nHop').textContent=k+1;
+  const R=k>=1&&!s.ret, names=['rdi','rsi','rdx'];
+  $('regs').innerHTML='<div class="reg"><span>rax = </span><b>'+(s.ret?call.ret.split(' ')[0]:R?call.num:'?')+'</b> <span>'+(s.ret?'← return value':R?'← system-call number':'')+'</span></div>'+names.map((n,i)=>'<div class="reg"><span>'+n+' = </span>'+(k>=1?call.args[i].replace(/^.*= /,''):'?')+' <span>'+(k>=1&&call.args[i]!=='—'?'← '+call.args[i].split(' = ')[0]:'')+'</span></div>').join('');
+  $('calls').innerHTML='<tr><th>Call</th><th>Number</th><th>Category</th><th>Example</th></tr>'+CALLS.map((c,i)=>'<tr class="pickable'+(c===call?' sel':'')+'" onclick="pickCall('+i+')" tabindex="0" onkeydown="if(event.key===\'Enter\')pickCall('+i+')"><td class="l mono">'+c.n+'</td><td>'+c.num+'</td><td class="l">'+c.cat+'</td><td class="l mono">'+c.c.replace(/</g,'&lt;')+'</td></tr>').join('');
+  $('cmp').innerHTML='<tr><th>Structure</th><th>Mode switches</th><th>IPC messages</th><th>Components visited</th></tr>'+STRUCTS.map(x=>{ const st=plan(x,call).steps, [a,b]=totals(st,st.length-1); return '<tr class="pickable'+(x===S?' sel':'')+'" onclick="pickS(\''+x.id+'\')"><td class="l">'+x.name+'</td><td>'+a+'</td><td>'+b+'</td><td>'+st.length+'</td></tr>'; }).join('');
+  $('algos').innerHTML=STRUCTS.map(x=>'<button class="'+(x===S?'active':'')+'" onclick="pickS(\''+x.id+'\')">'+x.name+'</button>').join('');
+  $('about').innerHTML=S.about;
+  $('stepLabel').textContent=S.name+' · '+call.n+'() · step '+(k+1)+' of '+steps.length;
+  $('captionText').innerHTML=s.t; $('verdict').textContent=s.done?'✓ Done: '+sw+' mode switches, '+msg+' messages':''; $('verdict').className='verdict ok';
+  $('prevBtn').disabled=k===0; $('nextBtn').disabled=k>=steps.length-1; $('progress').textContent=(k+1)+' / '+steps.length;
+}
+function go(i){ stopPlay(); k=i; render(); }
+function next(){ if(k<steps.length-1){ k++; render(); } if(k>=steps.length-1) stopPlay(); }
+function prev(){ stopPlay(); if(k>0){ k--; render(); } }
+function pickS(id){ stopPlay(); S=STRUCTS.find(x=>x.id===id); build(); }
+function pickCall(i){ stopPlay(); call=CALLS[i]; build(); }
+function togglePlay(){ if(playing) return stopPlay(); if(k>=steps.length-1) k=0; playing=true; $('playBtn').textContent='⏸ Pause'; render(); timer=setInterval(next,2800); }
+function stopPlay(){ playing=false; clearInterval(timer); $('playBtn').textContent='▶ Play'; }
+document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select') return;
+  if(e.key==='ArrowRight') next(); else if(e.key==='ArrowLeft') prev(); else if(e.key===' '){ e.preventDefault(); togglePlay(); } });
+build();
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

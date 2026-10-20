@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UNIX File Permissions</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px 70px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  select{min-width:0;max-width:100%}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  .lsline{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:clamp(15px,2.2vw,22px);background:#05090f;color:#c8f7c5;border-radius:10px;padding:14px 16px;overflow-x:auto;white-space:nowrap}
+  .lsline .o{color:#7cbaff} .lsline .g{color:#d8b4fe} .lsline .t{color:#fcd34d} .lsline .dim{color:#7d8fa3}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+  .cls{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--s7);text-align:center}
+  .cls.me{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+  .cls h4{margin:0 0 2px;font-size:13px}
+  .cls .who{font-size:11px;color:var(--muted);margin-bottom:10px}
+  .bits{display:flex;gap:6px;justify-content:center}
+  .bit{width:46px;height:46px;border-radius:9px;font-family:Consolas,monospace;font-size:19px;font-weight:700;padding:0;background:var(--s1);color:var(--muted)}
+  .bit.on{color:#06121f;border-color:transparent}
+  .cls.o .bit.on{background:#7cbaff} .cls.g .bit.on{background:#d8b4fe} .cls.t .bit.on{background:#fcd34d}
+  .bit small{display:block;font-size:9px;font-weight:500;font-family:"Segoe UI",sans-serif}
+  .oct{font-size:30px;font-weight:800;margin-top:10px;font-family:Consolas,monospace}
+  .sum{font-size:11px;color:var(--muted);font-family:Consolas,monospace}
+  .test{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+  .result{margin-top:12px;border-radius:10px;padding:12px 14px;border:1px solid var(--border);background:var(--s7);font-size:14px;line-height:1.55}
+  .result.yes{border-color:var(--ok)} .result.no{border-color:var(--bad)}
+  input.cmd{flex:1;font-family:Consolas,"Cascadia Mono",Menlo,monospace;min-width:150px}
+  .presets{display:flex;gap:6px;flex-wrap:wrap}
+  .presets button{font-family:Consolas,monospace}
+  @media (max-width:560px){ .grid3{grid-template-columns:1fr} }
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>UNIX File Permissions</h1>
+  <div class="sub">Week 12 — toggle the <b>rwx</b> bits, type <code>chmod</code> commands, and test who is allowed to do what to a file or a directory</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Read a permission string such as <code>-rwxr-x---</code> and convert it to octal and back.</li><li>Write a <code>chmod</code> command in octal and in symbolic form to reach a given permission.</li><li>Decide whether an access is allowed, using the rule that only one class (owner, group or other) is checked.</li><li>Explain what r, w and x mean for a directory, and how <code>umask</code> sets the permissions of new files.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <p class="blockTitle">What <code>ls -l</code> shows</p>
+    <div class="lsline" id="ls"></div>
+    <div class="grid3" id="classes"></div>
+
+    <p class="blockTitle" style="margin-top:20px">Access test — who is asking, and for what?</p>
+    <div class="test">
+      <select id="who" onchange="render()" aria-label="User">
+        <option value="alice">alice (the owner)</option>
+        <option value="bob">bob (member of group staff)</option>
+        <option value="carol">carol (not owner, not in staff)</option>
+        <option value="root">root (superuser)</option>
+      </select>
+      <span class="lbl">wants to</span>
+      <select id="op" onchange="render()" aria-label="Operation"></select>
+    </div>
+    <div class="result" id="result"></div>
+
+    <p class="blockTitle" style="margin-top:20px">umask — default permissions of a newly created file</p>
+    <div class="test"><label class="lbl" for="umask">umask</label><input type="text" id="umask" value="022" maxlength="3" style="width:70px;font-family:Consolas,monospace" oninput="render()"><span id="umaskOut" style="font-size:14px"></span></div>
+  </div>
+  <div class="side">
+    <div class="tabgroup"><div class="algos">
+      <button id="tFile" onclick="setType('-')">Regular file</button>
+      <button id="tDir" onclick="setType('d')">Directory</button>
+    </div></div>
+    <div class="builder">
+      <h3>Type a chmod command</h3>
+      <div class="brow"><span class="mono lbl">$ chmod</span><input class="cmd" type="text" id="cmd" placeholder="750   or   u+x,g-w,o=r" onkeydown="if(event.key==='Enter')runCmd()"><button class="primary" onclick="runCmd()">Run</button></div>
+      <div class="msg" id="msg"></div>
+      <div class="hint">Octal: three digits, each one r(4) + w(2) + x(1). Symbolic: <code>u</code> owner, <code>g</code> group, <code>o</code> other, <code>a</code> all; <code>+</code> add, <code>-</code> remove, <code>=</code> set exactly.</div>
+    </div>
+    <div class="builder">
+      <h3>Common settings</h3>
+      <div class="presets" id="presets"></div>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let mode=0o644, type='-';
+const PRE=[[0o644,'normal file: owner edits, everyone reads'],[0o600,'private file, e.g. an SSH key'],[0o755,'program or public directory'],[0o700,'private directory or script'],[0o640,'owner edits, group reads, others nothing'],[0o664,'shared editing inside a group'],[0o604,'the surprise: group gets less than other'],[0o777,'everything for everyone (avoid)'],[0o000,'nothing for anyone']];
+const OPS={'-':[['r','read the file  (cat notes.txt)'],['w','change the file  (echo hi >> notes.txt)'],['x','run it as a program  (./notes.txt)']],
+           'd':[['r','list the names inside  (ls project)'],['w','create or delete files inside  (touch project/new, rm project/old)'],['x','enter it or reach files inside  (cd project, cat project/a.txt)']]};
+const MEAN={'-':{r:'read the contents',w:'modify the contents',x:'execute it as a program'},'d':{r:'list the names in it',w:'add, remove or rename entries',x:'pass through it (cd, open files inside)'}};
+const bitOf=(cls,p)=>({r:4,w:2,x:1}[p])<<({u:6,g:3,o:0}[cls]);
+const str=m=>[6,3,0].map(s=>((m>>s)&4?'r':'-')+((m>>s)&2?'w':'-')+((m>>s)&1?'x':'-')).join('');
+const oct=m=>m.toString(8).padStart(3,'0');
+let note='';
+
+function render(){
+  const s=str(mode), name=type==='d'?'project':'notes.txt';
+  $('ls').innerHTML='<span class="dim">'+type+'</span><span class="o">'+s.slice(0,3)+'</span><span class="g">'+s.slice(3,6)+'</span><span class="t">'+s.slice(6)+'</span> <span class="dim">1</span> <span class="o">alice</span> <span class="g">staff</span> <span class="dim">'+(type==='d'?'4096':' 512')+' Oct  8 09:30</span> '+name+(type==='d'?'/':'');
+  const who=$('who').value, myClass=who==='alice'?'u':who==='bob'?'g':who==='carol'?'o':null;
+  $('classes').innerHTML=[['u','o','Owner (user)','alice'],['g','g','Group','staff: alice, bob'],['o','t','Other','everyone else']].map(([c,cssc,h,w])=>{
+    const d=(mode>>({u:6,g:3,o:0}[c]))&7;
+    return '<div class="cls '+cssc+(myClass===c?' me':'')+'"><h4>'+h+'</h4><div class="who">'+w+'</div><div class="bits">'+['r','w','x'].map(p=>{ const on=mode&bitOf(c,p);
+      return '<button class="bit'+(on?' on':'')+'" onclick="flip(\''+c+'\',\''+p+'\')" aria-pressed="'+(on?'true':'false')+'" aria-label="'+h+' '+p+'" title="'+h+' may '+MEAN[type][p]+'">'+(on?p:'-')+'<small>'+({r:4,w:2,x:1}[p])+'</small></button>'; }).join('')+
+      '</div><div class="oct">'+d+'</div><div class="sum">'+[(d&4?'4':'0'),(d&2?'2':'0'),(d&1?'1':'0')].join(' + ')+'</div></div>'; }).join('');
+  // access test
+  const opSel=$('op'), keep=opSel.value; opSel.innerHTML=OPS[type].map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join(''); if(['r','w','x'].includes(keep)) opSel.value=keep;
+  const p=opSel.value, res=$('result'); let ok, why;
+  if(who==='root'){ ok = !(type==='-'&&p==='x'&&!(mode&0o111)); why = ok?'<b>root</b> bypasses the permission bits for reading and writing'+(type==='-'&&p==='x'?', and may execute because at least one x bit is set.':'.'):'Even <b>root</b> cannot execute a file that has no x bit set for anyone.'; }
+  else { ok=!!(mode&bitOf(myClass,p)); const cn={u:'owner',g:'group',o:'other'}[myClass], trip=s.slice({u:0,g:3,o:6}[myClass],{u:3,g:6,o:9}[myClass]);
+    why='<b>'+who+'</b> '+(myClass==='u'?'is the owner':myClass==='g'?'is not the owner but belongs to group staff':'is neither the owner nor in group staff')+', so <b>only the '+cn+' bits</b> are checked: <code>'+trip+'</code>. The <code>'+p+'</code> bit is '+(ok?'set.':'not set.');
+    const others=['u','g','o'].filter(c=>c!==myClass&&(mode&bitOf(c,p)));
+    if(!ok&&((myClass==='u'&&others.length)||(myClass==='g'&&others.includes('o')))) why+=' <b class="warn">Note:</b> a less specific class does have this permission, but the system stops at the first class that matches the user. It never falls through.'; }
+  res.className='result '+(ok?'yes':'no');
+  res.innerHTML='<b class="'+(ok?'ok':'bad')+'">'+(ok?'✓ Allowed':'✗ Permission denied')+'</b> — '+why+
+    (type==='d'&&p==='w'&&ok&&who!=='root'&&!(mode&bitOf(myClass,'x'))?' <b class="warn">But</b> without <code>x</code> on the directory the w bit is useless: creating or deleting an entry also needs x.':'')+
+    (type==='d'&&p==='w'&&ok?' Deleting a file needs write permission on the <b>directory</b>, not on the file itself.':'');
+  // umask
+  const um=$('umask').value.trim();
+  if(/^[0-7]{3}$/.test(um)){ const u=parseInt(um,8), f=0o666&~u, d=0o777&~u;
+    $('umaskOut').innerHTML='new file: 666 without '+um+' → <b class="mono">'+oct(f)+'</b> <span class="mono">('+str(f)+')</span> &nbsp;·&nbsp; new directory: 777 without '+um+' → <b class="mono">'+oct(d)+'</b> <span class="mono">('+str(d)+')</span>'; }
+  else $('umaskOut').innerHTML='<span style="color:var(--pick)">Enter three octal digits, for example 022 or 077.</span>';
+  $('tFile').classList.toggle('active',type==='-'); $('tDir').classList.toggle('active',type==='d');
+  $('presets').innerHTML=PRE.map(([m,t])=>'<button class="small'+(m===mode?' primary':'')+'" title="'+t+'" onclick="setMode('+m+')">'+oct(m)+'</button>').join('');
+  const known=PRE.find(x=>x[0]===mode);
+  $('stepLabel').textContent='chmod '+oct(mode)+' '+name;
+  $('captionText').innerHTML=(note?note+'<br>':'')+'<code>'+type+s+'</code> = <b>'+oct(mode)+'</b>'+(known?' — '+known[1]+'.':'.')+'<br>For a '+(type==='d'?'directory':'file')+': <b>r</b> = '+MEAN[type].r+', <b>w</b> = '+MEAN[type].w+', <b>x</b> = '+MEAN[type].x+'.';
+}
+function flip(c,p){ mode^=bitOf(c,p); note=''; render(); }
+function setMode(m){ mode=m; note=''; render(); }
+function setType(t){ type=t; note=''; render(); }
+function runCmd(){
+  const raw=$('cmd').value.trim().replace(/^chmod\s+/,'').split(/\s+/)[0]||'', msg=$('msg'); msg.textContent='';
+  if(/^[0-7]{3,4}$/.test(raw)){ mode=parseInt(raw.slice(-3),8); note='Ran <code>chmod '+raw+'</code>: each digit sets one class.'; return render(); }
+  let m=mode; const steps=[];
+  for(const part of raw.split(',')){
+    const mt=/^([ugoa]*)([+\-=])([rwx]*)$/.exec(part);
+    if(!mt||!raw){ msg.textContent='Not understood: “'+(part||raw)+'”. Try 640, u+x, go-w or a=r.'; return; }
+    const who=(mt[1]||'a').replace('a','ugo').split(''), perms=mt[3].split('');
+    for(const c of new Set(who)){ const bits=perms.reduce((a,p)=>a|bitOf(c,p),0), all=7<<({u:6,g:3,o:0}[c]);
+      if(mt[2]==='+') m|=bits; else if(mt[2]==='-') m&=~bits; else m=(m&~all)|bits; }
+    steps.push('<code>'+part+'</code>: '+({'+':'add','-':'remove','=':'set exactly'}[mt[2]])+' '+(mt[3]||'nothing')+' for '+[...new Set(who)].map(c=>({u:'owner',g:'group',o:'other'}[c])).join(', '));
+  }
+  const before=mode; mode=m; note='Ran <code>chmod '+raw+'</code> → '+steps.join('; ')+'. '+oct(before)+' became <b>'+oct(m)+'</b>.'; render();
+}
+render();
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

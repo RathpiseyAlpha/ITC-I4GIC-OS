@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multilevel Feedback Queue (MLFQ)</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  .lane{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--s7);min-height:56px}
+  .lane .name{flex:0 0 150px;font-size:12px;color:var(--muted);line-height:1.35}
+  .lane .name b{color:var(--ink);font-size:14px;display:block}
+  .lane .chips{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+  .lane.hot{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+  .chip small{font-weight:500;opacity:.9;margin-left:5px}
+  .none{color:var(--muted);font-size:12px}
+  .two{display:flex;gap:10px;flex-wrap:wrap}
+  .two .lane{flex:1 1 220px}
+  .gantt{position:relative;height:74px;border:1px solid var(--border);border-radius:8px;background:var(--s7);overflow:hidden}
+  .gseg{position:absolute;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;border-right:2px solid var(--panel);height:22px}
+  .glab{position:absolute;left:4px;font-size:9px;color:var(--muted);line-height:22px;z-index:1;pointer-events:none}
+  .grow{position:absolute;left:0;right:0;height:1px;background:var(--border)}
+  .gticks{position:relative;height:18px;font-size:10px;color:var(--muted)}
+  .gticks span{position:absolute;transform:translateX(-50%);top:2px}
+  table.t td input{width:54px;padding:4px 5px;text-align:center}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .scroll{overflow-x:auto}
+  .chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t1)}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>Multilevel Feedback Queue (MLFQ)</h1>
+  <div class="sub">Week 6 — watch processes move <b>down</b> when they use a whole quantum, stay <b>up</b> when they give the CPU back early, and get rescued by a <b>priority boost</b></div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>State the rules that move a process between the queues of an MLFQ.</li><li>Explain how MLFQ separates CPU-bound from interactive (I/O-bound) processes without being told which is which.</li><li>Show how a long process can starve, and how a periodic priority boost (aging) fixes it.</li><li>Explain how a process can game the scheduler by giving up the CPU just before its quantum ends.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <p class="blockTitle">The three queues — the scheduler always serves the highest non-empty queue</p>
+    <div id="lanes"></div>
+    <div class="two">
+      <div class="lane"><div class="name" style="flex-basis:90px"><b>CPU</b>t = <span id="tNow">0</span></div><div class="chips" id="cpuBox"></div></div>
+      <div class="lane"><div class="name" style="flex-basis:90px"><b>Doing I/O</b>blocked</div><div class="chips" id="ioBox"></div></div>
+    </div>
+
+    <p class="blockTitle" style="margin-top:16px">Gantt chart — the row shows which queue the running process came from</p>
+    <div class="gantt" id="gantt"></div>
+    <div class="gticks" id="gticks"></div>
+
+    <p class="blockTitle" style="margin-top:16px">Processes</p>
+    <div class="scroll"><table class="t" id="ptable"></table></div>
+    <div class="hint">“I/O every” = the process asks for I/O after that many time units of CPU (0 = never, a pure CPU-bound job). Each I/O takes <span id="ioLenTxt">2</span> time units, then the process returns to the <b>same</b> queue it left.</div>
+  </div>
+
+  <div class="side">
+    <div class="controls">
+      <button id="prevBtn" onclick="prev()">◀ Prev</button>
+      <button id="nextBtn" class="primary" onclick="next()">Next ▶</button>
+      <button id="playBtn" onclick="togglePlay()">▶ Play</button>
+      <button onclick="toEnd()">⏭ End</button>
+      <button onclick="reset()">↻ Reset</button>
+      <span class="progress" id="progress"></span>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="builder">
+      <h3>Scenario and rules</h3>
+      <div class="brow"><select id="preset" onchange="loadPreset(this.value)" style="flex:1;min-width:0;max-width:100%"></select></div>
+      <div class="brow"><label class="lbl">Quantum Q0</label><input type="number" id="q0" min="1" max="8" onchange="setCfg()">
+        <label class="lbl">Q1</label><input type="number" id="q1" min="1" max="16" onchange="setCfg()"></div>
+      <div class="brow"><label class="chk"><input type="checkbox" id="boostOn" onchange="setCfg()"> Priority boost every</label>
+        <input type="number" id="boostS" min="2" max="40" onchange="setCfg()"><span class="lbl">time units</span></div>
+      <div class="hint"><b>Rules.</b> 1) A new process enters Q0. 2) If it uses its whole quantum, it moves down one queue. 3) If it blocks for I/O first, it keeps its queue. 4) A process in a higher queue preempts one from a lower queue. 5) Q2 is FCFS. 6) With boost on, every process returns to Q0 at each boost.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PRESETS=[
+  {name:'CPU-bound vs interactive', q:[2,4], boost:false, S:10, p:[[0,12,0],[0,6,1],[3,5,0]]},
+  {name:'Starvation — three interactive jobs keep Q0 busy', q:[2,4], boost:false, S:8, p:[[0,8,0],[0,8,1],[0,8,1],[0,8,1]]},
+  {name:'Same, with priority boost', q:[2,4], boost:true, S:8, p:[[0,8,0],[0,8,1],[0,8,1],[0,8,1]]},
+  {name:'Gaming the scheduler (I/O just before the quantum ends)', q:[3,6], boost:false, S:10, p:[[0,12,3],[0,12,0]]},
+];
+const COL=['var(--c0)','var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)'];
+const IOLEN=2;
+let procs=[], cfg={q:[2,4],boost:false,S:10}, sim=null, step=0, playing=false, timer=null;
+const $=id=>document.getElementById(id);
+const nm=i=>'P'+(i+1);
+
+function simulate(P,cfg){
+  const n=P.length, rem=P.map(p=>p.burst), level=Array(n).fill(0), since=Array(n).fill(0), until=Array(n).fill(-1), done=Array(n).fill(-1), first=Array(n).fill(-1);
+  const quantum=l=> l<2?cfg.q[l]:Infinity;
+  let Q=[[],[],[]], cur=-1, used=0, t=0, fin=0, ticks=[];
+  while(fin<n && t<300){
+    const note=[];
+    P.forEach((p,i)=>{ if(p.arr===t){ Q[0].push(i); note.push('<b>'+nm(i)+'</b> arrives → enters <b>Q0</b>.'); } });
+    for(let i=0;i<n;i++) if(until[i]===t){ until[i]=-1; Q[level[i]].push(i); note.push(nm(i)+' finishes its I/O → back to Q'+level[i]+' (same queue as before).'); }
+    if(cfg.boost && t>0 && t%cfg.S===0){
+      const moved=[...Q[1],...Q[2]]; Q[0].push(...moved); Q[1]=[]; Q[2]=[]; moved.forEach(i=>level[i]=0);
+      for(let i=0;i<n;i++) if(until[i]>t) level[i]=0;
+      if(cur!==-1 && level[cur]>0){ level[cur]=0; used=0; moved.push(cur); }
+      note.push('<b class="warn">Priority boost</b> at t = '+t+': every process goes back to Q0'+(moved.length?' ('+moved.map(nm).join(', ')+' moved up)':'')+'.');
+    }
+    if(cur!==-1){
+      const l=level[cur];
+      if(used>=quantum(l)){ level[cur]=Math.min(2,l+1); Q[level[cur]].push(cur); note.push(nm(cur)+' used its whole quantum ('+quantum(l)+') in Q'+l+' → <b>moves down to Q'+level[cur]+'</b>.'); cur=-1; }
+      else if(Q.slice(0,l).some(q=>q.length)){ Q[l].push(cur); note.push('A higher queue has work → '+nm(cur)+' (from Q'+l+') is <b>preempted</b> and waits in Q'+l+'.'); cur=-1; }
+    }
+    if(cur===-1){
+      const l=Q.findIndex(q=>q.length);
+      if(l!==-1){ cur=Q[l].shift(); used=0; note.push('Highest non-empty queue is Q'+l+' → run <b>'+nm(cur)+'</b>'+(l<2?' for up to '+quantum(l)+'.':' until it finishes (FCFS).')); }
+      else note.push('No process is ready → CPU idle.');
+    } else if(!note.length) note.push(nm(cur)+' continues in Q'+level[cur]+' ('+used+' of '+(quantum(level[cur])===Infinity?'∞':quantum(level[cur]))+' used).');
+    const rec={t, run:cur, lvl:cur===-1?-1:level[cur], Q:Q.map(q=>q.slice()), rem:rem.slice(), level:level.slice(), io:until.map((u,i)=>u>t?i:-1).filter(i=>i>=0), used, note};
+    if(cur!==-1){
+      if(first[cur]===-1) first[cur]=t;
+      rem[cur]--; used++; since[cur]++;
+      if(rem[cur]===0){ done[cur]=t+1; fin++; rec.fin=cur; cur=-1; }
+      else if(P[cur].io>0 && since[cur]>=P[cur].io){ since[cur]=0; until[cur]=t+1+IOLEN; rec.blk=cur; rec.blkEarly=used<quantum(level[cur])||quantum(level[cur])===Infinity; rec.exact=used===quantum(level[cur]); cur=-1; }
+    }
+    ticks.push(rec); t++;
+  }
+  const segs=[]; ticks.forEach(k=>{ const l=segs[segs.length-1]; if(l&&l.run===k.run&&l.lvl===k.lvl) l.len++; else segs.push({run:k.run,lvl:k.lvl,start:k.t,len:1}); });
+  return {ticks,T:t,done,first,segs,finalLevel:level};
+}
+
+const chip=(i,x)=>'<span class="chip" style="background:'+COL[i%6]+'">'+nm(i)+(x!==undefined?'<small>'+x+'</small>':'')+'</span>';
+function render(){
+  const T=sim.T, s=step, k=s<T?sim.ticks[s]:null;
+  const qn=['Q0 — highest','Q1','Q2 — lowest'], qd=['Round Robin, quantum '+cfg.q[0],'Round Robin, quantum '+cfg.q[1],'FCFS (runs to completion)'];
+  $('lanes').innerHTML=[0,1,2].map(l=>'<div class="lane'+(k&&k.lvl===l?' hot':'')+'"><div class="name"><b>'+qn[l]+'</b>'+qd[l]+'</div><div class="chips">'+
+    (k&&k.Q[l].length?k.Q[l].map(i=>chip(i,k.rem[i]+' left')).join(''):'<span class="none">empty</span>')+'</div></div>').join('');
+  $('tNow').textContent=s;
+  $('cpuBox').innerHTML=k?(k.run===-1?'<span class="none">idle</span>':chip(k.run,'from Q'+k.lvl)):'<span class="none">all done</span>';
+  $('ioBox').innerHTML=k&&k.io.length?k.io.map(i=>chip(i)).join(''):'<span class="none">—</span>';
+  let g=[0,1,2].map(l=>'<span class="glab" style="top:'+(2+l*24)+'px">Q'+l+'</span>'+(l?'<div class="grow" style="top:'+(l*24+1)+'px"></div>':'')).join('');
+  const marks=new Set([0]);
+  for(const sg of sim.segs){ if(sg.start>=s) break; const len=Math.min(sg.len,s-sg.start); marks.add(sg.start+len); if(sg.run===-1) continue;
+    g+='<div class="gseg" style="top:'+(2+sg.lvl*24)+'px;left:'+(sg.start/T*100)+'%;width:'+(len/T*100)+'%;background:'+COL[sg.run%6]+'">'+nm(sg.run)+'</div>'; }
+  $('gantt').innerHTML=g;
+  let ms=[...marks]; if(ms.length>26) ms=ms.filter((m,i)=>i%2===0||m===s);
+  $('gticks').innerHTML=ms.map(m=>'<span style="left:'+(m/T*100)+'%">'+m+'</span>').join('');
+  let h='<tr><th>Process</th><th>Arrival</th><th>CPU burst</th><th>I/O every</th><th>Queue now</th><th>Remaining</th><th>Completion</th><th>Turnaround</th><th>Response</th></tr>';
+  procs.forEach((p,i)=>{ const fin=sim.done[i]<=s, lv=k?k.level[i]:sim.finalLevel[i];
+    h+='<tr><td><span class="dot" style="background:'+COL[i%6]+'"></span><b>'+nm(i)+'</b></td>'+['arr','burst','io'].map(f=>'<td><input type="number" min="'+(f==='burst'?1:0)+'" max="30" value="'+p[f]+'" aria-label="'+nm(i)+' '+f+'" onchange="edit('+i+',\''+f+'\',this.value)"></td>').join('')+
+      '<td>'+(fin?'done':p.arr>s?'—':'Q'+lv)+'</td><td>'+(fin?0:k?k.rem[i]:0)+'</td><td>'+(fin?sim.done[i]:'')+'</td><td>'+(fin?sim.done[i]-p.arr:'')+'</td><td>'+(sim.first[i]!==-1&&sim.first[i]<s?sim.first[i]-p.arr:'')+'</td></tr>'; });
+  $('ptable').innerHTML=h;
+  $('stepLabel').textContent='t = '+s+' of '+T;
+  let txt, v='', vc='';
+  if(s===0) txt='Press <b>Next</b> to run one time unit. Watch which queue each process sits in: the scheduler learns from behaviour, nobody tells it which process is interactive.';
+  else { const d=sim.ticks[s-1]; txt='<b>t = '+d.t+' → '+(d.t+1)+'.</b> '+d.note.join(' ');
+    if(d.fin!==undefined) txt+=' <b class="ok">'+nm(d.fin)+' finishes.</b>';
+    if(d.blk!==undefined) txt+=' Then '+nm(d.blk)+' asks for I/O '+(d.exact?'<b class="warn">exactly as its quantum ends</b> — it blocked, so it is not moved down. This is how a process games the scheduler.':'<b>before its quantum is used up</b> → it keeps its place in Q'+d.lvl+'.'); }
+  if(s>=T){ const worst=procs.map((p,i)=>sim.first[i]-p.arr), longest=procs.map((p,i)=>sim.done[i]-p.arr-p.burst), w=longest.indexOf(Math.max(...longest));
+    v='Longest total wait: '+nm(w)+' waited '+longest[w]+' time units'; vc=longest[w]>2*procs[w].burst?'bad':'ok'; }
+  $('captionText').innerHTML=txt; $('verdict').textContent=v; $('verdict').className='verdict '+vc;
+  $('prevBtn').disabled=s===0; $('nextBtn').disabled=s>=T; $('progress').textContent='t = '+s+' / '+T;
+}
+function rerun(){ stopPlay(); sim=simulate(procs,cfg); step=0; render(); }
+function edit(i,f,v){ const lo=f==='burst'?1:0; procs[i][f]=Math.max(lo,Math.min(30,parseInt(v)||lo)); rerun(); }
+function setCfg(){ cfg.q=[Math.max(1,parseInt($('q0').value)||1),Math.max(1,parseInt($('q1').value)||1)]; cfg.boost=$('boostOn').checked; cfg.S=Math.max(2,parseInt($('boostS').value)||2); rerun(); }
+function loadPreset(i){ const p=PRESETS[i]; procs=p.p.map(x=>({arr:x[0],burst:x[1],io:x[2]})); cfg={q:p.q.slice(),boost:p.boost,S:p.S};
+  $('q0').value=cfg.q[0]; $('q1').value=cfg.q[1]; $('boostOn').checked=cfg.boost; $('boostS').value=cfg.S; rerun(); }
+function next(){ if(step<sim.T){ step++; render(); } if(step>=sim.T) stopPlay(); }
+function prev(){ stopPlay(); if(step>0){ step--; render(); } }
+function reset(){ stopPlay(); step=0; render(); }
+function toEnd(){ stopPlay(); step=sim.T; render(); }
+function togglePlay(){ playing?stopPlay():startPlay(); }
+function startPlay(){ if(step>=sim.T) step=0; playing=true; $('playBtn').textContent='⏸ Pause'; timer=setInterval(next,800); }
+function stopPlay(){ playing=false; $('playBtn').textContent='▶ Play'; clearInterval(timer); timer=null; }
+document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select') return;
+  if(e.key==='ArrowRight') next(); else if(e.key==='ArrowLeft') prev(); else if(e.key===' '){ e.preventDefault(); togglePlay(); } });
+$('preset').innerHTML=PRESETS.map((p,i)=>'<option value="'+i+'">'+p.name+'</option>').join('');
+loadPreset(0);
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

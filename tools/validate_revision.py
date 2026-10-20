@@ -19,6 +19,8 @@ def links(file):
     # Ignore fenced command examples, whose bracket syntax is not a Markdown link.
     text = re.sub(r"^\s*```.*?^\s*```\s*$", "", text, flags=re.M | re.S)
     for target in re.findall(r"\]\(([^)]+)\)", text):
+        if target.startswith("<") and target.endswith(">"):
+            target = target[1:-1]  # <...> lets a link target contain spaces
         if target.startswith(("http://", "https://", "#", "mailto:")):
             continue
         if file.name == "README.md" and target.startswith("images/"):
@@ -85,7 +87,8 @@ for number in range(1, 12):
 
 for file in (ROOT / "labs/SETUP.md", ROOT / "labs/INDEX.md", ROOT / "README.md", ROOT / "labs/REPORT-TEMPLATE.md",
              ROOT / "teaching/ROADMAP.md"):
-    links(file)
+    if file.exists():  # the roadmap is kept out of the public repository
+        links(file)
 require((ROOT / "labs/INDEX.md").read_text(encoding="utf-8") == index(), "Lab index is stale")
 print(f"11 authored routes ({len(pilots)} in the pilot format: labs {pilots}): objectives, setup, file trees, "
       "120-minute timetables, 10-point rubrics, public keys and local links PASS")

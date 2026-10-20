@@ -16,3 +16,7 @@ app/server/roster.json
 app/server/deadlines.json
 app/server/marks.json
 app/server/marks.tmp
+# Moodle question-bank generators (they contain the questions and answers)
+tools/*.ps1
+# Instructor roadmap (mentions final exam content)
+teaching/ROADMAP.md

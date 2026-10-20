@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dining Philosophers</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  select{min-width:0;max-width:100%}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  svg#table{width:100%;max-width:560px;display:block;margin:0 auto}
+  .ph{cursor:pointer}
+  .ph circle{stroke-width:3;transition:.2s}
+  .ph:hover circle{filter:brightness(1.2)}
+  .ph text{font-family:"Segoe UI",system-ui,sans-serif;text-anchor:middle;pointer-events:none}
+  .fork{stroke-width:6;stroke-linecap:round;transition:all .3s}
+  .waitArrow{stroke:var(--bad);stroke-width:2.5;fill:none;stroke-dasharray:6 4}
+  .code{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:12.5px;line-height:1.6;background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:10px 12px;white-space:pre;overflow-x:auto;color:var(--t1)}
+  table.t td.me{font-weight:700}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>Dining Philosophers</h1>
+  <div class="sub">Week 8 — click a philosopher to let them act. Find the schedule that <b>deadlocks</b> the table, then try three fixes</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Model each fork as a binary semaphore and trace <code>wait</code> / <code>signal</code> for a philosopher.</li><li>Produce the deadlock of the simple solution and point to the circular wait.</li><li>Explain why resource ordering, allowing only four philosophers at the table, and picking up both forks atomically each prevent the deadlock.</li><li>Tell deadlock apart from starvation by reading the meal counts.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <svg id="table" viewBox="0 0 560 480" role="img" aria-label="Five philosophers around a table with five forks"></svg>
+    <p class="blockTitle" style="margin-top:8px">Semaphores and meal counts</p>
+    <table class="t" id="sem"></table>
+  </div>
+  <div class="side">
+    <div class="tabgroup"><div class="algos" id="algos"></div></div>
+    <div class="controls">
+      <button class="primary" onclick="randomStep()">🎲 Random step</button>
+      <button id="playBtn" onclick="togglePlay()">▶ Play</button>
+      <button onclick="forceDeadlock()" id="forceBtn">⚠ Everyone takes a first fork</button>
+      <button onclick="reset()">↻ Reset</button>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="builder">
+      <h3>Code for philosopher i</h3>
+      <div class="code" id="code"></div>
+      <div class="hint" id="why"></div>
+    </div>
+    <div class="legend">
+      <div class="row"><span class="sq" style="background:var(--s5)"></span> Thinking — click to make them hungry</div>
+      <div class="row"><span class="sq" style="background:var(--pick)"></span> Hungry — holding one fork, needs the other</div>
+      <div class="row"><span class="sq" style="background:var(--ok)"></span> Eating — click to put both forks down</div>
+      <div class="row"><span class="sq" style="background:var(--bad)"></span> Blocked in <code>wait()</code></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const N=5;
+const STRATS=[
+ {id:'naive', name:'Simple', code:'wait(fork[i]);            // left\nwait(fork[(i+1) % 5]);    // right\n  eat();\nsignal(fork[i]);\nsignal(fork[(i+1) % 5]);',
+  why:'Everyone takes the left fork first. If all five do that before anyone takes a right fork, each one holds a fork and waits for a neighbour: <b>circular wait</b>.'},
+ {id:'order', name:'Resource ordering', code:'first  = min(i, (i+1) % 5);\nsecond = max(i, (i+1) % 5);\nwait(fork[first]);\nwait(fork[second]);\n  eat();\nsignal(fork[second]);\nsignal(fork[first]);',
+  why:'Forks are numbered and always taken in increasing order. Philosopher 4 therefore reaches for fork 0 first, not fork 4. A cycle of waits would need someone to hold a higher fork while waiting for a lower one, which never happens.'},
+ {id:'room', name:'At most 4 at the table', code:'wait(room);               // counting semaphore = 4\nwait(fork[i]);\nwait(fork[(i+1) % 5]);\n  eat();\nsignal(fork[i]);\nsignal(fork[(i+1) % 5]);\nsignal(room);',
+  why:'Only four philosophers may hold forks at once. Four philosophers and five forks: at least one of them can always get two forks, so the circle of waits can never close.'},
+ {id:'both', name:'Both forks or none', code:'// inside a monitor (or under one mutex)\nwhile (!free(left) || !free(right))\n    wait();               // holds nothing while waiting\ntake(left); take(right);\n  eat();\nrelease(left); release(right);',
+  why:'A philosopher takes the forks only when <b>both</b> are free, in one atomic step, so nobody ever holds one fork while waiting: no hold-and-wait. Deadlock is gone, but a philosopher whose neighbours take turns eating can still <b>starve</b>.'},
+];
+const $=id=>document.getElementById(id);
+let S=STRATS[0], ph, fork, room, last='', steps=0, playing=false, timer=null, flash=-1;
+
+function reset(){ stopPlay(); ph=Array.from({length:N},()=>({st:0,meals:0})); fork=Array(N).fill(-1); room=4; last=''; steps=0; flash=-1; render(); }
+/* forks philosopher i wants, in the order this strategy takes them */
+function wants(i){ const l=i, r=(i+1)%N; return S.id==='order' ? [Math.min(l,r),Math.max(l,r)] : [l,r]; }
+/* what would philosopher i do next? → {ok, msg, apply} */
+function move(i){
+  const p=ph[i], [a,b]=wants(i), P='<b>P'+i+'</b>';
+  if(p.st===2) return {ok:true, apply(){ fork[a]=fork[b]=-1; if(S.id==='room') room++; p.st=0; p.meals++; }, msg:P+' finishes eating and signals forks '+a+' and '+b+(S.id==='room'?', then signals <code>room</code>':'')+'.'};
+  if(S.id==='both'){
+    if(fork[a]===-1&&fork[b]===-1) return {ok:true, apply(){ fork[a]=fork[b]=i; p.st=2; }, msg:P+' sees both forks free and takes forks '+a+' and '+b+' in one step → eating.'};
+    return {ok:false, msg:P+' is hungry but fork '+(fork[a]!==-1?a:b)+' is in use, so it takes <b>nothing</b> and waits.', need:fork[a]!==-1?a:b};
+  }
+  if(p.st===0){
+    if(S.id==='room'&&room===0) return {ok:false, msg:P+' calls <code>wait(room)</code> but room = 0: four philosophers are already at the table. It blocks <b>without holding a fork</b>.', need:-1};
+    if(fork[a]!==-1) return {ok:false, msg:P+' calls <code>wait(fork['+a+'])</code> but P'+fork[a]+' holds it → blocked, holding nothing.', need:a};
+    return {ok:true, apply(){ if(S.id==='room') room--; fork[a]=i; p.st=1; }, msg:P+(S.id==='room'?' enters the room (room = '+(room-1)+') and':'')+' takes fork '+a+' — its '+(a===i?'left':'right')+' fork.'};
+  }
+  if(fork[b]!==-1) return {ok:false, msg:P+' holds fork '+a+' and calls <code>wait(fork['+b+'])</code>, but P'+fork[b]+' holds it → <b>blocked while holding a fork</b>.', need:b};
+  return {ok:true, apply(){ fork[b]=i; p.st=2; }, msg:P+' takes fork '+b+' as well → eating.'};
+}
+const deadlocked=()=>ph.every((p,i)=>!move(i).ok);
+function act(i){ const m=move(i); flash=i; if(m.ok){ m.apply(); steps++; } last=m.msg; render(); }
+function randomStep(){ const c=ph.map((p,i)=>i).filter(i=>move(i).ok); if(!c.length){ stopPlay(); render(); return; } act(c[Math.floor(Math.random()*c.length)]); }
+function forceDeadlock(){ stopPlay(); reset(); let n=0; for(let i=0;i<N;i++){ const m=move(i); if(m.ok){ m.apply(); steps++; n++; } }
+  flash=-1; last='Every philosopher was asked to take a first fork, one after the other. '+(deadlocked()?'':'<b>'+n+' of 5</b> managed it; with this strategy the table can still move on.'); render(); }
+function togglePlay(){ playing?stopPlay():(playing=true,$('playBtn').textContent='⏸ Pause',timer=setInterval(randomStep,550)); }
+function stopPlay(){ playing=false; $('playBtn').textContent='▶ Play'; clearInterval(timer); }
+function setStrat(id){ S=STRATS.find(s=>s.id===id); reset(); }
+
+function render(){
+  const cx=280, cy=235, R=165, rf=92, dead=deadlocked();
+  const pos=i=>{ const a=-Math.PI/2+i*2*Math.PI/N; return [cx+R*Math.cos(a), cy+R*Math.sin(a), a]; };
+  let g='<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--bad)"/></marker></defs>'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="112" fill="var(--s7)" stroke="var(--border)" stroke-width="2"/>';
+  // forks: fork i sits between philosopher i and i+1; when held it slides toward its holder
+  for(let f=0;f<N;f++){
+    const a=-Math.PI/2+(f+0.5)*2*Math.PI/N; let x=cx+rf*Math.cos(a), y=cy+rf*Math.sin(a), ang=a, col='var(--muted)';
+    if(fork[f]!==-1){ const [px,py,pa]=pos(fork[f]); const side=(f===fork[f])?1:-1; ang=pa+side*0.22; x=cx+(R-52)*Math.cos(ang); y=cy+(R-52)*Math.sin(ang); col=ph[fork[f]].st===2?'var(--ok)':'var(--pick)'; }
+    const dx=22*Math.cos(ang), dy=22*Math.sin(ang);
+    g+='<line class="fork" x1="'+(x-dx)+'" y1="'+(y-dy)+'" x2="'+(x+dx)+'" y2="'+(y+dy)+'" stroke="'+col+'"/>'+
+       '<text x="'+(cx+(rf-34)*Math.cos(a))+'" y="'+(cy+(rf-34)*Math.sin(a)+4)+'" font-size="11" text-anchor="middle" fill="var(--muted)">f'+f+'</text>';
+  }
+  for(let i=0;i<N;i++){
+    const [x,y]=pos(i), p=ph[i], m=move(i), blocked=!m.ok&&(p.st===1||flash===i||dead);
+    const fill=p.st===2?'var(--ok)':p.st===1?'var(--pick)':'var(--s5)';
+    const lab=p.st===2?'eating':p.st===1?'hungry':(blocked?'waiting':'thinking');
+    g+='<g class="ph" onclick="act('+i+')" tabindex="0" role="button" aria-label="Philosopher '+i+', '+lab+'" onkeydown="if(event.key===\'Enter\')act('+i+')"><circle cx="'+x+'" cy="'+y+'" r="38" fill="'+fill+'" stroke="'+(blocked?'var(--bad)':'var(--border)')+'"/>'+
+       '<text x="'+x+'" y="'+(y-2)+'" font-size="17" font-weight="700" fill="'+(p.st?'#06121f':'var(--ink)')+'">P'+i+'</text><text x="'+x+'" y="'+(y+15)+'" font-size="10.5" fill="'+(p.st?'#06121f':'var(--muted)')+'">'+lab+'</text></g>';
+    if(dead&&m.need>=0&&fork[m.need]>=0){ const [x2,y2]=pos(fork[m.need]); const d=Math.hypot(x2-x,y2-y), ux=(x2-x)/d, uy=(y2-y)/d;
+      g+='<path class="waitArrow" marker-end="url(#ah)" d="M'+(x+42*ux)+','+(y+42*uy)+' L'+(x2-44*ux)+','+(y2-44*uy)+'"/>'; }
+  }
+  $('table').innerHTML=g;
+  $('sem').innerHTML='<tr><th></th>'+ph.map((p,i)=>'<th>'+i+'</th>').join('')+'</tr>'+
+    '<tr><th style="text-align:left">fork[i] value</th>'+fork.map(h=>'<td>'+(h===-1?1:0)+'</td>').join('')+'</tr>'+
+    '<tr><th style="text-align:left">fork[i] held by</th>'+fork.map(h=>'<td>'+(h===-1?'—':'P'+h)+'</td>').join('')+'</tr>'+
+    '<tr><th style="text-align:left">meals eaten by P<i>i</i></th>'+ph.map(p=>'<td class="me">'+p.meals+'</td>').join('')+'</tr>'+
+    (S.id==='room'?'<tr><th style="text-align:left">room</th><td colspan="5">'+room+'</td></tr>':'');
+  $('algos').innerHTML=STRATS.map(s=>'<button class="'+(s===S?'active':'')+'" onclick="setStrat(\''+s.id+'\')">'+s.name+'</button>').join('');
+  $('code').textContent=S.code; $('why').innerHTML=S.why;
+  $('stepLabel').textContent=S.name+' · '+steps+' actions';
+  let v='', vc='', txt=last||'Click a philosopher (or press <b>Random step</b>). Each click runs that philosopher’s next line of code. Can you make all five wait forever?';
+  if(dead){ stopPlay(); v='☠ Deadlock — every philosopher is blocked'; vc='bad'; txt+=' <br>The red arrows show who waits for whom: P0 → P1 → P2 → P3 → P4 → P0, a <b>cycle</b>. Nobody can release a fork, because releasing only happens after eating.'; }
+  else if(steps>=30){ const mn=Math.min(...ph.map(p=>p.meals)), mx=Math.max(...ph.map(p=>p.meals)); if(mn===0&&mx>=3){ v='⚠ P'+ph.findIndex(p=>p.meals===0)+' has not eaten yet — starvation is still possible'; vc='warn'; } else { v='✓ No deadlock so far'; vc='ok'; } }
+  $('captionText').innerHTML=txt; $('verdict').textContent=v; $('verdict').className='verdict '+vc;
+}
+document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select') return;
+  if(e.key>='0'&&e.key<='4') act(+e.key); else if(e.key==='ArrowRight') randomStep(); else if(e.key===' '){ e.preventDefault(); togglePlay(); } });
+reset();
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

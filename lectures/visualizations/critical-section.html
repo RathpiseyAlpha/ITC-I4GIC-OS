@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Critical Section Lab — race conditions and locks</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  .threads{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .thr{border:1px solid var(--border);border-radius:10px;background:var(--s7);overflow:hidden}
+  .thr.incs{border-color:var(--pick);box-shadow:0 0 0 2px var(--pick)}
+  .thr.clash{border-color:var(--bad);box-shadow:0 0 0 2px var(--bad)}
+  .thr h4{margin:0;padding:8px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+  .thr h4 small{font-weight:500;color:var(--muted)}
+  .code{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:13px;padding:6px 0}
+  .ln{padding:3px 10px 3px 30px;position:relative;white-space:pre-wrap;color:var(--t1)}
+  .ln.cs{background:rgba(245,158,11,.10)}
+  .ln.pc{background:rgba(96,165,250,.22);color:var(--ink);font-weight:700}
+  .ln.pc::before{content:"▶";position:absolute;left:10px;color:var(--accent)}
+  .ln.sec{color:var(--muted);font-size:11px;padding-top:6px}
+  .thr .act{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .reg{font-size:12px;color:var(--muted)}
+  .vars{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+  .var{border:1px solid var(--border);border-radius:9px;padding:8px 14px;background:var(--s7);text-align:center;min-width:86px}
+  .var .n{font-size:11px;color:var(--muted);font-family:Consolas,monospace}
+  .var .v{font-size:22px;font-weight:800}
+  .var.chg{border-color:var(--accent)}
+  .hist{display:flex;gap:3px;flex-wrap:wrap;min-height:24px}
+  .hist span{width:22px;height:22px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+  .req{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--border);font-size:13px;line-height:1.45}
+  .req:first-of-type{border-top:none}
+  .req .ic{font-size:16px;flex:0 0 22px}
+  .req button{margin-top:6px}
+  @media (max-width:640px){ .threads{grid-template-columns:1fr} }
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>Critical Section Lab — race conditions and locks</h1>
+  <div class="sub">Week 7 — <b>you are the scheduler</b>: choose which thread runs each instruction, and try to break six attempts at mutual exclusion</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Show, with a concrete interleaving, how <code>counter++</code> in two threads loses an update.</li><li>State the three requirements of a critical-section solution: mutual exclusion, progress and bounded waiting.</li><li>Explain why a simple lock variable, strict alternation and flags alone each fail, and which requirement each one breaks.</li><li>Trace Peterson's solution and test-and-set, and explain why they keep two threads out of the critical section together.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <p class="blockTitle">Shared memory</p>
+    <div class="vars" id="vars"></div>
+    <div class="threads" id="threads"></div>
+    <p class="blockTitle" style="margin-top:16px">Your schedule so far — which thread ran each step</p>
+    <div class="hist" id="hist"></div>
+  </div>
+
+  <div class="side">
+    <div class="tabgroup"><div class="algos" id="algos"></div></div>
+    <div class="controls">
+      <button class="primary" onclick="stepT(0)" id="b0">Step T0 <small>(←)</small></button>
+      <button class="primary" onclick="stepT(1)" id="b1">Step T1 <small>(→)</small></button>
+      <button onclick="undo()" id="undoBtn">↶ Undo</button>
+      <button onclick="randomRun()">🎲 Random</button>
+      <button onclick="reset()">↻ Reset</button>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="builder">
+      <h3>Checked against every possible schedule</h3>
+      <div id="analysis"></div>
+      <div class="brow" style="margin-top:10px"><label class="lbl">Loop iterations: T0</label><input type="number" id="it0" min="1" max="3" onchange="setIters()">
+        <label class="lbl">T1</label><input type="number" id="it1" min="1" max="3" onchange="setIters()"></div>
+      <div class="hint">The page explores every interleaving of the two threads (a few hundred states), so a ✓ here is a proof for this program, not a lucky run.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Each thread i runs: entry section → critical section (counter++ in 3 machine steps) → exit section, N times.
+   An instruction is {k: section, s: source text, f(S,i): returns true if it advances, false if it must spin}. */
+const CS=[
+  {k:'cs',s:'reg = counter;',        f:(S,i)=>{S.reg[i]=S.counter;return true;}},
+  {k:'cs',s:'reg = reg + 1;',        f:(S,i)=>{S.reg[i]++;return true;}},
+  {k:'cs',s:'counter = reg;',        f:(S,i)=>{S.counter=S.reg[i];return true;}},
+];
+const ALGOS=[
+ {id:'none', name:'No lock', iters:[1,1], vars:[],
+  about:'No protection at all. <code>counter++</code> is three machine instructions, and the scheduler can switch threads between any two of them.',
+  entry:[], exit:[]},
+ {id:'lockvar', name:'Lock variable', iters:[1,1], vars:['lock'],
+  about:'A shared <code>lock</code>: wait until it is 0, then set it to 1. The test and the set are <b>two separate steps</b>.',
+  entry:[{s:'while (lock == 1) ;',f:(S,i)=>S.lock===0},{s:'lock = 1;',f:(S,i)=>{S.lock=1;return true;}}],
+  exit:[{s:'lock = 0;',f:(S,i)=>{S.lock=0;return true;}}]},
+ {id:'turn', name:'Strict alternation', iters:[1,2], vars:['turn'],
+  about:'A shared <code>turn</code> says whose turn it is. Each thread hands the turn to the other on the way out.',
+  entry:[{s:'while (turn != i) ;',f:(S,i)=>S.turn===i}],
+  exit:[{s:'turn = j;',f:(S,i)=>{S.turn=1-i;return true;}}]},
+ {id:'flags', name:'Flags only', iters:[1,1], vars:['flag0','flag1'],
+  about:'Each thread raises its own flag to say “I want in”, then waits while the other flag is up.',
+  entry:[{s:'flag[i] = true;',f:(S,i)=>{S.flag[i]=1;return true;}},{s:'while (flag[j]) ;',f:(S,i)=>!S.flag[1-i]}],
+  exit:[{s:'flag[i] = false;',f:(S,i)=>{S.flag[i]=0;return true;}}]},
+ {id:'peterson', name:'Peterson', iters:[2,2], vars:['flag0','flag1','turn'],
+  about:'Peterson’s solution: raise your flag, then <b>give the turn away</b>. You wait only while the other thread wants in <i>and</i> it is its turn.',
+  entry:[{s:'flag[i] = true;',f:(S,i)=>{S.flag[i]=1;return true;}},{s:'turn = j;',f:(S,i)=>{S.turn=1-i;return true;}},{s:'while (flag[j] && turn == j) ;',f:(S,i)=>!(S.flag[1-i]&&S.turn===1-i)}],
+  exit:[{s:'flag[i] = false;',f:(S,i)=>{S.flag[i]=0;return true;}}]},
+ {id:'tas', name:'Test-and-set', iters:[2,2], vars:['lock'],
+  about:'The hardware instruction <code>test_and_set</code> reads the old value of <code>lock</code> and sets it to 1 in <b>one atomic step</b>.',
+  entry:[{s:'while (test_and_set(&lock)) ;',f:(S,i)=>{const old=S.lock;S.lock=1;return old===0;}}],
+  exit:[{s:'lock = 0;',f:(S,i)=>{S.lock=0;return true;}}]},
+];
+const COL=['var(--c0)','var(--c1)'];
+const $=id=>document.getElementById(id);
+let A=ALGOS[0], prog=[], iters=[1,1], st=null, hist=[], stack=[], lastMsg='', analysis=null, replay=null, replayTimer=null;
+
+const REM={k:'rem',s:'/* other work */',f:()=>true};
+function build(){ prog=[REM,...A.entry.map(x=>({...x,k:'entry'})), ...CS, ...A.exit.map(x=>({...x,k:'exit'}))]; }
+function init(){ return {pc:[0,0], it:[0,0], counter:0, lock:0, turn:0, flag:[0,0], reg:[0,0]}; }
+const clone=s=>({pc:s.pc.slice(),it:s.it.slice(),counter:s.counter,lock:s.lock,turn:s.turn,flag:s.flag.slice(),reg:s.reg.slice()});
+const END=()=>prog.length;
+const finished=(s,i)=>s.pc[i]===END();
+const inCS=(s,i)=>!finished(s,i)&&prog[s.pc[i]].k==='cs';
+function stepState(s,i){            // returns {s: new state, moved}
+  if(finished(s,i)) return {s,moved:false};
+  const n=clone(s), ins=prog[n.pc[i]], ok=ins.f(n,i);
+  if(ok){ n.pc[i]++; if(n.pc[i]===prog.length){ n.it[i]++; n.reg[i]=0; if(n.it[i]<iters[i]) n.pc[i]=0; } }
+  return {s:n,moved:ok};
+}
+const keyOf=s=>s.pc+'|'+s.it+'|'+s.counter+'|'+s.lock+'|'+s.turn+'|'+s.flag+'|'+s.reg;
+
+/* ---------- exhaustive exploration of the interleavings ---------- */
+function analyse(){
+  const start=init(), seen=new Map([[keyOf(start),{s:start,from:null,by:-1}]]), order=[keyOf(start)], edges=new Map();
+  for(let h=0;h<order.length;h++){
+    const k=order[h], s=seen.get(k).s; edges.set(k,[]);
+    for(const i of [0,1]){ if(finished(s,i)) continue; const n=stepState(s,i).s, nk=keyOf(n); edges.get(k).push(nk);
+      if(!seen.has(nk)){ seen.set(nk,{s:n,from:k,by:i}); order.push(nk); } }
+  }
+  const path=k=>{ const p=[]; while(seen.get(k).from!==null){ p.unshift(seen.get(k).by); k=seen.get(k).from; } return p; };
+  const isEnd=s=>finished(s,0)&&finished(s,1);
+  // states that can still reach the end
+  const rev=new Map(); order.forEach(k=>rev.set(k,[])); edges.forEach((v,k)=>v.forEach(n=>{ if(n!==k) rev.get(n).push(k); }));
+  const good=new Set(order.filter(k=>isEnd(seen.get(k).s))); const q=[...good];
+  while(q.length){ const k=q.pop(); for(const p of rev.get(k)) if(!good.has(p)){ good.add(p); q.push(p); } }
+  const clash=order.find(k=>{ const s=seen.get(k).s; return inCS(s,0)&&inCS(s,1); });
+  // a dead state: not the end, and every step either thread can take is a spin that changes nothing
+  const stuck=order.find(k=>!isEnd(seen.get(k).s)&&edges.get(k).every(n=>n===k)) || order.find(k=>!good.has(k));
+  const finals=[...new Set(order.map(k=>seen.get(k).s).filter(isEnd).map(s=>s.counter))].sort();
+  let stuckKind=null; if(stuck){ const s=seen.get(stuck).s; stuckKind=(finished(s,0)||finished(s,1))?'progress':'deadlock'; }
+  return {states:order.length, clash:clash?path(clash):null, stuck:stuck?path(stuck):null, stuckKind, finals};
+}
+
+/* ---------- render ---------- */
+function showVar(n){ return n==='lock'?st.lock : n==='turn'?st.turn : n==='flag0'?(st.flag[0]?'true':'false') : (st.flag[1]?'true':'false'); }
+function render(){
+  const total=iters[0]+iters[1];
+  $('vars').innerHTML=['counter',...A.vars].map(n=>'<div class="var"><div class="n">'+n.replace(/flag(\d)/,'flag[$1]')+'</div><div class="v">'+(n==='counter'?st.counter:showVar(n))+'</div></div>').join('')+
+    '<div class="var" style="border-style:dashed"><div class="n">expected at the end</div><div class="v" style="color:var(--muted)">'+total+'</div></div>';
+  const clash=inCS(st,0)&&inCS(st,1);
+  $('threads').innerHTML=[0,1].map(i=>{
+    let h='', last='';
+    prog.forEach((ins,x)=>{ if(ins.k!==last){ h+='<div class="ln sec">// '+({rem:'remainder section',entry:'entry section',cs:'critical section',exit:'exit section'})[ins.k]+'</div>'; last=ins.k; }
+      h+='<div class="ln'+(ins.k==='cs'?' cs':'')+(st.pc[i]===x?' pc':'')+'">'+ins.s.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>'; });
+    const where=finished(st,i)?'finished':inCS(st,i)?'in critical section':prog[st.pc[i]].k+' section';
+    return '<div class="thr'+(clash?' clash':inCS(st,i)?' incs':'')+'"><h4><span><span style="color:'+COL[i]+'">●</span> Thread T'+i+' <small>(i = '+i+', j = '+(1-i)+')</small></span><small>'+where+' · loop '+Math.min(st.it[i]+1,iters[i])+'/'+iters[i]+'</small></h4><div class="code">'+h+
+      '</div><div class="act"><span class="reg">private register <code>reg</code> = <b style="color:var(--ink)">'+st.reg[i]+'</b></span></div></div>'; }).join('');
+  $('hist').innerHTML=hist.length?hist.map(i=>'<span style="background:'+COL[i]+'">T'+i+'</span>').join(''):'<span class="reg">nothing yet</span>';
+  $('b0').disabled=finished(st,0)||!!replay; $('b1').disabled=finished(st,1)||!!replay; $('undoBtn').disabled=!stack.length||!!replay;
+  $('stepLabel').textContent=A.name+' · step '+hist.length;
+  let v='', vc='';
+  if(clash){ v='✗ Both threads are inside the critical section'; vc='bad'; }
+  else if(finished(st,0)&&finished(st,1)){ if(st.counter===total){ v='✓ Finished: counter = '+total+', as expected'; vc='ok'; } else { v='✗ Finished: counter = '+st.counter+', expected '+total+' — an update was lost'; vc='bad'; } }
+  $('captionText').innerHTML=lastMsg||A.about+' Use <b>Step T0</b> / <b>Step T1</b> to run one instruction of either thread.';
+  $('verdict').textContent=v; $('verdict').className='verdict '+vc;
+  $('algos').innerHTML=ALGOS.map(a=>'<button class="'+(a===A?'active':'')+'" onclick="setAlgo(\''+a.id+'\')">'+a.name+'</button>').join('');
+  const an=analysis, row=(ok,t,btn)=>'<div class="req"><span class="ic">'+(ok?'✅':'❌')+'</span><div>'+t+(btn||'')+'</div></div>';
+  $('analysis').innerHTML=
+    row(!an.clash,'<b>Mutual exclusion.</b> '+(an.clash?'There is a schedule that puts both threads in the critical section.':'No schedule ever puts both threads in the critical section.'), an.clash?'<br><button class="small" onclick="playTrace(\'clash\')">▶ Show me that schedule ('+an.clash.length+' steps)</button>':'')+
+    row(!an.stuck,'<b>'+(an.stuckKind==='progress'?'Progress.':'Progress (no deadlock).')+'</b> '+(!an.stuck?'From every reachable state both threads can still finish.':an.stuckKind==='progress'?'A thread can wait forever although the critical section is free and the other thread does not want it.':'Both threads can end up waiting for each other forever.'), an.stuck?'<br><button class="small" onclick="playTrace(\'stuck\')">▶ Show me that schedule ('+an.stuck.length+' steps)</button>':'')+
+    row(an.finals.length===1&&an.finals[0]===total,'<b>Final value of counter.</b> Possible results: <b>'+(an.finals.length?an.finals.join(', '):'never finishes')+'</b> (expected '+total+').')+
+    '<div class="hint">'+an.states+' reachable states explored.'+(A.id==='tas'?' Test-and-set gives mutual exclusion and progress, but <b>not bounded waiting</b>: an unlucky thread can lose the race for the lock again and again.':'')+(A.id==='peterson'?' Peterson also gives <b>bounded waiting</b>: a waiting thread gets in after at most one entry by the other. (It assumes the instructions run in program order, which modern CPUs do not promise without memory barriers.)':'')+'</div>';
+}
+
+/* ---------- controls ---------- */
+function describe(i,before,moved){
+  const ins=prog[before.pc[i]], T='<b>T'+i+'</b>';
+  if(!moved) return T+' tests <code>'+ins.s.replace(/&/g,'&amp;')+'</code> — the condition is still true, so it <b>spins</b> (busy waiting) and stays on this line.';
+  let m=T+' runs <code>'+ins.s.replace(/&/g,'&amp;')+'</code>';
+  if(ins.s.startsWith('reg = counter')) m+=' — it copies counter ('+before.counter+') into its own register.';
+  else if(ins.s.startsWith('counter = reg')) m+=' — it writes '+st.counter+' back. '+(before.counter!==before.reg[i]-1?'<b class="bad">The other thread had already changed counter to '+before.counter+'; that update is now overwritten.</b>':'');
+  else if(ins.s.startsWith('while')) m+=' — the wait is over, so it <b>enters the critical section</b>.';
+  else m+='.';
+  if(inCS(st,0)&&inCS(st,1)) m+=' <b class="bad">Now both threads are in the critical section.</b>';
+  return m;
+}
+function stepT(i,quiet){ if(finished(st,i)) return; stack.push({st,hist:hist.slice(),lastMsg}); const before=st, r=stepState(st,i); st=r.s; hist.push(i); lastMsg=describe(i,before,r.moved); if(!quiet) render(); }
+function undo(){ const p=stack.pop(); if(!p) return; st=p.st; hist=p.hist; lastMsg=p.lastMsg; render(); }
+function stopReplay(){ clearInterval(replayTimer); replay=null; }
+function reset(){ stopReplay(); st=init(); hist=[]; stack=[]; lastMsg=''; render(); }
+function setAlgo(id){ stopReplay(); A=ALGOS.find(a=>a.id===id); iters=A.iters.slice(); $('it0').value=iters[0]; $('it1').value=iters[1]; build(); analysis=analyse(); reset(); }
+function setIters(){ iters=[0,1].map(i=>Math.max(1,Math.min(3,parseInt($('it'+i).value)||1))); $('it0').value=iters[0]; $('it1').value=iters[1]; analysis=analyse(); reset(); }
+function randomRun(){ reset(); let n=0; while(!(finished(st,0)&&finished(st,1))&&n<120){ const c=[0,1].filter(i=>!finished(st,i)); stepT(c[Math.floor(Math.random()*c.length)],true); n++; if(inCS(st,0)&&inCS(st,1)) break; }
+  if(n>=120) lastMsg+=' <b class="warn">Stopped after 120 steps: neither thread is getting anywhere.</b>'; render(); }
+function playTrace(which){ const tr=analysis[which]; if(!tr) return; reset(); replay=tr.slice(); render();
+  replayTimer=setInterval(()=>{ if(!replay||!replay.length){ const kind=which; stopReplay();
+      if(kind==='stuck') lastMsg+=' <b class="bad">'+(analysis.stuckKind==='progress'?'From here the waiting thread can never enter: the other thread has finished and will never change the variable it is waiting on.':'From here neither thread can ever enter: each one waits for the other. Keep pressing Step to check.')+'</b>';
+      render(); return; }
+    stepT(replay.shift()); },650); }
+document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select'||replay) return;
+  if(e.key==='ArrowLeft') stepT(0); else if(e.key==='ArrowRight') stepT(1); else if(e.key==='Backspace') undo(); });
+setAlgo('none');
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

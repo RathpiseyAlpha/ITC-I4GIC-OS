@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Allocation Methods</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px 70px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  select{min-width:0;max-width:100%}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  .disk{display:grid;grid-template-columns:repeat(10,1fr);gap:5px}
+  .blk{aspect-ratio:1.25;border-radius:7px;border:1px solid var(--border);background:var(--s7);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;min-width:0}
+  .blk .no{position:absolute;top:2px;left:5px;font-size:9px;font-weight:500;color:var(--muted)}
+  .blk.used .no{color:rgba(255,255,255,.8)}
+  .blk .ptr{font-size:9.5px;font-weight:500;opacity:.92;font-family:Consolas,monospace}
+  .blk.free{color:var(--muted);font-weight:400;font-size:11px}
+  .blk.idx{outline:2px dashed #fff;outline-offset:-4px}
+  .blk.hit{box-shadow:0 0 0 3px var(--pick);z-index:1}
+  .blk.hit::after{content:attr(data-n);position:absolute;right:-6px;top:-8px;background:var(--pick);color:#1c1300;border-radius:999px;width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center}
+  .bitmap{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:13px;letter-spacing:1px;word-break:break-all;background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:8px 12px}
+  .bitmap b{color:var(--ok)}
+  table.t td.l{text-align:left}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .scroll{overflow-x:auto}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>File Allocation Methods</h1>
+  <div class="sub">Week 12 — create, delete and read files on a 40-block disk under <b>contiguous, linked and indexed</b> allocation, and compare fragmentation and access cost</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Show where the blocks of a file go under contiguous, linked and indexed allocation, and what the directory stores in each case.</li><li>Explain why contiguous allocation suffers from external fragmentation and makes files hard to grow.</li><li>Count the disk reads needed to reach block <i>k</i> of a file under each method.</li><li>Read a free-space bitmap, and explain the space overhead of pointers and index blocks.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <p class="blockTitle">Disk — 40 blocks</p>
+    <div class="disk" id="disk"></div>
+    <div class="stats">
+      <div class="stat"><div class="big" id="sFree" style="color:var(--accent)"></div><div class="lab">free blocks</div></div>
+      <div class="stat"><div class="big" id="sRun" style="color:var(--ok)"></div><div class="lab">largest free run</div></div>
+      <div class="stat"><div class="big" id="sOver" style="color:var(--pick)"></div><div class="lab" id="sOverLab">overhead</div></div>
+    </div>
+    <p class="blockTitle" style="margin-top:16px">Directory — what the OS stores for each file</p>
+    <div class="scroll"><table class="t" id="dir"></table></div>
+    <p class="blockTitle" style="margin-top:16px">Free-space bitmap (1 = free, 0 = in use), block 0 first</p>
+    <div class="bitmap" id="bitmap"></div>
+    <p class="blockTitle" style="margin-top:16px">Same operations under every method — click a row to switch</p>
+    <div class="scroll"><table class="t" id="cmp"></table></div>
+  </div>
+  <div class="side">
+    <div class="tabgroup"><div class="algos" id="algos"></div></div>
+    <div class="builder">
+      <h3>Operations</h3>
+      <div class="brow"><label class="lbl" for="sz">New file, size</label><input type="number" id="sz" min="1" max="20" value="4"><span class="lbl">blocks</span><button class="primary" onclick="opCreate()">Create</button></div>
+      <div class="brow"><label class="lbl" for="rf">Read block</label><input type="number" id="rk" min="0" max="19" value="3"><span class="lbl">of file</span><select id="rf"></select><button onclick="opRead()">Read</button></div>
+      <div class="brow"><label class="lbl" for="gf">Grow file</label><select id="gf"></select><span class="lbl">by 2 blocks</span><button onclick="opGrow()">Grow</button></div>
+      <div class="brow"><button onclick="demo()">▶ Demo: fragment the disk</button><button onclick="reset()">↻ Empty disk</button></div>
+      <div class="hint">Delete a file with the ✕ in the directory. Every operation is recorded and replayed when you switch method, so the three methods face exactly the same history.</div>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="legend">
+      <div class="row"><span class="sq" style="background:var(--c0)"></span> Data block (letter = file)</div>
+      <div class="row"><span class="sq" style="background:var(--c0);outline:2px dashed #fff;outline-offset:-3px"></span> Index block (indexed allocation)</div>
+      <div class="row"><span class="sq" style="box-shadow:0 0 0 2px var(--pick)"></span> Block read from disk, in order 1, 2, 3…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const NB=40;
+const METHODS=[
+ {id:'contig', name:'Contiguous', about:'Each file occupies one unbroken run of blocks. The directory stores only <b>start</b> and <b>length</b>.'},
+ {id:'linked', name:'Linked', about:'A file is a chain of blocks anywhere on the disk. Each block ends with a <b>pointer to the next</b>; the directory stores the first block.'},
+ {id:'indexed', name:'Indexed', about:'Each file has an <b>index block</b> that lists all its data blocks (like a UNIX inode). The directory stores the index block.'},
+];
+const COL=['var(--c0)','var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','#64748b','#0ea5e9'];
+const $=id=>document.getElementById(id);
+let method=METHODS[0], log=[], D=null, last='', verdict=['',''], hits=[], demoTimer=null;
+
+/* ---- the disk model: replay(log, method) builds the whole state from the operation history ---- */
+function fresh(){ return {owner:Array(NB).fill(null), files:[], fails:[]}; }
+const freeList=d=>d.owner.map((o,i)=>o===null?i:-1).filter(i=>i>=0);
+function largestRun(d){ let b=0,c=0; d.owner.forEach(o=>{ c=o===null?c+1:0; b=Math.max(b,c); }); return b; }
+function findRun(d,n,from){ let c=0; for(let i=0;i<NB;i++){ c=d.owner[i]===null?c+1:0; if(c===n) return i-n+1; } return -1; }
+function apply(d,op,m){
+  if(op.t==='create'){
+    const f={name:op.name, blocks:[], idx:-1}, free=freeList(d);
+    if(m==='contig'){ const s=findRun(d,op.size); if(s<0) return {ok:false, why:free.length>=op.size?'frag':'full', free:free.length, run:largestRun(d)}; for(let i=0;i<op.size;i++) f.blocks.push(s+i); }
+    else if(m==='linked'){ if(free.length<op.size) return {ok:false,why:'full',free:free.length}; f.blocks=free.slice(0,op.size); }
+    else { if(free.length<op.size+1) return {ok:false,why:'full',free:free.length,need:op.size+1}; f.idx=free[0]; f.blocks=free.slice(1,op.size+1); d.owner[f.idx]=f.name; }
+    f.blocks.forEach(b=>d.owner[b]=f.name); d.files.push(f); return {ok:true,f};
+  }
+  const f=d.files.find(x=>x.name===op.name); if(!f) return {ok:false,why:'gone'};
+  if(op.t==='delete'){ f.blocks.forEach(b=>d.owner[b]=null); if(f.idx>=0) d.owner[f.idx]=null; d.files=d.files.filter(x=>x!==f); return {ok:true,f}; }
+  if(op.t==='grow'){
+    const free=freeList(d);
+    if(m==='contig'){ const end=f.blocks[f.blocks.length-1];
+      if(end+2<NB&&d.owner[end+1]===null&&d.owner[end+2]===null){ f.blocks.push(end+1,end+2); d.owner[end+1]=d.owner[end+2]=f.name; return {ok:true,f,how:'inplace'}; }
+      const old=f.blocks.slice(); old.forEach(b=>d.owner[b]=null); const s=findRun(d,old.length+2);
+      if(s<0){ old.forEach(b=>d.owner[b]=f.name); return {ok:false,why:'nogrow',f}; }
+      f.blocks=[]; for(let i=0;i<old.length+2;i++){ f.blocks.push(s+i); d.owner[s+i]=f.name; } return {ok:true,f,how:'moved',copied:old.length}; }
+    if(free.length<2) return {ok:false,why:'full',free:free.length};
+    f.blocks.push(free[0],free[1]); d.owner[free[0]]=d.owner[free[1]]=f.name; return {ok:true,f,how:'append'};
+  }
+}
+function replay(m){ const d=fresh(); let r=null; log.forEach((op,i)=>{ r=apply(d,op,m); if(!r.ok&&r.why!=='gone') d.fails.push(op); }); d.lastResult=r; return d; }
+const colorOf=name=>COL[(name.charCodeAt(0)-65)%COL.length];
+
+function describe(op,r){
+  const m=method.id, F='<b>'+op.name+'</b>';
+  if(!r.ok&&r.why==='gone'){ verdict=['','']; return 'File '+F+' does not exist under '+method.name.toLowerCase()+' allocation (creating it failed earlier), so this operation is skipped.'; }
+  if(op.t==='create'){
+    if(!r.ok){ verdict=['✗ Could not create '+op.name,'bad'];
+      if(r.why==='frag') return 'Create '+F+' ('+op.size+' blocks): <b class="bad">no single run of '+op.size+' free blocks exists</b>. The largest run is '+r.run+', although '+r.free+' blocks are free in total. This is <b>external fragmentation</b>. Linked and indexed allocation would not fail here.';
+      return 'Create '+F+' ('+op.size+' blocks): the disk does not have enough free blocks'+(m==='indexed'?' (it needs '+r.need+': the data plus one index block)':'')+'.'; }
+    verdict=['✓ Created '+op.name,'ok'];
+    if(m==='contig') return 'Create '+F+': first fit finds a run of '+op.size+' free blocks starting at block '+r.f.blocks[0]+'. The directory entry is just (start '+r.f.blocks[0]+', length '+op.size+').';
+    if(m==='linked') return 'Create '+F+': the first '+op.size+' free blocks are taken, wherever they are ('+r.f.blocks.join(', ')+'), and each one is given a pointer to the next. No run is needed, so there is no external fragmentation.';
+    return 'Create '+F+': block '+r.f.idx+' becomes the <b>index block</b>, and it lists the data blocks '+r.f.blocks.join(', ')+'. The file costs '+(op.size+1)+' blocks for '+op.size+' blocks of data.';
+  }
+  if(op.t==='delete'){ verdict=['','']; return 'Delete '+F+': its blocks are marked free in the bitmap. The data is not erased; the blocks are simply available again'+(m==='contig'?', leaving a <b>hole</b> between the neighbours.':'.'); }
+  if(op.t==='grow'){
+    if(!r.ok){ verdict=['✗ Could not grow '+op.name,'bad']; return 'Grow '+F+' by 2: '+(r.why==='nogrow'?'the blocks after it are taken and <b class="bad">no run long enough for the whole file exists anywhere</b>. A contiguous file can be trapped at its size.':'not enough free blocks.'); }
+    verdict=['✓ '+op.name+' grew by 2 blocks',r.how==='moved'?'warn':'ok'];
+    if(r.how==='inplace') return 'Grow '+F+': the two blocks right after it happen to be free, so the length is simply increased.';
+    if(r.how==='moved') return 'Grow '+F+': the block after it is in use, so the <b>whole file had to move</b> to a larger hole. That meant copying '+r.copied+' blocks, and it left another hole behind.';
+    return 'Grow '+F+': any two free blocks will do. '+(m==='linked'?'The last block’s pointer is changed to link them in.':'Two more entries are written into the index block.');
+  }
+}
+function render(){
+  D=replay(method.id);
+  const fmap={}; D.files.forEach(f=>fmap[f.name]=f);
+  let h='';
+  for(let i=0;i<NB;i++){ const o=D.owner[i], f=o&&fmap[o], hit=hits.indexOf(i);
+    let ptr=''; if(f){ if(f.idx===i) ptr='index'; else if(method.id==='linked'){ const k=f.blocks.indexOf(i); ptr=k<f.blocks.length-1?'→'+f.blocks[k+1]:'end'; } else ptr='#'+f.blocks.indexOf(i); }
+    h+='<div class="blk '+(o?'used':'free')+(f&&f.idx===i?' idx':'')+(hit>=0?' hit':'')+'"'+(hit>=0?' data-n="'+(hit+1)+'"':'')+' style="'+(o?'background:'+colorOf(o):'')+'" title="block '+i+(o?' — file '+o:' — free')+'"><span class="no">'+i+'</span>'+(o?o+'<span class="ptr">'+ptr+'</span>':'free')+'</div>'; }
+  $('disk').innerHTML=h;
+  const free=freeList(D).length;
+  $('sFree').textContent=free; $('sRun').textContent=largestRun(D);
+  const data=D.files.reduce((a,f)=>a+f.blocks.length,0);
+  $('sOver').textContent = method.id==='indexed'?D.files.length+' block'+(D.files.length===1?'':'s') : method.id==='linked'?data+' pointer'+(data===1?'':'s') : '0';
+  $('sOverLab').textContent = method.id==='indexed'?'overhead: one index block per file' : method.id==='linked'?'overhead: one pointer in every data block' : 'overhead: none';
+  const head = method.id==='contig'?'<th>Start</th><th>Length</th>' : method.id==='linked'?'<th>First block</th><th>Last block</th>' : '<th>Index block</th><th>Index block contents</th>';
+  $('dir').innerHTML='<tr><th>File</th>'+head+'<th>Blocks used</th><th>Reads to reach block k</th><th></th></tr>'+(D.files.length?D.files.map(f=>{
+    const a = method.id==='contig'?'<td>'+f.blocks[0]+'</td><td>'+f.blocks.length+'</td>' : method.id==='linked'?'<td>'+f.blocks[0]+'</td><td>'+f.blocks[f.blocks.length-1]+'</td>' : '<td>'+f.idx+'</td><td class="l mono">'+f.blocks.join(', ')+'</td>';
+    return '<tr><td class="l"><span class="dot" style="background:'+colorOf(f.name)+'"></span><b>'+f.name+'</b></td>'+a+'<td>'+(f.blocks.length+(f.idx>=0?1:0))+'</td><td>'+(method.id==='contig'?'1':method.id==='linked'?'k + 1':'2')+'</td><td><button class="small" onclick="opDelete(\''+f.name+'\')" aria-label="Delete file '+f.name+'">✕</button></td></tr>'; }).join(''):'<tr><td colspan="6" style="color:var(--muted)">The disk is empty. Create a file, or run the demo.</td></tr>');
+  $('bitmap').innerHTML=D.owner.map(o=>o===null?'<b>1</b>':'0').join('');
+  const opts=D.files.map(f=>'<option>'+f.name+'</option>').join(''); ['rf','gf'].forEach(id=>{ const v=$(id).value; $(id).innerHTML=opts; if(D.files.some(f=>f.name===v)) $(id).value=v; });
+  $('cmp').innerHTML='<tr><th>Method</th><th>Files stored</th><th>Operations that failed</th><th>Free blocks</th><th>Largest free run</th></tr>'+METHODS.map(m=>{ const d=replay(m.id); return '<tr style="cursor:pointer'+(m===method?';font-weight:700':'')+'" onclick="setMethod(\''+m.id+'\')"><td class="l">'+m.name+'</td><td>'+d.files.length+'</td><td>'+(d.fails.length?'<b class="bad">'+d.fails.length+'</b>':'0')+'</td><td>'+freeList(d).length+'</td><td>'+largestRun(d)+'</td></tr>'; }).join('');
+  $('algos').innerHTML=METHODS.map(m=>'<button class="'+(m===method?'active':'')+'" onclick="setMethod(\''+m.id+'\')">'+m.name+'</button>').join('');
+  $('stepLabel').textContent=method.name+' allocation · '+log.length+' operations';
+  $('captionText').innerHTML=last||method.about+' Create a few files, delete some in the middle, then try to create a bigger one.';
+  $('verdict').textContent=verdict[0]; $('verdict').className='verdict '+verdict[1];
+}
+function nextName(){ const used=new Set(log.filter(o=>o.t==='create').map(o=>o.name)); for(let i=0;i<26;i++){ const n=String.fromCharCode(65+i); if(!used.has(n)) return n; } return null; }
+function push(op){ hits=[]; log.push(op); const d=fresh(); let r; log.forEach(o=>r=apply(d,o,method.id)); last=describe(op,r); render(); }
+function opCreate(size){ const n=nextName(); if(!n){ last='All 26 file names are used. Empty the disk to start again.'; return render(); } const s=Math.max(1,Math.min(20,size||parseInt($('sz').value)||1)); push({t:'create',name:n,size:s}); }
+function opDelete(name){ push({t:'delete',name}); }
+function opGrow(){ const n=$('gf').value; if(n) push({t:'grow',name:n}); }
+function opRead(){
+  const f=D.files.find(x=>x.name===$('rf').value); if(!f){ last='Create a file first.'; return render(); }
+  const k=parseInt($('rk').value)||0; if(k<0||k>=f.blocks.length){ hits=[]; last='File <b>'+f.name+'</b> has blocks 0 to '+(f.blocks.length-1)+'; block '+k+' does not exist.'; verdict=['','']; return render(); }
+  if(method.id==='contig'){ hits=[f.blocks[k]]; last='Read block '+k+' of <b>'+f.name+'</b>: the address is simply start + k = '+f.blocks[0]+' + '+k+' = <b>'+f.blocks[k]+'</b>. One disk read, for any k: true <b>random access</b>.'; }
+  else if(method.id==='linked'){ hits=f.blocks.slice(0,k+1); last='Read block '+k+' of <b>'+f.name+'</b>: the only way to find it is to follow the chain from the first block: '+hits.join(' → ')+'. That is <b>'+(k+1)+' disk reads</b>. Linked allocation is fine for sequential access and poor for random access. (A FAT keeps the pointers in one table in memory to avoid this.)'; }
+  else { hits=[f.idx,f.blocks[k]]; last='Read block '+k+' of <b>'+f.name+'</b>: read the index block ('+f.idx+'), look up entry '+k+', then read data block <b>'+f.blocks[k]+'</b>. Two disk reads for any k (one, if the index block is already cached in memory).'; }
+  verdict=[hits.length+' disk read'+(hits.length>1?'s':''), hits.length>2?'warn':'ok']; render();
+}
+function setMethod(id){ method=METHODS.find(m=>m.id===id); hits=[]; const r=D&&log.length?replay(id).lastResult:null; last=log.length?describe(log[log.length-1],r):''; if(!log.length) verdict=['','']; render(); }
+function reset(){ clearInterval(demoTimer); log=[]; hits=[]; last=''; verdict=['','']; render(); }
+function demo(){ reset(); const seq=[['c',6],['c',4],['c',8],['c',5],['c',7],['d','B'],['d','D'],['c',12],['g','A'],['c',3]]; let i=0;
+  demoTimer=setInterval(()=>{ if(i>=seq.length){ clearInterval(demoTimer); return; } const [t,x]=seq[i++]; if(t==='c') opCreate(x); else if(t==='d') opDelete(x); else { $('gf').value=x; push({t:'grow',name:x}); } },1100); }
+render();
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

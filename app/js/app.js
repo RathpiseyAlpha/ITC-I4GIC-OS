@@ -245,9 +245,6 @@
     var authRole = sessionStorage.getItem('authRole') || '';
     var authUser = sessionStorage.getItem('authUser') || '';
 
-    // The final exam screen is shown only when it is switched on in config.js.
-    var examEnabled = !!(CONFIG.features && CONFIG.features.finalExam);
-
     function serverUrl() {
         return (CONFIG.server && CONFIG.server.url) ? CONFIG.server.url.replace(/\/+$/, '') : '';
     }
@@ -263,9 +260,6 @@
         // Show grades nav for authenticated students
         var gradesNav = document.getElementById('grades-nav');
         if (gradesNav) gradesNav.style.display = (role === 'user') ? '' : 'none';
-        // Show final-exam nav for any authenticated user (student or admin)
-        var examNav = document.getElementById('exam-nav');
-        if (examNav) examNav.style.display = (examEnabled && (role === 'user' || role === 'admin')) ? '' : 'none';
         updatePresenceVisibility();
     }
 
@@ -278,8 +272,6 @@
         if (adminNav) adminNav.style.display = 'none';
         var gradesNav = document.getElementById('grades-nav');
         if (gradesNav) gradesNav.style.display = 'none';
-        var examNav = document.getElementById('exam-nav');
-        if (examNav) examNav.style.display = 'none';
         updatePresenceVisibility();
     }
 
@@ -291,10 +283,6 @@
     if (authRole === 'user') {
         var gradesNav = document.getElementById('grades-nav');
         if (gradesNav) gradesNav.style.display = '';
-    }
-    if (examEnabled && (authRole === 'admin' || authRole === 'user')) {
-        var examNavR = document.getElementById('exam-nav');
-        if (examNavR) examNavR.style.display = '';
     }
     updatePresenceVisibility();
 
@@ -2201,288 +2189,6 @@
         renderStudentGrades(tab);
     };
 
-    // ──────────────────────────────────────
-    //  Final Exam view (reuses the logged-in session)
-    // ──────────────────────────────────────
-    var _examPoll = null, _examTick = null, _examSched = null, _examSkew = 0;
-    var _examTab = 'brief', _examSchedFilled = false, _examPrevRank = {}, _examDoPoll = null;
-    function _examClr() {
-        if (_examPoll) { clearInterval(_examPoll); _examPoll = null; }
-        if (_examTick) { clearInterval(_examTick); _examTick = null; }
-    }
-    function _examFmt(ms) {
-        if (ms <= 0) return '00:00';
-        var s = Math.floor(ms / 1000), h = Math.floor(s / 3600); s -= h * 3600;
-        var m = Math.floor(s / 60); s -= m * 60;
-        function p(n) { return (n < 10 ? '0' : '') + n; }
-        return (h > 0 ? p(h) + ':' : '') + p(m) + ':' + p(s);
-    }
-    function _examHue(f) { return 'hsl(' + Math.round(f * 125) + ',60%,40%)'; }
-    function _examPill(x) {
-        var M = { open: ['#0f3d2e', '#3fb37f', 'OPEN'], sealed: ['#26303b', '#9ca3af', 'sealed'],
-                  missing: ['#3a1d1d', '#e5736f', 'MISSING'], unknown: ['#26303b', '#9ca3af', '?'] };
-        var c = M[x] || M.unknown;
-        return '<span style="background:' + c[0] + ';color:' + c[1] + ';padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + c[2] + '</span>';
-    }
-    function _examSshPill(x) {
-        var M = { connected: ['#0f3d2e', '#3fb37f', 'connected'], blocked: ['#3a1d1d', '#e5736f', 'BLOCKED'],
-                  idle: ['#26303b', '#9ca3af', 'idle'] };
-        var c = M[x] || M.idle;
-        return '<span style="background:' + c[0] + ';color:' + c[1] + ';padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + c[2] + '</span>';
-    }
-    function _examPartsHtml(parts) {
-        var ps = ['Docs', 'A', 'B', 'C', 'D', 'E'], h = '';
-        for (var i = 0; i < ps.length; i++) {
-            var x = parts[ps[i]] || { p: 0, t: 0 }, f = x.t ? x.p / x.t : 0;
-            h += '<span style="background:' + _examHue(f) + ';color:#06120c;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600;margin-right:6px;display:inline-block;margin-bottom:4px">' + ps[i] + ' ' + x.p + '/' + x.t + '</span>';
-        }
-        return h;
-    }
-
-    function _examEnsureStyle() {
-        if (document.getElementById('exam-style')) return;
-        var st = document.createElement('style'); st.id = 'exam-style';
-        st.textContent = '#exTabLive:fullscreen,#exTabLive:-webkit-full-screen{background:#0d1117;padding:22px 26px;overflow:auto}'
-            + '#exTabLive:fullscreen #exTexam,#exTabLive:fullscreen #exTcbo,#exTabLive:fullscreen #exTcbs,'
-            + '#exTabLive:-webkit-full-screen #exTexam,#exTabLive:-webkit-full-screen #exTcbo,#exTabLive:-webkit-full-screen #exTcbs{font-size:42px}'
-            + '#exam-root code{background:#0d1117;border:1px solid #30363d;border-radius:4px;padding:0 4px;font-size:12px;color:#e6edf3}'
-            + '#exam-root ol{margin:6px 0 6px 18px;padding:0}#exam-root ol li{margin:3px 0}';
-        document.head.appendChild(st);
-    }
-    function _examMeCardHtml(m) {
-        var ccss = 'background:#171c24;border:1px solid #262d39;border-radius:10px;padding:12px 14px;margin-bottom:12px';
-        return '<div style="' + ccss + '"><b>' + m.name + '</b> <span style="color:#8b949e">' + m.user + '</span> &middot; paper ' + _examPill(m.paper) + ' &middot; curveball ' + _examPill(m.cb) + ' &middot; ssh ' + _examSshPill(m.ssh)
-            + '<div style="margin-top:10px">' + _examPartsHtml(m.parts) + '</div>'
-            + '<div style="color:#8b949e;margin-top:6px">' + (m.found ? (m.pct + '% complete') : 'No final-exam folder pushed yet.') + '</div></div>';
-    }
-    function _examRankRows(students) {
-        var ps = ['Docs', 'A', 'B', 'C', 'D', 'E'], rows = '', newRank = {};
-        var medbg = ['#3a2f00', '#2a2d33', '#311f12'], medfg = ['#ffd24a', '#cfd3d8', '#e0a072'];
-        for (var i = 0; i < students.length; i++) {
-            var s = students[i], cells = '';
-            for (var j = 0; j < ps.length; j++) {
-                var x = s.parts[ps[j]] || { p: 0, t: 0 }, f = x.t ? x.p / x.t : 0;
-                cells += '<td style="text-align:center;padding:4px"><span style="background:' + _examHue(f) + ';color:#06120c;border-radius:5px;padding:2px 6px">' + x.p + '/' + x.t + '</span></td>';
-            }
-            var nm = s.found ? s.name : '<span style="color:#8b949e;font-style:italic">' + s.name + '</span>';
-            var prev = _examPrevRank[s.user], mv = '';
-            if (prev !== undefined) {
-                if (prev > i) mv = ' <span style="color:#3fb37f;font-size:11px">▲' + (prev - i) + '</span>';
-                else if (prev < i) mv = ' <span style="color:#e5736f;font-size:11px">▼' + (i - prev) + '</span>';
-            }
-            newRank[s.user] = i;
-            var rk = (i < 3)
-                ? '<span style="background:' + medbg[i] + ';color:' + medfg[i] + ';border-radius:6px;padding:2px 8px;font-weight:700">' + (i + 1) + '</span>'
-                : (i + 1);
-            rows += '<tr style="border-top:1px solid #262d39"><td style="padding:6px">' + rk + mv + '</td><td>' + nm + '<br><span style="color:#8b949e;font-size:11px">' + s.user + '</span></td><td>' + _examPill(s.paper) + '</td><td>' + _examPill(s.cb) + '</td><td>' + _examSshPill(s.ssh) + '</td><td><b>' + s.pct + '%</b></td>' + cells + '</tr>';
-        }
-        _examPrevRank = newRank;
-        return rows;
-    }
-
-    function renderExam() {
-        if (!authToken) { window.location.hash = 'browse'; return; }
-        var url = serverUrl(); if (!url) return;
-        _examClr(); _examEnsureStyle(); _examSchedFilled = false;
-        var isAdmin = (authRole === 'admin');
-        var viewerEl = document.getElementById('file-viewer');
-        document.getElementById('outline-content').style.display = 'none';
-        document.getElementById('viewer-placeholder').style.display = 'none';
-        document.getElementById('viewer-title').textContent = 'bash — final exam';
-        viewerEl.style.display = 'flex';
-        document.getElementById('explorer-title').textContent = 'bash — final exam';
-        document.getElementById('explorer-cmd').textContent = 'cat final-exam/status';
-
-        var tcss = 'flex:1;min-width:170px;background:#171c24;border:1px solid #262d39;border-radius:10px;padding:10px 14px';
-        var lcss = 'font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.05em';
-        var bcss = 'font-size:26px;font-weight:700;margin-top:4px';
-        var ccss = 'background:#171c24;border:1px solid #262d39;border-radius:10px;padding:12px 14px;margin-bottom:12px';
-
-        var tabbar = '<div style="display:flex;gap:6px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'
-            + '<button id="exTabBtnBrief" class="admin-tab" onclick="examSwitchTab(\'brief\')">📋 Briefing</button>'
-            + '<button id="exTabBtnLive" class="admin-tab" onclick="examSwitchTab(\'live\')">📊 Live standings</button>'
-            + (isAdmin ? '<button id="exTabBtnCtrl" class="admin-tab" onclick="examSwitchTab(\'ctrl\')">⚙ Control</button>' : '')
-            + '<span style="flex:1"></span>'
-            + '<span id="exUpd" style="color:#8b949e;font-size:11px;margin-right:8px"></span>'
-            + '<button class="admin-tab" onclick="examFullscreen()">⛶ Fullscreen</button></div>';
-
-        var timers = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">'
-            + '<div style="' + tcss + '"><div style="' + lcss + '">Exam</div><div style="' + bcss + '" id="exTexam">--:--</div></div>'
-            + '<div style="' + tcss + '"><div style="' + lcss + '">Curveball release</div><div style="' + bcss + '" id="exTcbo">--:--</div></div>'
-            + '<div style="' + tcss + '"><div style="' + lcss + '">Curveball closes</div><div style="' + bcss + '" id="exTcbs">--:--</div></div></div>';
-
-        var briefBody = '<div style="' + ccss + '">'
-            + '<div style="font-size:15px;font-weight:700;margin-bottom:6px">📋 OS Practical Final — read before you start</div>'
-            + '<div style="color:#c9d1d9;font-size:13px;line-height:1.55">'
-            + '<b>2 hours · Labs 5–10 · 5 parts (A–E) · individual · submit by <code>git push</code>.</b><br>'
-            + '<div style="color:#8b949e;margin:4px 0 10px">Parts: <b>A</b> threads/signals · <b>B</b> permissions &amp; special bits · <b>C</b> scripting/PATH · <b>D</b> race + <code>flock</code> · <b>E</b> backups + cron</div>'
-            + '<b>How it runs</b>'
-            + '<ol>'
-            + '<li>Your paper is sealed until the start time — it appears at <code>~/exam-paper/FINAL-EXAM.md</code> when the invigilator opens it. Your answer skeletons are ready in <code>~/exam-templates/</code> — copy them into your <code>final-exam/</code> folder (<code>cp ~/exam-templates/*.md …/final-exam/</code>).</li>'
-            + '<li>Work inside your existing <code>~/OS-GIC-…</code> repo, in a <code>final-exam/</code> folder. Scripts: lowercase <code>snake_case</code>, <b>no <code>.sh</code></b>.</li>'
-            + '<li><b>Live curveballs</b> (3 — Parts A, D, E): live modification tasks released once, late in the exam (~20 min total). Each edits something you already built using <b>your live values</b> (PIDs / stock / timestamps). When released, read yours at <code>/srv/exam/&lt;your-username&gt;/curveball.md</code> (try <code>cat /srv/exam/$(whoami)/curveball.md</code>); record answers in <code>live_mods.md</code>.</li>'
-            + '<li><code>git add · commit · push</code> your repo <b>before the end</b> — uncommitted work is not graded.</li>'
-            + '<li>At the finish, <b>SSH access is blocked automatically</b>.</li>'
-            + '</ol>'
-            + '<b>Rules:</b> server only · no <code>sudo</code> · individual work · AI allowed, but record exact commands in <code>commands.md</code> and answer with <b>your own</b> scenario numbers — be ready to explain any line.<br><br>'
-            + '<b>Open the <code>📊 Live standings</code> tab</b> for your countdowns, completion %, and paper / curveball / SSH status.'
-            + '<br><br><span style="color:#8b949e">Full written briefing: <code>EXAM-BRIEFING.md</code> in the course repo.</span>'
-            + '</div></div>';
-        var brief = '<div id="exTabBrief" style="display:none">' + briefBody + '</div>';
-        var live = '<div id="exTabLive">' + timers + '<div id="exMeCard"></div>'
-            + (isAdmin ? ('<div id="exStats" style="color:#8b949e;font-size:12px;margin:4px 0 10px"></div>'
-                + '<div id="exTableWrap" style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="color:#8b949e;text-align:left">'
-                + '<th style="padding:6px">#</th><th>Student</th><th>Paper</th><th>Curveball</th><th>SSH</th><th>Overall</th><th style="text-align:center">Docs</th><th style="text-align:center">A</th><th style="text-align:center">B</th><th style="text-align:center">C</th><th style="text-align:center">D</th><th style="text-align:center">E</th></tr></thead><tbody id="exTbody"></tbody></table></div>') : '')
-            + '</div>';
-
-        var ctrl = '';
-        if (isAdmin) {
-            ctrl = '<div id="exTabCtrl" style="display:none">'
-                + '<div style="' + ccss + '"><b>Manual control</b><br><br>Papers: '
-                + '<button class="admin-tab" onclick="examControl(\'paper\',\'open\')">Open</button> '
-                + '<button class="admin-tab" onclick="examControl(\'paper\',\'seal\')">Seal</button> &nbsp;&nbsp; Curveballs: '
-                + '<button class="admin-tab" onclick="examControl(\'curveball\',\'open\')">Release</button> '
-                + '<button class="admin-tab" onclick="examControl(\'curveball\',\'seal\')">Seal</button>'
-                + '<br><br>SSH access: <span id="exSshToggle"></span> '
-                + '<span style="color:#8b949e;font-size:11px">auto-blocks at exam finish (start + duration)</span>'
-                + '<div style="color:#8b949e;margin-top:8px" id="examCtlMsg"></div></div>';
-            var ilab = 'color:#8b949e;font-size:12px;margin-right:12px;display:inline-block;margin-bottom:6px', iin = 'margin-left:5px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:5px;padding:3px 6px';
-            ctrl += '<div style="' + ccss + '"><b>Schedule</b> <span id="exSchSrc" style="color:#8b949e;font-size:11px">(set any date/time live)</span><br><br>'
-                + '<label style="' + ilab + '">Date<input id="exSchDate" type="date" style="' + iin + '"></label>'
-                + '<label style="' + ilab + '">Start<input id="exSchStart" type="time" style="' + iin + '"></label>'
-                + '<label style="' + ilab + '">Duration min<input id="exSchDur" type="number" min="1" style="' + iin + ';width:78px"></label>'
-                + '<label style="' + ilab + '">CB release<input id="exSchCbo" type="time" style="' + iin + '"></label>'
-                + '<label style="' + ilab + '">CB seal<input id="exSchCbs" type="time" style="' + iin + '"></label> '
-                + '<button class="admin-tab" onclick="examSetSchedule()">Save schedule</button>'
-                + '<div style="color:#8b949e;margin-top:8px" id="examSchMsg"></div></div>';
-        }
-
-        viewerEl.innerHTML = '<div class="admin-panel" id="exam-root">' + tabbar + brief + live + ctrl + '</div>';
-        examSwitchTab((_examTab === 'ctrl' && !isAdmin) ? 'brief' : _examTab);
-
-        function tick() {
-            if (!document.getElementById('exam-root')) { _examClr(); return; }
-            if (!_examSched) return;
-            var now = Date.now() + _examSkew;
-            function setT(id, opens, closes, startLabel, doneLabel) {
-                var el = document.getElementById(id); if (!el) return;
-                if (now < opens) { el.innerHTML = _examFmt(opens - now) + ' <small style="color:#9ca3af">' + startLabel + '</small>'; }
-                else if (now < closes) { el.innerHTML = _examFmt(closes - now) + ' <small style="color:#3fb37f">left</small>'; }
-                else { el.innerHTML = '00:00 <small style="color:#e5736f">' + (doneLabel || 'done') + '</small>'; }
-            }
-            // Exam: counts to start, then down to finish (start + duration), then FINISHED.
-            setT('exTexam', _examSched.start, _examSched.finish, 'starts in', 'FINISHED');
-            setT('exTcbo', _examSched.cbOpen, _examSched.cbSeal, 'opens in');
-            // "closes" tile counts down to the seal moment only (then shows done).
-            setT('exTcbs', _examSched.cbSeal, _examSched.cbSeal, 'closes in');
-        }
-
-        function update(d, admin) {
-            _examSched = d.schedule; _examSkew = d.serverNow - Date.now();
-            var me = document.getElementById('exMeCard');
-            if (me) me.innerHTML = d.me ? _examMeCardHtml(d.me) : '';
-            if (admin) {
-                var o = admin.overall, e = admin.env, c = o.curveball, pp = o.paper, N = o.totalStudents;
-                var st = document.getElementById('exStats');
-                var sh = o.ssh || { connected: 0, blocked: 0, idle: 0 };
-                if (st) st.innerHTML = 'homes <b>' + e.homeBase + '</b> &middot; srv <b>' + e.srvBase + '</b> &middot; papers ' + (pp.open + pp.sealed) + '/' + N + ' (' + pp.sealed + ' sealed, ' + pp.open + ' open) &middot; curveballs ' + (c.open + c.sealed) + '/' + N + ' (' + c.sealed + ' sealed, ' + c.open + ' open) &middot; ssh ' + sh.connected + ' conn / ' + sh.blocked + ' blocked &middot; started ' + o.foundCount + '/' + N;
-                var tgl = document.getElementById('exSshToggle');
-                if (tgl) {
-                    var allBlk = (N > 0 && sh.blocked >= N);
-                    tgl.innerHTML = (allBlk
-                        ? '<button class="admin-tab" style="background:#3fb37f;color:#06120c" onclick="examControl(\'ssh\',\'unblock\')">🔓 Unblock everyone</button>'
-                        : '<button class="admin-tab" style="background:#e5736f;color:#180b0b" onclick="examControl(\'ssh\',\'block\')">🔒 Block everyone</button>')
-                        + ' <span style="color:#8b949e;font-size:11px">(' + sh.blocked + '/' + N + ' blocked)</span>';
-                }
-                var tb = document.getElementById('exTbody');
-                if (tb) tb.innerHTML = _examRankRows(admin.students);
-                if (!_examSchedFilled) {
-                    var sc = d.schedule, setv = function (id, v) { var el = document.getElementById(id); if (el) el.value = v; };
-                    setv('exSchDate', sc.date); setv('exSchStart', sc.startHHMM); setv('exSchDur', sc.durationMin); setv('exSchCbo', sc.cbOpenHHMM); setv('exSchCbs', sc.cbSealHHMM);
-                    var srcEl = document.getElementById('exSchSrc'); if (srcEl) srcEl.textContent = '(source: ' + (sc.source || '') + ' — set any date/time live)';
-                    _examSchedFilled = true;
-                }
-            }
-            var up = document.getElementById('exUpd'); if (up) up.innerHTML = '<span style="color:#3fb37f">●</span> live · ' + new Date().toLocaleTimeString();
-            tick();
-        }
-
-        function poll() {
-            if (!document.getElementById('exam-root')) { _examClr(); return; }
-            fetch(url + '/api/exam/status', { mode: 'cors', headers: { 'Authorization': 'Bearer ' + authToken } })
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (d) {
-                    if (!d) return;
-                    if (isAdmin) {
-                        fetch(url + '/api/admin/exam', { mode: 'cors', headers: { 'Authorization': 'Bearer ' + authToken } })
-                            .then(function (r) { return r.ok ? r.json() : null; })
-                            .then(function (a) { update(d, a); });
-                    } else { update(d, null); }
-                })
-                .catch(function () {});
-        }
-        _examDoPoll = poll;
-        poll();
-        _examPoll = setInterval(poll, 5000);
-        _examTick = setInterval(tick, 250);
-    }
-
-    window.examSwitchTab = function (name) {
-        _examTab = name;
-        var brief = document.getElementById('exTabBrief'), live = document.getElementById('exTabLive'), ctrl = document.getElementById('exTabCtrl');
-        var bB = document.getElementById('exTabBtnBrief'), bL = document.getElementById('exTabBtnLive'), bC = document.getElementById('exTabBtnCtrl');
-        if (brief) brief.style.display = (name === 'brief') ? 'block' : 'none';
-        if (live) live.style.display = (name === 'live') ? 'block' : 'none';
-        if (ctrl) ctrl.style.display = (name === 'ctrl') ? 'block' : 'none';
-        if (bB) bB.style.background = (name === 'brief') ? '#1f6feb' : '';
-        if (bL) bL.style.background = (name === 'live') ? '#1f6feb' : '';
-        if (bC) bC.style.background = (name === 'ctrl') ? '#1f6feb' : '';
-    };
-
-    window.examFullscreen = function () {
-        examSwitchTab('live');
-        var el = document.getElementById('exTabLive'); if (!el) return;
-        if (document.fullscreenElement || document.webkitFullscreenElement) {
-            (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-        } else if (el.requestFullscreen || el.webkitRequestFullscreen) {
-            (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
-        }
-    };
-
-    window.examControl = function (target, action) {
-        if (!confirm(action + ' ' + target + ' for ALL students?')) return;
-        var url = serverUrl(); if (!url) return;
-        fetch(url + '/api/admin/exam/control', {
-            method: 'POST', mode: 'cors',
-            headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target: target, action: action })
-        })
-        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-        .then(function (res) {
-            var el = document.getElementById('examCtlMsg');
-            if (el) el.textContent = (res.ok && res.d.ok) ? (action + ' ' + target + ' — ' + res.d.output) : (res.d.output || res.d.error || 'failed');
-            if (_examDoPoll) _examDoPoll();
-        })
-        .catch(function () {});
-    };
-
-    window.examSetSchedule = function () {
-        var url = serverUrl(); if (!url) return;
-        var g = function (id) { var el = document.getElementById(id); return el ? el.value : ''; };
-        var msg = document.getElementById('examSchMsg'); if (msg) msg.textContent = 'Saving…';
-        fetch(url + '/api/admin/exam/schedule', {
-            method: 'POST', mode: 'cors',
-            headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date: g('exSchDate'), start: g('exSchStart'), cbOpen: g('exSchCbo'), cbSeal: g('exSchCbs'), durationMin: parseInt(g('exSchDur'), 10) || 120 })
-        })
-        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-        .then(function (res) {
-            if (res.ok && res.d.ok) { _examSched = res.d.schedule; if (msg) msg.textContent = 'Saved — timers updated.'; }
-            else if (msg) { msg.textContent = res.d.error || 'failed'; }
-        })
-        .catch(function () { if (msg) msg.textContent = 'network error'; });
-    };
-
     // Refresh deadlines from server and re-render My Grades
     window.refreshStudentDeadlines = function () {
         var url = serverUrl();
@@ -3492,6 +3198,7 @@
     }
 
     function renderFileView(filePath) {
+        if (GitHubAPI.isHidden(filePath)) { window.location.hash = 'browse'; return; }
         var viewerEl = document.getElementById('file-viewer');
         var outlineEl = document.getElementById('outline-content');
         outlineEl.style.display = 'none';
@@ -3704,9 +3411,6 @@
             renderAdminPanel();
         } else if (hash === 'grades') {
             renderStudentGrades();
-        } else if (hash === 'exam') {
-            if (examEnabled) renderExam();
-            else window.location.hash = 'browse';
         } else if (hash.startsWith('browse/') || hash === 'browse') {
             var path = hash === 'browse' ? '' : hash.slice(7);
             renderExplorer(path);

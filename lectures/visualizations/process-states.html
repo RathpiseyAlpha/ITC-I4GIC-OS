@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Process States and the PCB</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px 70px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  select{min-width:0;max-width:100%}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  svg#diag{width:100%;display:block}
+  .st rect{fill:var(--s7);stroke:var(--s6);stroke-width:2}
+  .st.on rect{stroke:var(--accent);stroke-width:3}
+  .st text.h{font-size:13px;font-weight:700;fill:var(--ink);text-anchor:middle;text-transform:uppercase;letter-spacing:.06em}
+  .st text.d{font-size:10.5px;fill:var(--muted);text-anchor:middle}
+  .arr{stroke:var(--s6);stroke-width:2;fill:none}
+  .arr.on{stroke:var(--accent);stroke-width:3.5}
+  .arrL{font-size:11px;fill:var(--muted);text-anchor:middle}
+  .arrL.on{fill:var(--accent);font-weight:700}
+  .tok{cursor:pointer}
+  .tok rect{stroke:#fff;stroke-width:0}
+  .tok.sel rect{stroke-width:2.5}
+  .tok text{font-size:12px;font-weight:700;fill:#fff;text-anchor:middle;pointer-events:none}
+  .events{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+  .events button{text-align:left;font-size:13px;padding:9px 11px}
+  .events button small{display:block;color:var(--muted);font-size:10.5px;margin-top:2px}
+  .pcb{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:12.5px;line-height:1.75}
+  .pcb .r{display:flex;justify-content:space-between;border-bottom:1px dashed var(--border)}
+  .pcb .r span:first-child{color:var(--muted)}
+  .pcb .chg{color:var(--pick);font-weight:700}
+  .mx{border-collapse:collapse;font-size:12px;margin-top:6px}
+  .mx th{font-weight:600;color:var(--muted);padding:4px 6px;font-size:10.5px;text-transform:uppercase}
+  .mx td{width:44px;height:30px;border:1px solid var(--border);text-align:center;cursor:pointer;background:var(--s7);font-weight:700}
+  .mx td:hover{outline:2px solid var(--accent);outline-offset:-2px}
+  .mx td.y{color:var(--ok)} .mx td.n{color:var(--bad)} .mx td.self{background:transparent;cursor:default;color:var(--muted)}
+  .queues{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .q{flex:1 1 200px;border:1px solid var(--border);border-radius:10px;padding:9px 12px;background:var(--s7);font-size:12px;color:var(--muted)}
+  .q b{color:var(--ink)}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>Process States and the PCB</h1>
+  <div class="sub">Week 3 — fire the events yourself and watch each process move between <b>new, ready, running, waiting and terminated</b>, with a context switch at every change of CPU</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Name the five process states and the event that causes each transition.</li><li>Explain why some transitions do not exist, for example waiting → running.</li><li>Describe what the OS saves into and restores from the PCB during a context switch.</li><li>Tell the ready queue apart from a device (I/O) wait queue.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <svg id="diag" viewBox="0 0 760 330" role="img" aria-label="Five-state process diagram"></svg>
+    <div class="queues">
+      <div class="q">Ready queue (head first): <b id="rq"></b></div>
+      <div class="q">Disk wait queue (head first): <b id="wq"></b></div>
+      <div class="q">Context switches so far: <b id="csN">0</b></div>
+    </div>
+    <p class="blockTitle" style="margin-top:18px">Is this transition possible? Click a cell (row = from, column = to) before you look at the diagram</p>
+    <table class="mx" id="mx"></table>
+    <div class="hint" id="mxMsg" style="min-height:34px"></div>
+  </div>
+  <div class="side">
+    <div class="events" id="events"></div>
+    <div class="controls">
+      <button id="playBtn" onclick="togglePlay()">▶ Play a guided tour</button>
+      <button onclick="reset()">↻ Reset</button>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="builder">
+      <h3>Process control block — <span id="pcbName"></span></h3>
+      <div class="pcb" id="pcb"></div>
+      <div class="hint">Click a process in the diagram to inspect its PCB. The registers and program counter live in the CPU only while the process is running; at a context switch the OS copies them into the PCB.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATES=['new','ready','running','waiting','terminated'];
+const BOX={new:[20,30,150,96,'being created'],ready:[200,30,170,96,'waiting for the CPU'],running:[570,30,170,96,'instructions executing'],waiting:[385,205,170,96,'waiting for I/O or an event'],terminated:[20,205,150,96,'finished']};
+const ARROWS=[
+ {id:'admit', from:'new', to:'ready', d:'M170,78 L196,78', lx:183, ly:68, label:''},
+ {id:'dispatch', from:'ready', to:'running', d:'M370,58 L566,58', lx:468, ly:48, label:'scheduler dispatch'},
+ {id:'interrupt', from:'running', to:'ready', d:'M570,98 L374,98', lx:468, ly:116, label:'interrupt (time slice ends)'},
+ {id:'iowait', from:'running', to:'waiting', d:'M655,126 C655,220 620,253 559,253', lx:668, ly:200, label:'I/O or event wait'},
+ {id:'iodone', from:'waiting', to:'ready', d:'M385,253 C310,253 285,200 285,130', lx:300, ly:282, label:'I/O or event done'},
+ {id:'exit', from:'running', to:'terminated', d:'M610,126 C560,170 300,165 174,225', lx:486, ly:150, label:'exit'},
+];
+const EVENTS=[
+ {id:'create', name:'Create a process', sub:'fork() → new'},
+ {id:'admit', name:'Admit', sub:'new → ready'},
+ {id:'dispatch', name:'Scheduler dispatch', sub:'ready → running'},
+ {id:'interrupt', name:'Timer interrupt', sub:'running → ready'},
+ {id:'iowait', name:'Request disk I/O', sub:'running → waiting'},
+ {id:'iodone', name:'Disk I/O completes', sub:'waiting → ready'},
+ {id:'run', name:'Run 3 instructions', sub:'the running process computes'},
+ {id:'exit', name:'Exit', sub:'running → terminated'},
+];
+const COL=['var(--c0)','var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)'];
+const WHY={
+ 'new>ready':[1,'<b>Admit.</b> The OS has built the PCB and loaded the program, so the process may now compete for the CPU.'],
+ 'ready>running':[1,'<b>Scheduler dispatch.</b> The scheduler picks it and the dispatcher loads its saved context into the CPU.'],
+ 'running>ready':[1,'<b>Interrupt.</b> The time slice ended or a higher-priority process became ready. Nothing is wrong with the process; it just lost the CPU.'],
+ 'running>waiting':[1,'<b>I/O or event wait.</b> The process itself asks for something slow (a system call such as read) and cannot continue until it finishes.'],
+ 'waiting>ready':[1,'<b>I/O or event completion.</b> The device interrupt tells the OS the data is there. The process becomes ready, not running.'],
+ 'running>terminated':[1,'<b>Exit.</b> The process calls exit() or is killed.'],
+ 'waiting>running':[0,'Not possible. When the I/O finishes the process goes to <b>ready</b>. Only the scheduler hands out the CPU, and some other process may be using it.'],
+ 'ready>waiting':[0,'Not possible. A process can ask for I/O only by executing a system call, and a ready process is not executing anything.'],
+ 'new>running':[0,'Not possible. A new process must first be admitted to the ready queue; then the scheduler chooses.'],
+ 'ready>terminated':[0,'Not in the basic five-state model. (A real OS can kill a ready process, for example with a signal from its parent, and some books draw that arrow.)'],
+ 'waiting>terminated':[0,'Not in the basic five-state model. (A real OS can kill a waiting process, for example with kill -9.)'],
+ 'new>waiting':[0,'Not possible. A new process has not executed anything yet, so it cannot have asked for I/O.'],
+ 'new>terminated':[0,'Not in the basic model: a process is admitted and runs before it can exit.'],
+};
+const $=id=>document.getElementById(id);
+let procs, sel, cpu, cs, last, lastArrow, lastOk, chg, playing=false, timer=null, tourK=0;
+
+function mk(){ const id=procs.length; return {id, pid:1200+id*7, state:'new', pc:0x400000+id*0x1000, ax:0, saved:{pc:0x400000+id*0x1000,ax:0}, cpuTime:0, since:procs.length}; }
+function reset(){ stopPlay(); procs=[]; sel=0; cs=0; last=''; lastArrow=null; lastOk=true; chg=[];
+  procs.push(mk()); procs.push(mk()); procs.push(mk()); procs[0].state='ready'; procs[1].state='ready'; order=3; render(); }
+let order=0;
+const inState=s=>procs.filter(p=>p.state===s).sort((a,b)=>a.since-b.since);
+const running=()=>procs.find(p=>p.state==='running');
+const nm=p=>'<b>P'+p.id+'</b>';
+function move(p,to){ p.state=to; p.since=order++; sel=p.id; }
+function fire(id){
+  const r=running(); chg=[]; lastArrow=id; lastOk=true;
+  const fail=m=>{ lastOk=false; last=m; };
+  if(id==='create'){ if(procs.filter(p=>p.state!=='terminated').length>=6||procs.length>=9) return fail('The table is full: finish a process first.'), render();
+    const p=mk(); procs.push(p); p.since=order++; sel=p.id; lastArrow=null; last='A parent calls <code>fork()</code>. The OS allocates a PCB and a PID ('+p.pid+') for '+nm(p)+'. It is in the <b>new</b> state: it exists, but it is not yet in the ready queue.'; }
+  else if(id==='admit'){ const p=inState('new')[0]; if(!p) return fail('No process is in the <b>new</b> state. Create one first.'), render();
+    move(p,'ready'); last=nm(p)+' is admitted: its PCB is linked to the <b>tail of the ready queue</b>. It still does not have the CPU.'; }
+  else if(id==='dispatch'){ const p=inState('ready')[0];
+    if(r) return fail('The CPU is busy with '+nm(r)+'. With one core only <b>one</b> process can be running; the others wait in the ready queue.'), render();
+    if(!p) return fail('The ready queue is empty: there is nothing to dispatch. The CPU stays idle.'), render();
+    move(p,'running'); p.pc=p.saved.pc; p.ax=p.saved.ax; cs++; chg=['pc','ax'];
+    last='The scheduler picks the head of the ready queue, '+nm(p)+'. The dispatcher <b>restores</b> its program counter and registers from the PCB and jumps to user mode. That is the second half of a context switch.'; }
+  else if(id==='run'){ if(!r) return fail('No process is running, so no instruction can execute. Dispatch one first.'), render();
+    r.pc+=12; r.ax+=3; r.cpuTime+=3; sel=r.id; lastArrow=null; chg=['pc','ax','cpu']; last=nm(r)+' executes three instructions. The <b>CPU’s</b> program counter and register change; the copy in the PCB is now out of date, and that is fine until the next switch.'; }
+  else if(id==='iodone'){ const p=inState('waiting')[0]; if(!p) return fail('No process is waiting for I/O.'), render();
+    move(p,'ready'); last='The disk raises an interrupt: the data for '+nm(p)+' has arrived. It moves to the <b>ready</b> queue'+(r?', and '+nm(r)+' keeps running for now.':'.')+' It does not jump straight to running.'; }
+  else { if(!r) return fail('This event needs a <b>running</b> process, and the CPU is idle. Only a running process can be interrupted, ask for I/O, or exit.'), render();
+    if(id==='interrupt'){ r.saved={pc:r.pc,ax:r.ax}; move(r,'ready'); chg=['spc','sax']; last='The timer interrupt fires. The OS <b>saves</b> the program counter and registers of '+nm(r)+' into its PCB and puts it at the tail of the ready queue. The CPU is free: dispatch the next process.'; }
+    else if(id==='iowait'){ r.saved={pc:r.pc,ax:r.ax}; move(r,'waiting'); chg=['spc','sax']; last=nm(r)+' calls <code>read()</code>. The disk is slow, so the OS saves its context and moves its PCB to the <b>disk wait queue</b>. The CPU is free for someone else.'; }
+    else if(id==='exit'){ move(r,'terminated'); last=nm(r)+' calls <code>exit()</code>. Its memory and open files are released. The PCB stays until the parent collects the exit status with <code>wait()</code>.'; } }
+  render();
+}
+function pick(id){ sel=id; render(); }
+const hex=n=>'0x'+n.toString(16);
+
+function render(){
+  let g='<defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--s6)"/></marker><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--accent)"/></marker></defs>';
+  for(const a of ARROWS){ const on=lastOk&&lastArrow===a.id; g+='<path class="arr'+(on?' on':'')+'" d="'+a.d+'" marker-end="url(#'+(on?'a2':'a1')+')"/>'+(a.label?'<text class="arrL'+(on?' on':'')+'" x="'+a.lx+'" y="'+a.ly+'">'+a.label+'</text>':''); }
+  for(const s of STATES){ const [x,y,w,h,d]=BOX[s], list=inState(s);
+    g+='<g class="st'+(list.some(p=>p.id===sel)?' on':'')+'"><rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="12"/><text class="h" x="'+(x+w/2)+'" y="'+(y+20)+'">'+s+'</text><text class="d" x="'+(x+w/2)+'" y="'+(y+h-8)+'">'+d+'</text></g>';
+    list.forEach((p,k)=>{ const per=Math.floor((w-12)/40), tx=x+8+(k%per)*40, ty=y+28+Math.floor(k/per)*26;
+      g+='<g class="tok'+(p.id===sel?' sel':'')+'" onclick="pick('+p.id+')" tabindex="0" role="button" aria-label="Process '+p.id+', '+s+'" onkeydown="if(event.key===\'Enter\')pick('+p.id+')"><rect x="'+tx+'" y="'+ty+'" width="36" height="22" rx="6" fill="'+COL[p.id%6]+'"/><text x="'+(tx+18)+'" y="'+(ty+15.5)+'">P'+p.id+'</text></g>'; }); }
+  $('diag').innerHTML=g;
+  const names=l=>l.length?l.map(p=>'P'+p.id).join(' → '):'empty';
+  $('rq').textContent=names(inState('ready')); $('wq').textContent=names(inState('waiting')); $('csN').textContent=cs;
+  $('events').innerHTML=EVENTS.map(e=>'<button onclick="fire(\''+e.id+'\')">'+e.name+'<small>'+e.sub+'</small></button>').join('');
+  const p=procs.find(x=>x.id===sel)||procs[0], run=p.state==='running', c=k=>chg.includes(k)?' class="chg"':'';
+  $('pcbName').textContent='P'+p.id;
+  $('pcb').innerHTML=[['PID',p.pid],['state',p.state],['saved program counter','<span'+c('spc')+'>'+hex(p.saved.pc)+'</span>'],['saved register AX','<span'+c('sax')+'>'+p.saved.ax+'</span>'],
+    ['CPU time used','<span'+c('cpu')+'>'+p.cpuTime+'</span>'],['queue',p.state==='ready'?'ready queue':p.state==='waiting'?'disk wait queue':'—'],['open files','stdin, stdout, stderr']]
+    .map(r=>'<div class="r"><span>'+r[0]+'</span><span>'+r[1]+'</span></div>').join('')+
+    '<div class="r" style="margin-top:8px;border-top:1px solid var(--border)"><span>CPU program counter</span><span'+c('pc')+'>'+(run?hex(p.pc):'(not on the CPU)')+'</span></div><div class="r"><span>CPU register AX</span><span'+c('ax')+'>'+(run?p.ax:'(not on the CPU)')+'</span></div>';
+  $('stepLabel').textContent=running()?'CPU: P'+running().id+' is running':'CPU: idle';
+  $('captionText').innerHTML=last||'Three processes exist: P0 and P1 are <b>ready</b>, P2 is <b>new</b>. Press an event on the left of this box. If an event cannot happen in the current situation, the page tells you why.';
+  $('verdict').textContent=lastOk?'':'✗ That event cannot happen now'; $('verdict').className='verdict '+(lastOk?'':'bad');
+  // matrix
+  if(!$('mx').innerHTML){ $('mx').innerHTML='<tr><th>from \\ to</th>'+STATES.map(s=>'<th>'+s+'</th>').join('')+'</tr>'+STATES.map(a=>'<tr><th style="text-align:right">'+a+'</th>'+STATES.map(b=>a===b||a==='terminated'||b==='new'?'<td class="self">·</td>':'<td data-k="'+a+'>'+b+'" onclick="ask(this)" tabindex="0" onkeydown="if(event.key===\'Enter\')ask(this)">?</td>').join('')+'</tr>').join(''); }
+}
+function ask(td){ const k=td.dataset.k, w=WHY[k]||[0,'Not possible.']; td.textContent=w[0]?'✓':'✗'; td.className=w[0]?'y':'n';
+  $('mxMsg').innerHTML='<b class="'+(w[0]?'ok':'bad')+'">'+k.replace('>',' → ')+': '+(w[0]?'yes':'no')+'.</b> '+w[1]; }
+const TOUR=['admit','dispatch','run','iowait','dispatch','run','interrupt','dispatch','iodone','run','exit','dispatch','run','exit','dispatch','exit'];
+function togglePlay(){ if(playing){ stopPlay(); return; } reset(); playing=true; tourK=0; $('playBtn').textContent='⏸ Stop the tour';
+  timer=setInterval(()=>{ if(tourK>=TOUR.length){ stopPlay(); return; } fire(TOUR[tourK++]); },1900); }
+function stopPlay(){ playing=false; clearInterval(timer); const b=$('playBtn'); if(b) b.textContent='▶ Play a guided tour'; }
+reset();
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

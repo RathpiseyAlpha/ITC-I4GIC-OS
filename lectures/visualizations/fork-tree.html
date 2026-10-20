@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fork() Process Tree</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px 70px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  select{min-width:0;max-width:100%}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  svg#tree{width:100%;display:block;min-height:230px}
+  .nd{cursor:pointer}
+  .nd circle{stroke:var(--border);stroke-width:2}
+  .nd.done circle{opacity:.55}
+  .nd.next circle{stroke:var(--ink);stroke-width:3}
+  .nd text{font-size:13px;font-weight:700;fill:#fff;text-anchor:middle;pointer-events:none}
+  .nd text.pid{font-size:9.5px;font-weight:500;fill:var(--muted)}
+  .edge{stroke:var(--s6);stroke-width:2}
+  .edgeL{font-size:9.5px;fill:var(--muted);text-anchor:middle}
+  .code{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:13px;line-height:1.7;background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:8px 0;overflow-x:auto}
+  .cl{padding:0 12px 0 12px;white-space:pre;display:flex;align-items:center;gap:8px;color:var(--t1)}
+  .cl.hot{background:rgba(96,165,250,.16)}
+  .cl .at{display:inline-flex;gap:3px;min-width:8px}
+  .pd{width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;color:#fff;font-weight:700;font-family:"Segoe UI",sans-serif}
+  .out{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:12.5px;line-height:1.6;background:#05090f;color:#c8f7c5;border-radius:8px;padding:10px 12px;min-height:74px;max-height:170px;overflow:auto;white-space:pre-wrap}
+  .guess{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>fork() Process Tree</h1>
+  <div class="sub">Week 3 — step through small C programs and watch every <code>fork()</code> split one process into two. How many processes, and how many lines of output?</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Explain what <code>fork()</code> returns in the parent and in the child, and where each one continues.</li><li>Draw the process tree for a program with several <code>fork()</code> calls and count the processes.</li><li>Predict how many times a <code>printf</code> after the forks runs.</li><li>Explain why the order of the output lines can change from run to run.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <p class="blockTitle">Process tree — click a process to run <i>that</i> one next (you choose the scheduling)</p>
+    <svg id="tree" viewBox="0 0 700 300" role="img" aria-label="Process tree"></svg>
+    <div class="stats">
+      <div class="stat"><div class="big" id="nProc" style="color:var(--accent)">1</div><div class="lab">processes created so far</div></div>
+      <div class="stat"><div class="big" id="nFork" style="color:var(--pick)">0</div><div class="lab">fork() calls executed</div></div>
+      <div class="stat"><div class="big" id="nOut" style="color:var(--ok)">0</div><div class="lab">lines printed</div></div>
+    </div>
+    <p class="blockTitle" style="margin-top:16px">Terminal output</p>
+    <div class="out" id="out"></div>
+  </div>
+  <div class="side">
+    <div class="builder">
+      <h3>Program</h3>
+      <div class="brow"><select id="preset" onchange="load(+this.value)" style="flex:1"></select></div>
+      <div class="code" id="code"></div>
+      <div class="hint">The small dots show which line each live process will execute next.</div>
+    </div>
+    <div class="builder">
+      <h3>Predict first</h3>
+      <div class="guess"><label class="lbl" for="g">Total processes at the end:</label><input type="number" id="g" min="1" max="64"><button class="small" onclick="check()">Check</button></div>
+      <div class="msg" id="gmsg"></div>
+    </div>
+    <div class="controls">
+      <button id="nextBtn" class="primary" onclick="next()">Next ▶</button>
+      <button id="playBtn" onclick="togglePlay()">▶ Play</button>
+      <button onclick="toEnd()">⏭ End</button>
+      <button onclick="load(cur)">↻ Reset</button>
+    </div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* A program is source lines plus a flat list of operations. Each op points at its source line.
+   fork: create a child; in the parent r = child pid, in the child r = 0.
+   jz / jnz t: jump to op t if the last fork() returned zero / non-zero.   jmp t.   print s.   exit. */
+const PROGS=[
+ {name:'Three forks in a row', src:['fork();','fork();','fork();','printf("hello\\n");'],
+  ops:[{l:0,o:'fork'},{l:1,o:'fork'},{l:2,o:'fork'},{l:3,o:'print',s:'hello'}], note:'Each fork() doubles the number of processes: 2ⁿ for n forks in a row.'},
+ {name:'fork() in a loop', src:['for (i = 0; i < 2; i++) {','    fork();','    printf("i = %d\\n", i);','}'],
+  ops:[{l:1,o:'fork'},{l:2,o:'print',s:'i = 0'},{l:1,o:'fork'},{l:2,o:'print',s:'i = 1'}], note:'The child gets a copy of i, so it continues the loop from the same iteration.'},
+ {name:'Only the child forks again', src:['pid = fork();','if (pid == 0) {','    fork();','    printf("child side\\n");','} else {','    printf("parent side\\n");','}'],
+  ops:[{l:0,o:'fork'},{l:1,o:'jnz',t:5},{l:2,o:'fork'},{l:3,o:'print',s:'child side'},{l:3,o:'jmp',t:6},{l:5,o:'print',s:'parent side'}], note:'fork() returns 0 in the child, so only the child enters the if branch.'},
+ {name:'A fan: the parent creates three children', src:['for (i = 0; i < 3; i++) {','    pid = fork();','    if (pid == 0) {','        printf("child %d\\n", i);','        exit(0);','    }','}','printf("parent done\\n");'],
+  ops:[{l:1,o:'fork'},{l:2,o:'jnz',t:4},{l:3,o:'print',s:'child 0'},{l:4,o:'exit'},{l:1,o:'fork'},{l:2,o:'jnz',t:8},{l:3,o:'print',s:'child 1'},{l:4,o:'exit'},{l:1,o:'fork'},{l:2,o:'jnz',t:12},{l:3,o:'print',s:'child 2'},{l:4,o:'exit'},{l:7,o:'print',s:'parent done'}],
+  note:'exit(0) stops each child before it reaches the next loop iteration, so children never fork.'},
+ {name:'A chain: each child creates the next', src:['for (i = 0; i < 3; i++) {','    pid = fork();','    if (pid != 0)','        break;','}','printf("done\\n");'],
+  ops:[{l:1,o:'fork'},{l:2,o:'jnz',t:6},{l:1,o:'fork'},{l:2,o:'jnz',t:6},{l:1,o:'fork'},{l:2,o:'jnz',t:6},{l:5,o:'print',s:'done'}], note:'The parent leaves the loop after one fork; only the newest child keeps looping.'},
+ {name:'fork() && fork()', src:['fork() && fork();','printf("hi\\n");'],
+  ops:[{l:0,o:'fork'},{l:0,o:'jz',t:3},{l:0,o:'fork'},{l:1,o:'print',s:'hi'}], note:'&& short-circuits: the second fork() runs only where the first returned non-zero, that is, in the parent.'},
+ {name:'fork() || fork()', src:['fork() || fork();','printf("hi\\n");'],
+  ops:[{l:0,o:'fork'},{l:0,o:'jnz',t:3},{l:0,o:'fork'},{l:1,o:'print',s:'hi'}], note:'|| short-circuits: the second fork() runs only where the first returned 0, that is, in the child.'},
+];
+const COL=['var(--c0)','var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)'];
+const $=id=>document.getElementById(id);
+let cur=0, P, procs, out, forks, rr, last, playing=false, timer=null;
+const pidOf=i=>2000+i;
+function skip(p){ let n=0; while(p.pc<P.ops.length&&n++<50){ const o=P.ops[p.pc]; if(o.o==='jmp') p.pc=o.t; else if(o.o==='jz') p.pc=(p.r===0)?o.t:p.pc+1; else if(o.o==='jnz') p.pc=(p.r!==0)?o.t:p.pc+1; else break; } if(p.pc>=P.ops.length) p.alive=false; }
+function load(i){ stopPlay(); cur=i; P=PROGS[i]; procs=[{id:0,parent:-1,pc:0,r:-1,alive:true,kids:[]}]; out=[]; forks=0; rr=0; last=''; skip(procs[0]); $('g').value=''; $('gmsg').textContent=''; $('preset').value=i; render(); }
+const live=()=>procs.filter(p=>p.alive);
+function nextProc(){ const l=live(); if(!l.length) return null; const after=l.find(p=>p.id>=rr); return after||l[0]; }
+function run(id){
+  const p=procs[id]; if(!p||!p.alive) return; const o=P.ops[p.pc], N='<b>P'+p.id+'</b>';
+  if(o.o==='fork'){ const c={id:procs.length,parent:p.id,pc:p.pc+1,r:0,alive:true,kids:[],at:forks}; procs.push(c); p.kids.push(c.id); p.r=pidOf(c.id); p.pc++; forks++;
+    last=N+' calls <code>fork()</code>. The OS copies it into a new process <b>P'+c.id+'</b>. In the parent P'+p.id+', fork() returns the child’s PID (<b>'+pidOf(c.id)+'</b>); in the child P'+c.id+' it returns <b>0</b>. Both continue from the instruction after the fork.'; skip(c); }
+  else if(o.o==='print'){ out.push({id:p.id,s:o.s}); p.pc++; last=N+' prints “'+o.s+'”.'; }
+  else if(o.o==='exit'){ p.alive=false; last=N+' calls <code>exit(0)</code> and terminates. It never reaches the code below.'; }
+  if(p.alive){ skip(p); if(!p.alive) last+=' '+N+' reaches the end of the program and terminates.'; }
+  rr=id+1; render();
+}
+function next(){ const p=nextProc(); if(p) run(p.id); else stopPlay(); }
+function toEnd(){ stopPlay(); let n=0; while(nextProc()&&n++<400){ const p=nextProc(); run(p.id); } }
+function togglePlay(){ if(playing) return stopPlay(); if(!nextProc()) load(cur); playing=true; $('playBtn').textContent='⏸ Pause'; timer=setInterval(()=>{ if(!nextProc()) stopPlay(); else next(); },900); }
+function stopPlay(){ playing=false; clearInterval(timer); $('playBtn').textContent='▶ Play'; }
+function finalCount(){ const save=[cur,P,procs,out,forks,rr,last]; const sp=JSON.parse(JSON.stringify(PROGS[cur])); let ps=[{pc:0,r:-1,alive:true}], n=1, guard=0;
+  const sk=p=>{ let k=0; while(p.pc<sp.ops.length&&k++<50){ const o=sp.ops[p.pc]; if(o.o==='jmp') p.pc=o.t; else if(o.o==='jz') p.pc=p.r===0?o.t:p.pc+1; else if(o.o==='jnz') p.pc=p.r!==0?o.t:p.pc+1; else break; } if(p.pc>=sp.ops.length) p.alive=false; };
+  sk(ps[0]);
+  while(ps.some(p=>p.alive)&&guard++<2000){ const p=ps.find(x=>x.alive), o=sp.ops[p.pc]; if(o.o==='fork'){ const c={pc:p.pc+1,r:0,alive:true}; ps.push(c); n++; p.r=1; p.pc++; sk(c); } else if(o.o==='exit') p.alive=false; else p.pc++; if(p.alive) sk(p); }
+  return n; }
+function check(){ const g=parseInt($('g').value), n=finalCount(), m=$('gmsg'); if(!g){ m.textContent='Type your prediction first.'; return; }
+  m.innerHTML=g===n?'<b class="ok">Correct: '+n+' processes, counting the original one.</b>':'<b class="bad">Not '+g+'.</b> Step through and count the nodes in the tree. '+(g===n-1?'Did you count the original process?':''); }
+
+function render(){
+  // layout: leaves get consecutive x slots, parents are centred over their children
+  const depth=[], xs=[]; let slot=0;
+  (function place(i,d){ depth[i]=d; const k=procs[i].kids; if(!k.length){ xs[i]=slot++; } else { k.forEach(c=>place(c,d+1)); xs[i]=(xs[k[0]]+xs[k[k.length-1]])/2; } })(0,0);
+  const maxD=Math.max(...depth), W=Math.max(700,slot*74+60), H=Math.max(230,(maxD+1)*82+30), X=i=>30+(xs[i]+0.5)*((W-60)/slot), Y=i=>40+depth[i]*82, np=nextProc();
+  let g='';
+  procs.forEach(p=>{ if(p.parent>=0){ g+='<line class="edge" x1="'+X(p.parent)+'" y1="'+(Y(p.parent)+22)+'" x2="'+X(p.id)+'" y2="'+(Y(p.id)-22)+'"/>'; } });
+  procs.forEach(p=>{ g+='<g class="nd'+(p.alive?'':' done')+(np&&np.id===p.id?' next':'')+'" onclick="run('+p.id+')" tabindex="0" role="button" aria-label="Process '+p.id+(p.alive?'':' (finished)')+'" onkeydown="if(event.key===\'Enter\')run('+p.id+')"><circle cx="'+X(p.id)+'" cy="'+Y(p.id)+'" r="22" fill="'+COL[p.id%6]+'"/><text x="'+X(p.id)+'" y="'+(Y(p.id)+4.5)+'">P'+p.id+'</text><text class="pid" x="'+X(p.id)+'" y="'+(Y(p.id)+36)+'">pid '+pidOf(p.id)+(p.alive?'':' ✓')+'</text></g>'; });
+  const svg=$('tree'); svg.setAttribute('viewBox','0 0 '+W+' '+H); svg.innerHTML=g;
+  const at={}; live().forEach(p=>{ const l=P.ops[p.pc].l; (at[l]=at[l]||[]).push(p.id); });
+  $('code').innerHTML=P.src.map((s,i)=>'<div class="cl'+(np&&P.ops[np.pc].l===i?' hot':'')+'"><span>'+s.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</span><span class="at">'+(at[i]||[]).slice(0,10).map(id=>'<span class="pd" style="background:'+COL[id%6]+'">'+id+'</span>').join('')+'</span></div>').join('');
+  $('out').innerHTML=out.length?out.map(o=>'<span style="color:#7d8fa3">[P'+o.id+']</span> '+o.s).join('\n'):'<span style="color:#7d8fa3">(nothing printed yet)</span>';
+  $('nProc').textContent=procs.length; $('nFork').textContent=forks; $('nOut').textContent=out.length;
+  const done=!np;
+  $('stepLabel').textContent=done?'Program finished':'Next to run: P'+np.id;
+  $('captionText').innerHTML=(last||'One process, <b>P0</b>, starts the program. Press <b>Next</b> to run one step of the highlighted process, or click any live process in the tree to run that one instead.')+(done?'<br>'+P.note+' Reset and click the processes in a different order: the tree stays the same, but the <b>order of the output lines changes</b>. That is why output from forked programs is not predictable.':'');
+  $('verdict').textContent=done?'✓ '+procs.length+' processes, '+forks+' forks, '+out.length+' lines printed':''; $('verdict').className='verdict ok';
+  $('nextBtn').disabled=done;
+}
+document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select') return;
+  if(e.key==='ArrowRight') next(); else if(e.key===' '){ e.preventDefault(); togglePlay(); } });
+$('preset').innerHTML=PROGS.map((p,i)=>'<option value="'+i+'">'+p.name+'</option>').join('');
+load(0);
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>
