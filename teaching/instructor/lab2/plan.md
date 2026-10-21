@@ -19,18 +19,18 @@ This lab uses the pilot format. Read the [student instruction](../../../labs/lab
 
 ## Guide
 
-Project the guide (`labs/lab2/guides/slides.html`, 59 slides; PDF `lab2-guides.pdf`). It follows the instruction:
+Project the guide (`labs/lab2/guides/slides.html`, 62 slides; PDF `lab2-guides.pdf`). It follows the instruction:
 
 | Slides | Part | When |
 |---|---|---|
 | 1 to 3 | Cover, objectives, opening question | Start of class |
-| 4 to 25 | Concepts first: the tree from `/`, every folder in `/` and what it is for (pictures on 7 and 12), the home directory, absolute and relative paths, `.` and `..`, names with spaces, the commands | Minutes 5 to 10; students have read it before class |
-| 26 to 33 | How the lab works, setup, values and placeholders | Setup |
-| 34 to 36 | Guided: where am I? | Minutes 10 to 20 |
-| 37 to 38 | Prediction | Prediction |
-| 39 to 46 | Core 1 to 3, Plus and Challenge | Core |
-| 47 to 52 | Live checkpoint | Before you release it |
-| 53 to 59 | Debrief, submit, grading, mistakes, takeaways | End of class |
+| 4 to 27 | Concepts first: the tree from `/`, every folder in `/` and what it is for (pictures on 7 and 12), the home directory, absolute and relative paths, `.` and `..`, names with spaces, the commands, `>`, `|` and `tee`, `nano` | Minutes 5 to 10; students have read it before class |
+| 28 to 35 | How the lab works, setup, values and placeholders | Setup |
+| 36 to 38 | Guided: where am I? | Minutes 10 to 20 |
+| 39 to 40 | Prediction | Prediction |
+| 41 to 48 | Core 1 to 3, Plus and Challenge | Core |
+| 49 to 54 | Live checkpoint | Before you release it |
+| 55 to 62 | Debrief, submit, grading, mistakes, takeaways | End of class |
 
 ## Timetable and What You Do
 

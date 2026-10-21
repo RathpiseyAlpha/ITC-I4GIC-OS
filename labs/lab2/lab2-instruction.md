@@ -203,10 +203,36 @@ Some commands in this lab have `--` before the file names, as in `cp -- "$file1"
 | `mv` | Moves a file to another folder, or renames it | `mv a.txt Art/`, `mv a.txt b.txt` |
 | `rm` | Deletes a file. There is no recycle bin | `rm b.txt` |
 | `rmdir` | Deletes an empty folder | `rmdir old` |
-| `find` | Lists everything below a folder | `find School -type f` |
+| `find` | Lists everything below a folder. `-type f` keeps only files, `-type d` only folders | `find School -type f` |
 | `cmp` | Compares two files byte by byte. Prints nothing when they are identical | `cmp a.txt Art/a.txt` |
+| `nano` | A simple text editor in the terminal | `nano notes.txt` |
 
 When the destination of `cp` or `mv` is a folder, the file keeps its name inside that folder. When it is a new name, the file gets that name.
+
+`cat` can show several files one after the other: `cat a.txt b.txt`. When two files differ, `cmp` says where the first difference is, for example `a.txt b.txt differ: byte 3, line 1`.
+
+In `nano`, type your text, then press `Ctrl+O` and `Enter` to save, and `Ctrl+X` to leave. The keys are listed at the bottom of the screen; `^` means `Ctrl`.
+
+### 7. Sending output somewhere else: `>`, `|` and `tee`
+
+Normally a command prints its output on the screen. Three signs send it somewhere else:
+
+| You type | What happens |
+|---|---|
+| `ls > list.txt` | `>` saves the output in the file `list.txt` instead of the screen. It replaces what was in the file (Lab 1) |
+| `ls >> list.txt` | `>>` adds the output to the end of the file (Lab 1) |
+| `ls \| sort` | `\|`, the **pipe**, passes the output of `ls` to the next command, `sort`, which puts the lines in order |
+| `ls \| tee list.txt` | `tee` shows the output on the screen **and** saves it in `list.txt` |
+
+A pipe can join more than two commands. Read it from left to right:
+
+```text
+student@server:~$ find demo -type f | sort | tee files.txt
+demo/School/Art/poster.txt
+demo/School/Math/copy.txt
+```
+
+`find` lists the files, `sort` puts them in order, and `tee` shows the list and saves it in `files.txt`. You use exactly this in Core 3.
 
 Try them together in a practice folder in your home:
 
@@ -260,7 +286,9 @@ student@server:~$ pwd
    oslab values lab2
    ```
 
-2. Type **your** values into shell variables. The values below are only an example. Keep the quotes: your file names have a space in them.
+   The first line gives the shell variable `OSLAB_WORKSPACE` the value `~/oslab-work`, the folder where `oslab` keeps your labs; `${OSLAB_WORKSPACE:-...}` keeps an earlier value if you already set one. `export` lets the `oslab` command see the variable too. You do not need to change this line: type it as it is.
+
+2. Type **your** values into shell variables. A variable is a name that holds a value: write `name=value` with **no spaces** around `=`. The values below are only an example. Keep the quotes: your file names have a space in them.
 
    ```bash
    file1='budget 2026.txt'
@@ -310,7 +338,7 @@ Your instructor first goes through [Concepts First](#concepts-first) with the gu
 
    ```bash
    mkdir -p practice/notes
-   printf 'orientation\n' > 'practice/welcome note.txt'
+   echo 'orientation' > 'practice/welcome note.txt'
    cd practice
    pwd
    cp -- 'welcome note.txt' notes/
@@ -319,7 +347,7 @@ Your instructor first goes through [Concepts First](#concepts-first) with the gu
    pwd
    ```
 
-   `cd ..` goes to the parent folder. Always check with `pwd`.
+   `echo` with `>` writes the text into a new file, as in Lab 1. `--` after `cp` means "no more options", so a file name is never taken for one. `cd ..` goes to the parent folder. Always check with `pwd`.
 
 3. Read one file in two ways.
 
@@ -334,8 +362,10 @@ Your instructor first goes through [Concepts First](#concepts-first) with the gu
 
    ```bash
    ls -l "incoming/$file1"
-   ls -l incoming/$file1 || true
+   ls -l incoming/$file1
    ```
+
+   Without the double quotes, the shell splits your file name at its space, so `ls` looks for two files that do not exist.
 
 ## Prediction (20–30)
 
@@ -355,7 +385,9 @@ Answer alone, without AI, before the experiment. A wrong prediction costs nothin
    find TechCorp -type d
    ```
 
-2. Read the two incoming reports and write down their contents. You will need them to prove that nothing changed.
+   One `mkdir -p` makes all three departments, and `archive` inside the owner department. `find TechCorp -type d` lists every folder below `TechCorp`, so you can see the tree you made.
+
+2. Read the two incoming reports and write down their contents. You will need them to prove that nothing changed. `cat` with two names shows the first file, then the second.
 
    ```bash
    cat "incoming/$file1" "incoming/$file2"
@@ -363,7 +395,7 @@ Answer alone, without AI, before the experiment. A wrong prediction costs nothin
 
 ## Core 2 — Move and Copy With Your Own Paths (40–65)
 
-Write each command yourself. Run `pwd` before every command that moves or copies. Write every command that worked into `evidence/paths.txt` (use `nano evidence/paths.txt` from the lab folder).
+Write each command yourself. Run `pwd` before every command that moves or copies. Write every command that worked into `evidence/paths.txt`: from the lab folder, open it with `nano evidence/paths.txt`, type or paste the command, save with `Ctrl+O` and `Enter`, and leave with `Ctrl+X`.
 
 `<owner>` and `<reader>` are your own values from `oslab values lab2` (see the table in Setup). Use the variables in double quotes, as in `"$file1"`, so the names with spaces stay one word.
 
@@ -378,7 +410,7 @@ Stuck for more than five minutes? Use `oslab hint lab2 1`, then `2`, then `3`.
 
 ## Core 3 — Prove It (65–75)
 
-1. A name in `ls` does not prove the contents are the same. Compare the bytes. `cmp` prints nothing when two files are identical.
+1. A name in `ls` does not prove the contents are the same. Compare the bytes. `cmp` prints nothing when two files are identical, and says where they first differ when they are not.
 
    ```bash
    cd "$OSLAB_WORKSPACE/lab2"
@@ -395,6 +427,8 @@ Stuck for more than five minutes? Use `oslab hint lab2 1`, then `2`, then `3`.
    oslab check lab2
    ```
 
+   Read the first line from left to right (see [Concepts First](#concepts-first), part 7): `find` lists every file in the three folders, the pipe `|` passes the list to `sort`, which puts it in order, and `tee` shows it on the screen and saves it in `evidence/tree.txt`.
+
 **Core is complete when** `oslab check lab2` shows `milestones: 4/4`.
 
 ## Plus — Find the Lost File (75–90)
@@ -404,7 +438,7 @@ Stuck for more than five minutes? Use `oslab hint lab2 1`, then `2`, then `3`.
    ```bash
    cd "$OSLAB_WORKSPACE/lab2"
    mkdir -p mess/a/b mess/c
-   printf 'lost\n' > 'mess/a/b/lost file.txt'
+   echo 'lost' > 'mess/a/b/lost file.txt'
    ```
 
 2. Go into `mess/c`. Without any `cd`, move `lost file.txt` into the folder you are in and rename it `found.txt`, with **one** command.
@@ -412,6 +446,8 @@ Stuck for more than five minutes? Use `oslab hint lab2 1`, then `2`, then `3`.
 4. Save both commands and the count in `evidence/plus.txt`.
 
 ## Challenge
+
+In a file name, `*` stands for any characters, so `*.txt` means every name that ends in `.txt`. The shell replaces it with the matching names before the command runs. Lab 3 explains it fully.
 
 Copy every `.txt` file from `reports/` into your third department with **one** command that uses `*`. Then answer in `evidence/challenge.txt`:
 
@@ -427,12 +463,12 @@ oslab checkpoint lab2
 ```
 
 1. Answer the questions. They use a new starting folder and a new target, made for you at this moment.
-2. Then do what the command prints, and save the output in `evidence/checkpoint.txt`.
+2. Then do what the command prints, and save the output in `evidence/checkpoint.txt`. It prints a line with `cat … | tee …`: `cat` shows the file, and `tee` also saves what it shows (see [Concepts First](#concepts-first), part 7).
 3. Run `oslab check lab2`. A fifth milestone, `checkpoint`, must pass.
 
 ## Debrief (105–115)
 
-Look at your prediction again.
+Look at your prediction again. `oslab` saved your answers in a hidden folder, `.records`, in your workspace. The file is in JSON, a text format of names and values.
 
 ```bash
 cat "$OSLAB_WORKSPACE/.records/lab2-predict.json"
@@ -442,7 +478,7 @@ In your report, write **confirmed** or **corrected** for each answer, and explai
 
 ## Submit (115–120)
 
-1. Copy your work to your course repository. Replace the path with your own.
+1. Copy your work to your course repository. Replace `YOUR_ID` with your own ID. `SUBMISSION_REPO` is a variable like `file1`: it keeps the long path, so the next two lines stay short.
 
    ```bash
    SUBMISSION_REPO="$HOME/os-gic-YOUR_ID/os-lab-YOUR_ID"
@@ -460,7 +496,15 @@ In your report, write **confirmed** or **corrected** for each answer, and explai
        └── tree.txt    # the final list of files
    ```
 
-3. Commit and push in the usual way.
+3. Commit and push, as in Lab 1. `git pull` comes first, in case you pushed from your own computer since.
+
+   ```bash
+   cd ~/os-gic-YOUR_ID
+   git pull
+   git add os-lab-YOUR_ID/lab2
+   git commit -m "Lab 2"
+   git push
+   ```
 
 ## Grading Criteria (10 points)
 

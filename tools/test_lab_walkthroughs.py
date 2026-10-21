@@ -79,7 +79,11 @@ with tempfile.TemporaryDirectory(prefix='oslab-walkthrough-') as temp:
             listing = shell(prefix+f'oslab values lab{n}\n', home, env, f'Lab {n} values')
             values[n] = dict(re.findall(r'^\s+(\w+)\s+= (.*)$', listing, re.M))
             assert values[n], listing
-            shell(prefix+section(n, 'Setup', 'Guided', 'Read and Trace'), home, env, f'Lab {n} setup/guided')
+            guided = section(n, 'Setup', 'Guided', 'Read and Trace')
+            if n == 2:  # Guided step 4 fails on purpose: an unquoted name with a space is two names
+                assert guided.count('ls -l incoming/$file1\n') == 1, 'Lab 2 guided step 4 changed'
+                guided = guided.replace('ls -l incoming/$file1\n', 'if ls -l incoming/$file1; then exit 1; fi\n')
+            shell(prefix+guided, home, env, f'Lab {n} setup/guided')
         else:
             setup = '\n'.join(code for name, code in routes[n] if name.startswith('## Lab Setup'))
             guided = '\n'.join(code for name, code in routes[n] if 'Guided' in name)
