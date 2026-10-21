@@ -28,6 +28,7 @@ After the Core, you can:
 | `oslab hint lab2 1` | Gives a hint (levels 1, 2, 3). Hints cost no points |
 | `oslab check lab2` | Looks at your folders and shows your milestones |
 | `oslab checkpoint lab2` | Opens when the instructor says so, near the end |
+| `oslab debrief lab2` | After the lab: you give the right answers to your prediction questions |
 
 - **Core** is for everyone. **Plus** and **Challenge** are for students who finish early. Full marks need only Core and the checkpoint.
 - AI tools are allowed in Core, Plus and Challenge. They are **not** allowed in the prediction and the checkpoint.
@@ -410,7 +411,9 @@ Stuck for more than five minutes? Use `oslab hint lab2 1`, then `2`, then `3`.
 
 ## Core 3 — Prove It (65–75)
 
-1. A name in `ls` does not prove the contents are the same. Compare the bytes. `cmp` prints nothing when two files are identical, and says where they first differ when they are not.
+Three steps. Each one says what you should see.
+
+1. **Prove that the copies are identical.** A name in `ls` does not prove the contents are the same, so compare the bytes. `cmp` prints nothing when two files are identical, and says where they first differ when they are not.
 
    ```bash
    cd "$OSLAB_WORKSPACE/lab2"
@@ -418,8 +421,30 @@ Stuck for more than five minutes? Use `oslab hint lab2 1`, then `2`, then `3`.
    cmp -- "reports/$file2" "TechCorp/$owner/$file2"
    ```
 
-2. Make one path error on purpose: from your reader department, try to read the report with a path that would only work from the lab folder. Copy the error message into `evidence/paths.txt` and write one line that explains it.
-3. Save the final list of files and check your milestones.
+   **You should see nothing.** If `cmp` prints `differ`, that copy is not the same: copy it again from `reports/` (Core 2, step 3) and compare again.
+
+2. **Make one path error on purpose, and explain it.** Go into your reader department. From there, try to read the first report with the path you would use from the lab folder:
+
+   ```bash
+   cd "TechCorp/$reader"
+   pwd
+   cat "reports/$file1"
+   ```
+
+   **You should see an error**, for example `cat: 'reports/budget 2026.txt': No such file or directory`, although the file exists. A relative path starts from the folder you are in, and there is no `reports` folder here.
+
+   Now find the relative path that **does** work from here, and try it until `cat` shows the report: `cat "PATH"`, with your path in place of `PATH`. Count how many folders you must go up to reach the lab folder.
+
+   Then write both down. Your evidence file is two folders up, so open it with `nano ../../evidence/paths.txt` and add two lines at the end:
+
+   ```text
+   Error: cat: 'reports/budget 2026.txt': No such file or directory
+   Fix: (the relative path that worked from your reader department)
+   ```
+
+   Put your own error message after `Error:`, and after `Fix:` only the path that worked, without `cat`. Save with `Ctrl+O` and `Enter`, and leave with `Ctrl+X`. `oslab check` tests both lines: the error must be real, and the Fix path must reach your report from your reader department.
+
+3. **Save the final list of files and check your milestones.**
 
    ```bash
    cd "$OSLAB_WORKSPACE/lab2"
@@ -427,9 +452,22 @@ Stuck for more than five minutes? Use `oslab hint lab2 1`, then `2`, then `3`.
    oslab check lab2
    ```
 
-   Read the first line from left to right (see [Concepts First](#concepts-first), part 7): `find` lists every file in the three folders, the pipe `|` passes the list to `sort`, which puts it in order, and `tee` shows it on the screen and saves it in `evidence/tree.txt`.
+   Read the first line from left to right (see [Concepts First](#concepts-first), part 7): `find` lists every file in the three folders, the pipe `|` passes the list to `sort`, which puts it in order, and `tee` shows it on the screen and saves it in `evidence/tree.txt`. `incoming` lists nothing now: `mv` emptied it.
 
-**Core is complete when** `oslab check lab2` shows `milestones: 4/4`.
+   **You should see** the list of files, then five `PASS` lines from `oslab check`, with your own owner department:
+
+   ```text
+   PASS: both files were moved into reports/ with their contents
+   PASS: TechCorp/Finance/ holds identical copies
+   PASS: archive/first-original.txt is a copy of your first file
+   PASS: evidence/paths.txt records a relative and an absolute path
+   PASS: evidence/paths.txt has your Error: line and a Fix: path that works from your reader department
+   milestones: 5/5
+   ```
+
+   A line that starts with `TRY` names what is still missing. Fix that part, then run `oslab check lab2` again. `oslab hint lab2 1` can help.
+
+**Core is complete when** `oslab check lab2` shows `milestones: 5/5`.
 
 ## Plus — Find the Lost File (75–90)
 
@@ -462,9 +500,9 @@ Wait until the instructor opens it. Close AI tools. Work alone.
 oslab checkpoint lab2
 ```
 
-1. Answer the questions. They use a new starting folder and a new target, made for you at this moment.
+1. Answer the four questions. They use a new starting folder and a new target, made for you at this moment. The last one asks which folder `..` is from your starting folder: type its path from the lab folder, or `.` if it is the lab folder itself.
 2. Then do what the command prints, and save the output in `evidence/checkpoint.txt`. It prints a line with `cat … | tee …`: `cat` shows the file, and `tee` also saves what it shows (see [Concepts First](#concepts-first), part 7).
-3. Run `oslab check lab2`. A fifth milestone, `checkpoint`, must pass.
+3. Run `oslab check lab2`. A sixth milestone, `checkpoint`, must pass.
 
 ## Debrief (105–115)
 
@@ -474,7 +512,13 @@ Look at your prediction again. `oslab` saved your answers in a hidden folder, `.
 cat "$OSLAB_WORKSPACE/.records/lab2-predict.json"
 ```
 
-In your report, write **confirmed** or **corrected** for each answer, and explain in 3–5 sentences why a correct file name can still give "No such file or directory".
+Now give the right answer to each prediction question. Type your answer again where your prediction was right, and the correct one where it was wrong:
+
+```bash
+oslab debrief lab2
+```
+
+Your prediction stays saved as it was, so the comparison shows which answers you confirmed and which you corrected. The debrief is marked: each answer must now be right. You may run it again if you mistype. Then the class discusses together: why can a correct file name still give "No such file or directory"?
 
 ## Submit (115–120)
 
@@ -484,17 +528,23 @@ In your report, write **confirmed** or **corrected** for each answer, and explai
    SUBMISSION_REPO="$HOME/os-gic-YOUR_ID/os-lab-YOUR_ID"
    mkdir -p "$SUBMISSION_REPO/lab2/evidence"
    cp -- evidence/paths.txt evidence/tree.txt "$SUBMISSION_REPO/lab2/evidence/"
+   cp -- evidence/checkpoint.txt "$SUBMISSION_REPO/lab2/evidence/"
    ```
 
-2. Fill in the [report template](README.md) as `lab2/README.md`. Add `checkpoint.txt`, and `plus.txt` or `challenge.txt` if you did them.
+   If you did Plus or Challenge, copy `evidence/plus.txt` or `evidence/challenge.txt` the same way.
+
+2. Fill in the [report template](README.md) as `lab2/README.md`. Your repository then has:
 
    ```text
    lab2/
    ├── README.md
    └── evidence/
-       ├── paths.txt   # your commands, your decision, and one explained error
-       └── tree.txt    # the final list of files
+       ├── checkpoint.txt   # the output you saved in the checkpoint
+       ├── paths.txt        # your commands, your decision, your Error: and Fix: lines
+       └── tree.txt         # the final list of files
    ```
+
+   The course website checks that `README.md`, `paths.txt` and `tree.txt` are there, with these exact names.
 
 3. Commit and push, as in Lab 1. `git pull` comes first, in case you pushed from your own computer since.
 
@@ -510,13 +560,13 @@ In your report, write **confirmed** or **corrected** for each answer, and explai
 
 | Evidence | Points |
 |---|---:|
-| Correct folders and files: `oslab check lab2` passes the four Core milestones | 2 |
-| Tests: identical copies with `cmp`, and one path error explained | 2 |
-| Prediction saved in time, and an honest confirmed/corrected explanation | 2 |
-| Live checkpoint: answers, the saved output, and your sentence | 3 |
-| Clear, complete evidence files and report | 1 |
+| Correct folders and files: `oslab check lab2` passes Core milestones 1 to 4 | 2 |
+| Tests: your path error and its working fix in `paths.txt` (milestone 5) | 2 |
+| Prediction saved in time, and corrected with `oslab debrief lab2` | 2 |
+| Live checkpoint: the three answers, the `..` question and the saved output | 3 |
+| Complete submission: the required files in your repository, on time | 1 |
 
-Plus and Challenge are not needed for full marks. They are noted in your feedback. Your prediction is marked for being made and corrected, not for being right.
+Every row is marked from your `oslab` records and the files in your repository, so run `oslab check lab2` until it shows what you expect. Your prediction earns its first point for being made, not for being right; the debrief earns the second when your answers are right after the lab. Plus and Challenge are not needed for full marks. They are noted in your feedback.
 
 ## Help and References
 

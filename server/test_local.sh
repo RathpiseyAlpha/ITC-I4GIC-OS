@@ -27,7 +27,27 @@ mkdir -p -- "$lab2/TechCorp/$owner/archive" "$lab2/evidence"
 cp -- "$lab2/reports/$file1" "$lab2/reports/$file2" "$lab2/TechCorp/$owner/"
 cp -- "$lab2/reports/$file1" "$lab2/TechCorp/$owner/archive/first-original.txt"
 printf '%s\n' "../$owner/$file1" "$lab2/TechCorp/$owner/$file1" > "$lab2/evidence/paths.txt"
-"${tool[@]}" check lab2 | grep -q 'milestones: 4/4'
+"${tool[@]}" check lab2 | grep -q 'milestones: 4/5'
+# Core 3: a real Error: line, and a Fix: path that reaches the report from the reader department.
+reader=$(value lab2 reader)
+error="Error: cat: 'reports/$file1': No such file or directory"
+printf '%s\n' "$error" "Fix: reports/$file1" >> "$lab2/evidence/paths.txt"
+"${tool[@]}" check lab2 | grep -q 'TRY : evidence/paths.txt has your Error: line'
+printf '%s\n' "../$owner/$file1" "$lab2/TechCorp/$owner/$file1" "$error" "Fix: cat '../../reports/$file1'" > "$lab2/evidence/paths.txt"
+"${tool[@]}" check lab2 | grep -q 'milestones: 5/5'
+grep -q '"path_error": {"error": true, "fix": true}' $(ls -t "$OSLAB_INBOX"/lab2.check.student-a.*.json | head -1)
+test -d "$lab2/TechCorp/$owner" && test -n "$reader"
+# Debrief: the right answers after the lab, marked against the prediction key; it may be run again.
+printf '../reports\nyes\n1\n2\nI guessed\n' | "${tool[@]}" predict lab2 | grep -q 'Saved and sent'
+printf '../reports\nno\n1\n2\n' | "${tool[@]}" debrief lab2 | grep -q 'Saved and sent'
+"${teach[@]}" export lab2 | grep -q '^student-a,[^,]*,[^,]*,3/4,.*,4/4,'
+python3 - "$script_dir" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import oslab
+assert oslab.mark("dir", "TechCorp/HR", "TechCorp/HR/") and oslab.mark("dir", "TechCorp/HR", "./TechCorp/HR")
+assert oslab.mark("dir", ".", ".") and not oslab.mark("dir", "TechCorp/HR", "TechCorp") and not oslab.mark("dir", ".", "")
+PY
 # Each check records the hash of the evidence it saw, so the submitted copy can be compared with it.
 sha=$(sha256sum -- "$lab2/evidence/paths.txt" | cut -d' ' -f1)
 grep -q "\"sha256\": \"$sha\"" "$OSLAB_INBOX"/lab2.check.student-a.*.json

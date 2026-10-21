@@ -238,7 +238,8 @@ def lab2_checkpoint(pick, v):
     qs = [question("path", "Type a relative path from that directory to the file. Do not type quotes.", "path", [cwd, target]),
           question("ups", "How many `..` does the shortest such path need?", "int", [ups]),
           question("args", f"From the lab folder you type  cat reports/{f2}  with no quotes. How many arguments does `cat` receive?", "int", [f2.count(" ") + 1]),
-          question("why", "One sentence: what does each `..` in your path do?", "text")]
+          question("parent", "Which folder is `..` from that directory? Type its path from the lab folder, for example reports. "
+                   "Type . if it is the lab folder itself.", "dir", posixpath.normpath(posixpath.join(cwd, "..")))]
     after = ["Now do it for real from that directory and save the output:",
              "  cat 'YOUR RELATIVE PATH' | tee \"$OSLAB_WORKSPACE/lab2/evidence/checkpoint.txt\"",
              "Then run: oslab check lab2"]
@@ -302,6 +303,9 @@ def mark(kind, expect, answer):
     if kind == "path":
         text = str(answer).strip().strip("'\"")
         return bool(text) and not text.startswith("/") and posixpath.normpath(posixpath.join(expect[0], text)) == expect[1]
+    if kind == "dir":
+        text = str(answer).strip().strip("'\"").strip()
+        return bool(text) and posixpath.normpath(text) == expect
     return None
 
 
@@ -320,13 +324,14 @@ def ask(item):
             return answer
         if kind == "yesno" and answer.lower() in ("y", "n", "yes", "no"):
             return answer.lower()[:1]
-        if kind == "path" and answer:
+        if kind in ("path", "dir") and answer:
             return answer
         if kind == "word" and answer and " " not in answer:
             return answer
         if kind == "text" and len(answer) >= 3:
             return answer
-        print({"int": "Type a whole number.", "yesno": "Type yes or no.", "path": "Type a path.", "word": "Type one word or number, without spaces.", "text": "Write a short sentence."}[kind])
+        print({"int": "Type a whole number.", "yesno": "Type yes or no.", "path": "Type a path.", "dir": "Type a folder path.",
+               "word": "Type one word or number, without spaces.", "text": "Write a short sentence."}[kind])
 
 
 def workspace():
@@ -523,6 +528,27 @@ def predict(base, lab):
     save_record(base, lab, "predict", {"values": values, "answers": answers})
 
 
+def debrief(base, lab):
+    """After the lab: give the right answer to each marked prediction question. The prediction stays as it
+    was; comparing the two shows which answers were confirmed and which corrected."""
+    if lab not in PREDICT:
+        fail(f"{lab} has no prediction to debrief")
+    ensure_base(base)
+    first = read_record(base, lab, "predict")
+    if not first:
+        fail(f"save your prediction first: oslab predict {lab}")
+    values = lab_values(lab, current_user())
+    print("Debrief: now that you have done the lab, give the right answer to each prediction question.")
+    print("If your prediction was right, type it again. Your prediction itself stays saved as it was.")
+    answers = {}
+    for item in PREDICT[lab](values):
+        if item["expect"] is None:
+            continue
+        shown = dict(item, text=f"{item['text']}\n(Your prediction was: {first['answers'].get(item['key'], '')})")
+        answers[item["key"]] = ask(shown)
+    save_record(base, lab, "debrief", {"values": values, "answers": answers})
+
+
 def release_nonce(lab):
     folder = Path(os.environ.get("OSLAB_RELEASE_DIR", DEFAULT_RELEASE))
     if not folder.is_dir():
@@ -666,16 +692,39 @@ def same_bytes(first, second):
         return False
 
 
+def lab2_path_error(target, values):
+    """Core 3, step 2: an Error: line with a real "No such file or directory", and a Fix: line holding a
+    relative path that reaches one of the two reports from the reader department."""
+    error = fix = False
+    start = (target / "TechCorp" / values["reader"]).as_posix()
+    reports = {(target / "reports" / values[n]).as_posix() for n in ("file1", "file2")}
+    for line in read_text(target / "evidence/paths.txt").splitlines():
+        head, _, rest = line.partition(":")
+        head, rest = head.strip().lower(), rest.strip()
+        if head == "error" and "no such file or directory" in rest.lower():
+            error = True
+        if head == "fix":
+            if rest.lower().startswith("cat "):
+                rest = rest[4:].strip()
+            path = rest.strip("'\"")
+            if path and not path.startswith(("/", "~", "$")) and posixpath.normpath(posixpath.join(start, path)) in reports:
+                fix = True
+    return {"error": error, "fix": fix}
+
+
 def check_lab2(target, values, extra):
     names = (values["file1"], values["file2"])
     wanted = (f"amount,{values['amount1']}\n", f"amount,{values['amount2']}\n")
     owner = target / "TechCorp" / values["owner"]
     moved = all(read_text(target / "reports" / n) == w and not (target / "incoming" / n).exists() for n, w in zip(names, wanted))
     paths = read_text(target / "evidence/paths.txt")
+    path_error = lab2_path_error(target, values)
     results = [("both files were moved into reports/ with their contents", moved),
                (f"TechCorp/{values['owner']}/ holds identical copies", all(same_bytes(target / "reports" / n, owner / n) for n in names)),
                ("archive/first-original.txt is a copy of your first file", read_text(owner / "archive/first-original.txt") == wanted[0]),
-               ("evidence/paths.txt records a relative and an absolute path", "../" in paths and re.search(r"(^|[\s'\"])/", paths) is not None)]
+               ("evidence/paths.txt records a relative and an absolute path", "../" in paths and re.search(r"(^|[\s'\"])/", paths) is not None),
+               ("evidence/paths.txt has your Error: line and a Fix: path that works from your reader department",
+                path_error["error"] and path_error["fix"])]
     if extra:
         results.append(("checkpoint: evidence/checkpoint.txt holds the content of the target file",
                         extra["content"] in read_text(target / "evidence/checkpoint.txt")))
@@ -683,6 +732,8 @@ def check_lab2(target, values, extra):
 
 
 CHECKS = {"lab1": check_lab1, "lab2": check_lab2, "lab8": check_lab8}
+# Details a check sends with its milestones, so the marking screen can give part of a row's points.
+CHECK_DETAILS = {"lab2": lambda target, values: {"path_error": lab2_path_error(target, values)}}
 EVIDENCE_BUDGET = 8000  # bytes of file entries per record; oslab_teach drops records over 16 KB
 HASH_LIMIT = 5_000_000
 
@@ -727,11 +778,14 @@ def check(base, lab):
     evidence = {"files": files, "files_skipped": skipped}
     if lab in CHECKS:
         record = read_record(base, lab, "checkpoint")
-        results = CHECKS[lab](target, lab_values(lab, current_user()), record["values"] if record else None)
+        values = lab_values(lab, current_user())
+        results = CHECKS[lab](target, values, record["values"] if record else None)
         for text, passed in results:
             print(f"{'PASS' if passed else 'TRY '}: {text}")
         passed = [text for text, ok in results if ok]
         print(f"milestones: {len(passed)}/{len(results)}")
+        if lab in CHECK_DETAILS:
+            evidence.update(CHECK_DETAILS[lab](target, values))
         submit(lab, "check", dict(evidence, passed=len(passed), total=len(results),
                                   failed=[t for t, ok in results if not ok],
                                   checkpoint=results[-1][1] if record else None))
@@ -746,7 +800,7 @@ def check(base, lab):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["doctor", "list", "start", "status", "values", "prelab", "predict",
-                                            "hint", "check", "checkpoint", "reset", "clean"])
+                                            "hint", "check", "checkpoint", "debrief", "reset", "clean"])
     parser.add_argument("lab", nargs="?")
     parser.add_argument("level", nargs="?", type=int)
     args = parser.parse_args()
@@ -793,7 +847,7 @@ def main():
         if target.exists():
             safe_tree(target)
             marker(target, args.lab)
-        for kind in ("prelab", "predict", "checkpoint"):
+        for kind in ("prelab", "predict", "checkpoint", "debrief"):
             print(f"  {kind}: {'saved' if read_record(base, args.lab, kind) else 'not yet'}")
     elif args.command == "values":
         show_values(args.lab)
@@ -803,6 +857,8 @@ def main():
         predict(base, args.lab)
     elif args.command == "checkpoint":
         checkpoint(base, args.lab)
+    elif args.command == "debrief":
+        debrief(base, args.lab)
     elif args.command == "hint":
         if args.level not in (1, 2, 3):
             fail("hint level must be 1, 2, or 3")

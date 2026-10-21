@@ -121,6 +121,8 @@ cat "$OSLAB_WORKSPACE/lab2/TechCorp/$owner/$file1"
 if cat "reports/$file1" 2>/dev/null; then exit 1; fi
 cd "$OSLAB_WORKSPACE/lab2"
 printf '%s\\n' "cat ../$owner/$file1" "cat $OSLAB_WORKSPACE/lab2/TechCorp/$owner/$file1" > evidence/paths.txt
+# Core 3 step 2 is typed into nano by the student; these are the two lines it asks for.
+printf '%s\\n' "Error: cat: 'reports/$file1': No such file or directory" "Fix: ../../reports/$file1" >> evidence/paths.txt
 '''+section(2, 'Core 3')+section(2, 'Plus')+'''
 cd mess/c
 mv -- '../a/b/lost file.txt' found.txt
@@ -128,7 +130,7 @@ cd ../a/b
 cp -- ../../c/found.txt "../../../TechCorp/$third/"
 test -f "$OSLAB_WORKSPACE/lab2/TechCorp/$third/found.txt"
 ''', home, env, 'Lab2 path/content')
-    assert 'milestones: 4/4' in out, out
+    assert 'milestones: 5/5' in out, out
 
     core = [code for section, code in routes[3] if section.startswith('## Task 2')]
     shell(core[0]+core[1]+'rm -- soft.txt\nln -s renamed.txt soft.txt\n'+core[2]+core[3], base/'lab3', env, 'Lab3 rename/repair')

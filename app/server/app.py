@@ -1697,7 +1697,7 @@ def _oslab_activity(username, lab):
         for item in items:
             answer = given.get(item["key"], "")
             out.append({
-                "question": item["text"], "answer": answer,
+                "key": item["key"], "question": item["text"], "answer": answer,
                 "expected": _expected_text(item),
                 "ok": oslab.mark(item["kind"], item["expect"], answer),
             })
@@ -1705,13 +1705,13 @@ def _oslab_activity(username, lab):
 
     checks = [{"passed": c.get("passed", 0), "total": c.get("total", 0),
                "failed": c.get("failed", []), "time": c.get("time", ""),
-               "checkpoint": c.get("checkpoint")}
+               "checkpoint": c.get("checkpoint"), "pathError": c.get("path_error")}
               for c in kinds.get("check", [])]
     out = {
         "available": True, "values": values, "released": bool(nonce),
         "flag": username in flagged,
         "started": bool(kinds.get("start")),
-        "prelab": None, "prediction": None, "checkpoint": None,
+        "prelab": None, "prediction": None, "debrief": None, "checkpoint": None,
         "hints": [{"level": h.get("level"), "time": h.get("time", "")}
                   for h in kinds.get("hint", [])],
         "checks": checks,
@@ -1727,6 +1727,11 @@ def _oslab_activity(username, lab):
             "time": first.get("time", ""),
             "answers": marked(oslab.PREDICT[lab](values), first.get("answers", {})),
         }
+    if kinds.get("debrief"):
+        last = kinds["debrief"][-1]  # a student may run the debrief again; the last one counts
+        items = [item for item in oslab.PREDICT[lab](values) if item["expect"] is not None]
+        out["debrief"] = {"time": last.get("time", ""),
+                          "answers": marked(items, last.get("answers", {}))}
     if kinds.get("checkpoint"):
         first = kinds["checkpoint"][0]
         practice = bool(first.get("practice")) or not nonce
@@ -1740,9 +1745,17 @@ def _oslab_activity(username, lab):
     return out
 
 
-def _mark_suggestions(rubric, activity):
+def _share(right, total):
+    """1 point when all are right, half when at least half are, else 0."""
+    if not total:
+        return 0.0
+    return 1.0 if right == total else 0.5 if right * 2 >= total else 0.0
+
+
+def _mark_suggestions(rubric, activity, grade=None):
     """Points the lab records already justify, for the pilot rubric
-    (files 2, report 2, prediction 2, checkpoint 3, homework 1)."""
+    (files 2, report 2, prediction 2, checkpoint 3, homework 1).
+    grade is the file check of the submitted folder, for the last row."""
     if not activity.get("available"):
         return {}
     if [r["max"] for r in rubric] != [2.0, 2.0, 2.0, 3.0, 1.0]:
@@ -1753,25 +1766,50 @@ def _mark_suggestions(rubric, activity):
         extra = 0 if best["checkpoint"] is None else 1
         core_total = best["total"] - extra
         core_passed = best["passed"] - (1 if best["checkpoint"] else 0)
+        error = best.get("pathError")
+        if error is not None:
+            # Lab 2: the path-error milestone belongs to the tests row, not to the files row.
+            found, fixed = bool(error.get("error")), bool(error.get("fix"))
+            core_total -= 1
+            core_passed -= 1 if found and fixed else 0
+            out["r2"] = {
+                "points": float(found) + float(fixed),
+                "note": f"paths.txt: Error line {'found' if found else 'missing'}, "
+                        f"Fix path {'works' if fixed else 'missing or wrong'}",
+            }
         if core_total > 0:
             out["r1"] = {
                 "points": round(2 * core_passed / core_total * 2) / 2,
                 "note": f"{core_passed} of {core_total} milestones passed",
             }
     if activity.get("prediction"):
-        out["r3"] = {"points": 1.0,
-                     "note": "saved in time; add 1 for the correction in the report"}
+        debrief = activity.get("debrief")
+        if debrief:
+            marks = [a["ok"] for a in debrief["answers"] if a["ok"] is not None]
+            out["r3"] = {"points": 1.0 + _share(sum(marks), len(marks)),
+                         "note": f"saved in time; debrief: {sum(marks)} of {len(marks)} answers right"}
+        else:
+            out["r3"] = {"points": 1.0,
+                         "note": "saved in time; no debrief yet (add 1 for the correction in the report)"}
     cp = activity.get("checkpoint")
     if cp and not cp["practice"]:
-        marks = [a["ok"] for a in cp["answers"] if a["ok"] is not None]
-        right = sum(marks)
-        answers = 1.0 if marks and right == len(marks) else 0.5 if right * 2 >= len(marks) and marks else 0.0
+        parent = [a["ok"] for a in cp["answers"] if a.get("key") == "parent" and a["ok"] is not None]
+        marks = [a["ok"] for a in cp["answers"] if a.get("key") != "parent" and a["ok"] is not None]
         task = 1.0 if cp["taskDone"] else 0.0
-        out["r4"] = {
-            "points": answers + task,
-            "note": f"{right} of {len(marks)} answers right, file task "
-                    f"{'done' if cp['taskDone'] else 'not done'}; add up to 1 for the sentence",
-        }
+        note = (f"{sum(marks)} of {len(marks)} answers right, file task "
+                f"{'done' if cp['taskDone'] else 'not done'}")
+        if parent:
+            note += f", .. question {'right' if parent[0] else 'wrong'}"
+        else:
+            note += "; add up to 1 for the sentence"
+        out["r4"] = {"points": _share(sum(marks), len(marks)) + task + (1.0 if parent and parent[0] else 0.0),
+                     "note": note}
+    if grade and grade.get("found"):
+        missing = [i["expected"] for i in grade.get("items", []) if i.get("status") != "ok"]
+        percent = grade.get("finalPercentage", 0)
+        out["r5"] = {"points": 1.0 if percent >= 100 else 0.5 if percent >= 50 else 0.0,
+                     "note": "every required file submitted on time" if not missing and percent >= 100
+                             else f"file check {percent:g}%" + (f"; missing or misnamed: {', '.join(missing)}" if missing else "; late")}
     return out
 
 
@@ -2100,7 +2138,7 @@ def route_admin_mark():
     return jsonify({
         "user": user, "lab": lab, "id": sid, "name": STUDENTS[sid]["name"],
         "mark": _mark_view(lab, _load_marks().get(lab, {}).get(user), rubric),
-        "suggested": _mark_suggestions(rubric, activity) if activity else {},
+        "suggested": _mark_suggestions(rubric, activity, grade_student_lab(user, lab)) if activity else {},
         "activity": activity,
     })
 

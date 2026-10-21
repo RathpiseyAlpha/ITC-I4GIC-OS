@@ -1,11 +1,11 @@
 # Lab 2 — Linux Navigation and File Management: individual report
 
-Copy this template to `lab2/README.md` in your own course repository. Follow [the instructions](lab2-instruction.md). Your prediction and checkpoint answers are already saved by `oslab`; do not copy them here.
+Copy this template to `lab2/README.md` in your own course repository. Follow [the instructions](lab2-instruction.md). Your prediction, debrief and checkpoint answers are already saved by `oslab`; do not copy them here. The marks come from those records and your evidence files; this report is your own record of the lab.
 
 - Student name/ID:
 - Ubuntu username:
 - My values (`oslab values lab2`): file1 = , file2 = , owner = , reader = , third =
-- Files: `evidence/paths.txt`, `evidence/tree.txt`
+- Files: `evidence/paths.txt`, `evidence/tree.txt`, `evidence/checkpoint.txt`
 
 ## What I Did
 
@@ -15,14 +15,11 @@ Copy this template to `lab2/README.md` in your own course repository. Follow [th
 | Move the second file (absolute paths) | | |
 | Read the report from my reader department (relative path) | | |
 | The path error I made on purpose, and its message | | |
-
-## My Prediction: Confirmed or Corrected
-
-For each prediction answer, write **confirmed** or **corrected** and the result that shows it.
+| The relative path that fixed it | | |
 
 ## Explanation
 
-In 3–5 sentences: why can a correct file name still give "No such file or directory"? What is the difference between `mv` and `cp`, using your own files as the example?
+`oslab debrief lab2` records which prediction answers you confirmed and which you corrected. Here, in 3–5 sentences for yourself: why can a correct file name still give "No such file or directory"? What is the difference between `mv` and `cp`, using your own files as the example?
 
 ## What My Tests Do Not Prove
 

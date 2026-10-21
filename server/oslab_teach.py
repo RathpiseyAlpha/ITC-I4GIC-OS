@@ -131,7 +131,7 @@ def marks(items, answers):
 
 def summary(lab, user, kinds, nonce):
     row = {"user": user, "prelab": "", "started": "", "predict": "", "checks": "", "hints": "", "checkpoint": "", "task": "",
-           "predict_answers": {}, "checkpoint_answers": {}, "auto_points": ""}
+           "debrief": "", "predict_answers": {}, "checkpoint_answers": {}, "auto_points": ""}
     if kinds.get("prelab"):
         first = kinds["prelab"][0]
         row["prelab"] = f"{first.get('first_try', '?')}/{first.get('questions', '?')}"
@@ -142,6 +142,9 @@ def summary(lab, user, kinds, nonce):
         good, total = marks(oslab.PREDICT[lab](oslab.lab_values(lab, user)), answers)
         row["predict"] = f"{good}/{total}"
         row["predict_answers"] = answers
+    if kinds.get("debrief") and lab in oslab.PREDICT:
+        good, total = marks(oslab.PREDICT[lab](oslab.lab_values(lab, user)), kinds["debrief"][-1].get("answers", {}))
+        row["debrief"] = f"{good}/{total}"
     if kinds.get("check"):
         best = max(kinds["check"], key=lambda record: (record.get("passed", 0), record["_when"]))
         score = f"{best['passed']}/{best.get('total', 0)} " if "passed" in best else ""  # labs without milestones
@@ -157,10 +160,14 @@ def summary(lab, user, kinds, nonce):
         if first.get("practice") or not nonce:
             row["checkpoint"] = "practice"
         else:
-            good, total = marks(oslab.checkpoint_task(lab, user, nonce)[2], answers)
+            items = oslab.checkpoint_task(lab, user, nonce)[2]
+            parent = [item for item in items if item["key"] == "parent"]
+            good, total = marks([item for item in items if item["key"] != "parent"], answers)
             row["checkpoint"] = f"{good}/{total}"
-            # 1 point for the answers (half if at least half are right), 1 for the task; the sentence point is read by a person.
-            row["auto_points"] = (1 if good == total else 0.5 if good * 2 >= total else 0) + (1 if row["task"] == "done" else 0)
+            # 1 point for the answers (half if at least half are right), 1 for the task, and 1 for the `..` question
+            # where the checkpoint has one (Lab 2); otherwise a person reads the sentence for the third point.
+            row["auto_points"] = ((1 if good == total else 0.5 if good * 2 >= total else 0) + (1 if row["task"] == "done" else 0)
+                                  + (marks(parent, answers)[0] if parent else 0))
     return row
 
 
@@ -176,7 +183,7 @@ def rows(lab, names):
 
 def board(lab, names):
     table, nonce = rows(lab, names)
-    columns = ("user", "prelab", "started", "predict", "checks", "hints", "checkpoint", "task", "flag")
+    columns = ("user", "prelab", "started", "predict", "checks", "hints", "checkpoint", "task", "debrief", "flag")
     widths = {name: max(len(name), *(len(str(row[name])) for row in table)) if table else len(name) for name in columns}
     print(f"{lab} at {time.strftime('%H:%M:%S')}   checkpoint: {'RELEASED' if nonce else 'closed'}   students: {len(table)}")
     print("  ".join(name.ljust(widths[name]) for name in columns))
@@ -192,7 +199,7 @@ def board(lab, names):
                 continue
             spread = Counter(str(row["predict_answers"].get(item["key"])) for row in table if row["predict_answers"])
             print(f"  {item['key']:9} " + "  ".join(f"{answer}: {count}" for answer, count in spread.most_common()))
-    sentences = [(row["user"], row["checkpoint_answers"].get("why", "")) for row in table if row["checkpoint_answers"]]
+    sentences = [(row["user"], row["checkpoint_answers"]["why"]) for row in table if row["checkpoint_answers"].get("why")]
     if sentences:
         print("\nCheckpoint sentences")
         for user, text in sentences:
@@ -240,10 +247,10 @@ def export(lab, names):
     table, _ = rows(lab, names)
     writer = csv.writer(sys.stdout)
     writer.writerow(["user", "prelab_first_try", "started", "predict_correct", "milestones", "hints", "checkpoint_answers",
-                     "checkpoint_task", "checkpoint_auto_points_of_2", "flag", "predict_sentence", "checkpoint_sentence"])
+                     "checkpoint_task", "checkpoint_auto_points", "debrief_correct", "flag", "predict_sentence", "checkpoint_sentence"])
     for row in table:
         writer.writerow([row["user"], row["prelab"], row["started"], row["predict"], row["checks"], row["hints"], row["checkpoint"],
-                         row["task"], row["auto_points"], row["flag"], row["predict_answers"].get("why", ""),
+                         row["task"], row["auto_points"], row["debrief"], row["flag"], row["predict_answers"].get("why", ""),
                          row["checkpoint_answers"].get("why", "")])
 
 

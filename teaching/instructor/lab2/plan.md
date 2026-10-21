@@ -19,7 +19,7 @@ This lab uses the pilot format. Read the [student instruction](../../../labs/lab
 
 ## Guide
 
-Project the guide (`labs/lab2/guides/slides.html`, 62 slides; PDF `lab2-guides.pdf`). It follows the instruction:
+Project the guide (`labs/lab2/guides/slides.html`, 64 slides; PDF `lab2-guides.pdf`). It follows the instruction:
 
 | Slides | Part | When |
 |---|---|---|
@@ -28,9 +28,9 @@ Project the guide (`labs/lab2/guides/slides.html`, 62 slides; PDF `lab2-guides.p
 | 28 to 35 | How the lab works, setup, values and placeholders | Setup |
 | 36 to 38 | Guided: where am I? | Minutes 10 to 20 |
 | 39 to 40 | Prediction | Prediction |
-| 41 to 48 | Core 1 to 3, Plus and Challenge | Core |
-| 49 to 54 | Live checkpoint | Before you release it |
-| 55 to 62 | Debrief, submit, grading, mistakes, takeaways | End of class |
+| 41 to 50 | Core 1 to 3, Plus and Challenge | Core |
+| 51 to 56 | Live checkpoint | Before you release it |
+| 57 to 64 | Debrief, submit, grading, mistakes, takeaways | End of class |
 
 ## Timetable and What You Do
 
@@ -43,10 +43,10 @@ Keep `sudo oslab-teach board lab2 --roster FILE --watch 20` open on your own scr
 | 20–30 | Prediction, then class discussion | At minute 25 read the **prediction spread** aloud without names. The `same` question (does `../reports` still work from the lab folder?) is the one to discuss |
 | 30–40 | Core 1: build the company folders | Short. Move on at minute 40 even if some are slow; Core 2 does not depend on the reader and third folders |
 | 40–65 | Core 2: move and copy with your own paths | Nobody is given commands here. Sort your visits by the board: no check yet, then stuck at 1/4. Answer with "run `pwd`; now draw where the file must go" |
-| 65–75 | Core 3: prove it | Check that students compare with `cmp`, not with `ls` |
-| 75–90 | Plus and Challenge (or finish Core) | Work only with students below 4/4 |
+| 65–75 | Core 3: prove it | Check that students compare with `cmp`, not with `ls`. The most common TRY at milestone 5 is a Fix path written from the lab folder instead of from the reader department |
+| 75–90 | Plus and Challenge (or finish Core) | Work only with students below 5/5 |
 | 90–105 | Live checkpoint | At minute 90 say "close AI tools" and run `sudo oslab-teach release lab2` |
-| 105–115 | Debrief | Use the script below |
+| 105–115 | Debrief | Students run `oslab debrief lab2` first (two minutes), then use the script below |
 | 115–120 | Submit | Run `sudo oslab-teach export lab2 --roster FILE > lab2.csv` |
 
 ## Expected Results
@@ -67,7 +67,7 @@ cat "$OSLAB_WORKSPACE/lab2/TechCorp/Finance/budget 2026.txt"
 
 Use this only on a fresh instructor fixture with those values; it is an illustration, not a reset command.
 
-- **Deliberate error (Core 3):** from the reader department, `cat 'reports/budget 2026.txt'` gives "No such file or directory" although the name is right, because `reports` is not a child of the current folder.
+- **Deliberate error (Core 3):** from the reader department, `cat 'reports/budget 2026.txt'` gives "No such file or directory" although the name is right, because `reports` is not a child of the current folder. The `Fix:` line is `../../reports/budget 2026.txt`; `oslab check` accepts any relative path that reaches either report from the reader department, with or without `cat` and quotes.
 - **Plus:** from `mess/c`, `mv -- '../a/b/lost file.txt' found.txt`. From `mess/a/b`, the copy needs three `..` to reach the lab folder.
 - **Challenge:** a quoted `'*.txt'` is not expanded by the shell, so `cp` looks for a file literally named `*.txt`. An unquoted `*` does not match names that start with a dot.
 
@@ -79,9 +79,11 @@ The checkpoint is worth 3 points:
 
 | Part | Points | Source |
 |---|---:|---|
-| The three marked answers (all right 1, at least half 0.5) | 1 | `checkpoint_auto_points_of_2` in the export |
+| The three marked answers: path, number of `..`, number of arguments (all right 1, at least half 0.5) | 1 | `checkpoint_auto_points` in the export |
+| The `..` question: which folder `..` is from the start folder, typed from the lab folder | 1 | same column |
 | `evidence/checkpoint.txt` holds the content of the target file | 1 | same column |
-| The sentence says each `..` goes up one folder from the current one | 1 | read `checkpoint_sentence` in the export |
+
+The marking screen suggests the same points, with a note per row.
 
 The `flag` column says `rewritten` when a prediction or checkpoint was sent more than once or removed; look at that student's work before marking.
 
@@ -90,7 +92,7 @@ The `flag` column says `rewritten` when a prediction or checkpoint was sent more
 1. Show the prediction spread for `same`. Ask a student who answered "yes" what happened when they tried it.
 2. Ask: "The file name was correct. Why did the system say no such file?" Lead to: a relative path is read from the current folder.
 3. Ask who used `ls` and who used `cmp` to prove the copy. What can `ls` not show?
-4. Read two checkpoint sentences without names and let the class improve the weaker one.
+4. Show the `..` question of the checkpoint on the board and let a student explain it: each `..` goes up one folder from the current one.
 
 ## Misconceptions
 
@@ -105,7 +107,7 @@ Use the hints in order (`oslab hint lab2 1` to `3`). For a student far behind at
 
 - `--` stops option parsing; it matters for names that start with a dash and is good habit in scripts.
 - `oslab reset lab2` saves the current attempt and creates a fresh fixture. Do not suggest it for one wrong `mv`; the student can move the file back.
-- `oslab check lab2` compares bytes of the student's files. It reads `evidence/paths.txt` only for the presence of a relative and an absolute path, not for correctness.
+- `oslab check lab2` compares bytes of the student's files. In `evidence/paths.txt` it looks for a relative and an absolute path (milestone 4, presence only), and for the `Error:` line with a real "No such file or directory" and a `Fix:` path that resolves from the reader department to a report (milestone 5).
 
 ## Fallback
 
@@ -115,10 +117,10 @@ Without the class inbox, everything works in practice mode: answers stay in the 
 
 | Evidence | Points |
 |---|---:|
-| Correct folders and files: `oslab check lab2` passes the four Core milestones | 2 |
-| Tests: identical copies with `cmp`, and one path error explained | 2 |
-| Prediction saved in time, and an honest confirmed/corrected explanation | 2 |
-| Live checkpoint: answers, the saved output, and the sentence | 3 |
-| Clear, complete evidence files and report | 1 |
+| Correct folders and files: `oslab check lab2` passes Core milestones 1 to 4 | 2 |
+| Tests: the path error and its working fix in `paths.txt` (milestone 5) | 2 |
+| Prediction saved in time, and corrected with `oslab debrief lab2` | 2 |
+| Live checkpoint: the three answers, the `..` question and the saved output | 3 |
+| Complete submission: the required files in the repository, on time | 1 |
 
-The export gives you the first and fourth rows almost directly. Read only `paths.txt` and the report's explanation for the rest.
+Every row is suggested on the marking screen: rows 1 and 2 from the best `oslab check` record (milestone 5 gives 1 point for the Error line and 1 for the Fix path), row 3 from the prediction (1) and the last debrief (1 when all its answers are right, 0.5 when at least half are), row 4 from the checkpoint, and row 5 from the website's file check of the repository (1 at 100% including the late penalty, 0.5 from 50%). Press "fill the empty boxes with the suggested points", look only at rows whose note shows a problem, then save. The report itself is not marked.
