@@ -683,12 +683,48 @@ def check_lab2(target, values, extra):
 
 
 CHECKS = {"lab1": check_lab1, "lab2": check_lab2, "lab8": check_lab8}
+EVIDENCE_BUDGET = 8000  # bytes of file entries per record; oslab_teach drops records over 16 KB
+HASH_LIMIT = 5_000_000
+
+
+def evidence_files(target):
+    """Hash, size and time of the top-level files and everything under evidence/,
+    so the instructor can compare the submitted copies with what was checked here.
+    Returns (entries, skipped): entries stop at the byte budget; dotfiles and links are left out."""
+    paths = [p for p in sorted(target.iterdir()) if not p.name.startswith(".")]
+    folder = target / "evidence"
+    if folder.is_dir() and not folder.is_symlink():
+        for root, dirs, files in os.walk(folder):
+            dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+            paths += [Path(root) / f for f in sorted(files) if not f.startswith(".")]
+    entries, used, skipped = [], 0, 0
+    for path in paths:
+        if path.is_symlink() or not path.is_file():
+            continue
+        if used >= EVIDENCE_BUDGET:
+            skipped += 1
+            continue
+        info = path.lstat()
+        digest = None
+        if info.st_size <= HASH_LIMIT:
+            sha = hashlib.sha256()
+            with path.open("rb") as handle:
+                for block in iter(lambda: handle.read(65536), b""):
+                    sha.update(block)
+            digest = sha.hexdigest()
+        entry = {"path": path.relative_to(target).as_posix(), "size": info.st_size,
+                 "mtime": int(info.st_mtime), "sha256": digest}
+        used += len(json.dumps(entry))
+        entries.append(entry)
+    return entries, skipped
 
 
 def check(base, lab):
     target = base / lab
     safe_tree(target)
     marker(target, lab)
+    files, skipped = evidence_files(target)
+    evidence = {"files": files, "files_skipped": skipped}
     if lab in CHECKS:
         record = read_record(base, lab, "checkpoint")
         results = CHECKS[lab](target, lab_values(lab, current_user()), record["values"] if record else None)
@@ -696,12 +732,15 @@ def check(base, lab):
             print(f"{'PASS' if passed else 'TRY '}: {text}")
         passed = [text for text, ok in results if ok]
         print(f"milestones: {len(passed)}/{len(results)}")
-        submit(lab, "check", {"passed": len(passed), "total": len(results), "failed": [t for t, ok in results if not ok],
-                              "checkpoint": results[-1][1] if record else None})
-    elif lab == "lab10":
+        submit(lab, "check", dict(evidence, passed=len(passed), total=len(results),
+                                  failed=[t for t, ok in results if not ok],
+                                  checkpoint=results[-1][1] if record else None))
+        return
+    if lab == "lab10":
         print("Inspect archive contents and retention manually; public checks cannot grade cron behaviour.")
     else:
         print("Fixture integrity OK. Submit your test evidence and explanation for human review.")
+    submit(lab, "check", evidence)
 
 
 def main():

@@ -144,7 +144,8 @@ def summary(lab, user, kinds, nonce):
         row["predict_answers"] = answers
     if kinds.get("check"):
         best = max(kinds["check"], key=lambda record: (record.get("passed", 0), record["_when"]))
-        row["checks"] = f"{best.get('passed', 0)}/{best.get('total', 0)} x{len(kinds['check'])}"
+        score = f"{best['passed']}/{best.get('total', 0)} " if "passed" in best else ""  # labs without milestones
+        row["checks"] = f"{score}x{len(kinds['check'])}"
         outcome = [record.get("checkpoint") for record in kinds["check"] if record.get("checkpoint") is not None]
         row["task"] = "" if not outcome else ("done" if any(outcome) else "no")
     if kinds.get("hint"):

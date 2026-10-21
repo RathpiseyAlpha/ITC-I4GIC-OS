@@ -19,6 +19,7 @@ import math
 import os
 import re
 import secrets
+import struct
 import subprocess
 import threading
 import time
@@ -313,21 +314,6 @@ def admin_required(f):
 
 # ── Admin Statistics ───────────────────────────────────────────
 
-def _parse_last_date(raw):
-    m = re.search(
-        r'[A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}',
-        raw,
-    )
-    if m:
-        try:
-            dt = datetime.strptime(m.group(), "%a %b %d %H:%M:%S %Y")
-            local_tz = datetime.now().astimezone().tzinfo
-            return dt.replace(tzinfo=local_tz)
-        except ValueError:
-            pass
-    return None
-
-
 def get_user_stats():
     stats = {}
 
@@ -355,62 +341,20 @@ def get_user_stats():
     except OSError:
         pass
 
-    try:
-        result = subprocess.run(
-            ["last", "-n", "500", "-F", "-w"],
-            capture_output=True, text=True, timeout=10,
-        )
-        for line in result.stdout.strip().splitlines():
-            line = line.strip()
-            if not line or "wtmp begins" in line.lower():
-                continue
-            parts = line.split()
-            if len(parts) < 3:
-                continue
-            username = parts[0]
-            if username in ("reboot", "shutdown"):
-                continue
-            if username not in stats:
-                stats[username] = {
-                    "username": username,
-                    "loginCount": 0,
-                    "lastLogin": "",
-                    "totalSeconds": 0,
-                }
-            stats[username]["loginCount"] += 1
-            if not stats[username]["lastLogin"]:
-                info = " ".join(parts[2:])
-                for sep in (" - ", " still logged in"):
-                    idx = info.find(sep)
-                    if idx > 0:
-                        info = info[:idx]
-                raw = info.strip()
-                parsed_dt = _parse_last_date(raw)
-                if parsed_dt:
-                    stats[username]["lastLogin"] = parsed_dt.astimezone(
-                        _PPH
-                    ).isoformat()
-                else:
-                    stats[username]["lastLogin"] = raw
-            if "(" in line and ")" in line:
-                dur_str = line[line.rindex("(") + 1 : line.rindex(")")]
-                try:
-                    if "+" in dur_str:
-                        day_part, time_part = dur_str.split("+", 1)
-                        days = int(day_part)
-                    else:
-                        days = 0
-                        time_part = dur_str
-                    hm = time_part.split(":")
-                    hours = int(hm[0])
-                    minutes = int(hm[1]) if len(hm) > 1 else 0
-                    stats[username]["totalSeconds"] += (
-                        days * 86400 + hours * 3600 + minutes * 60
-                    )
-                except (ValueError, IndexError):
-                    pass
-    except Exception:
-        pass
+    ended = set()
+    for username, start, end in _wtmp_sessions():
+        if username not in stats:
+            stats[username] = {
+                "username": username,
+                "loginCount": 0,
+                "lastLogin": "",
+                "totalSeconds": 0,
+            }
+        stats[username]["loginCount"] += 1
+        stats[username]["lastLogin"] = datetime.fromtimestamp(start, _PPH).isoformat()
+        if end is not None:
+            stats[username]["totalSeconds"] += max(0, end - start)
+            ended.add(username)
 
     current = get_logged_in_users()
     online = {u["username"] for u in current}
@@ -419,10 +363,46 @@ def get_user_stats():
         secs = u["totalSeconds"]
         h, rem = divmod(secs, 3600)
         m = rem // 60
-        u["totalDuration"] = f"{h}h {m}m"
+        # Logins without any recorded logout have no known length.
+        known = u["username"] in ended or not u["loginCount"]
+        u["totalDuration"] = f"{h}h {m}m" if known else "—"
         u["isOnline"] = u["username"] in online
         result_list.append(u)
     return result_list
+
+
+_WTMP_FILE = os.environ.get("ITC_OS_WTMP", "/var/log/wtmp")
+_UTMP_RECORD = struct.Struct("<hxxi32s4s32s256shhiii4i20s")  # struct utmp, x86_64 Linux
+_USER_PROCESS, _DEAD_PROCESS, _BOOT_TIME = 7, 8, 2
+
+
+def _wtmp_sessions(path=None):
+    """Logins in the wtmp file as (user, start, end), oldest first; end is None
+    when no logout was recorded. Ubuntu 26.04 has no `last`, so the file is read
+    here. A session ends at the next logout on its terminal or at a reboot."""
+    path = path or _WTMP_FILE
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError as exc:
+        print("[stats] cannot read", path, "-", exc, flush=True)
+        return []
+    sessions, open_on = [], {}
+    usable = len(data) - len(data) % _UTMP_RECORD.size
+    for rec in _UTMP_RECORD.iter_unpack(data[:usable]):
+        kind, line, user, when = rec[0], rec[2], rec[4], rec[9]
+        line = line.split(b"\0", 1)[0].decode("utf-8", "replace")
+        user = user.split(b"\0", 1)[0].decode("utf-8", "replace")
+        if kind == _USER_PROCESS and user:
+            open_on[line] = len(sessions)
+            sessions.append([user, when, None])
+        elif kind == _DEAD_PROCESS and line in open_on:
+            sessions[open_on.pop(line)][2] = when
+        elif kind == _BOOT_TIME:
+            for index in open_on.values():
+                sessions[index][2] = when
+            open_on.clear()
+    return [tuple(s) for s in sessions]
 
 
 def _loginctl_users():

@@ -28,6 +28,21 @@ cp -- "$lab2/reports/$file1" "$lab2/reports/$file2" "$lab2/TechCorp/$owner/"
 cp -- "$lab2/reports/$file1" "$lab2/TechCorp/$owner/archive/first-original.txt"
 printf '%s\n' "../$owner/$file1" "$lab2/TechCorp/$owner/$file1" > "$lab2/evidence/paths.txt"
 "${tool[@]}" check lab2 | grep -q 'milestones: 4/4'
+# Each check records the hash of the evidence it saw, so the submitted copy can be compared with it.
+sha=$(sha256sum -- "$lab2/evidence/paths.txt" | cut -d' ' -f1)
+grep -q "\"sha256\": \"$sha\"" "$OSLAB_INBOX"/lab2.check.student-a.*.json
+# A lab without milestones still records its evidence; dotfiles and links are left out.
+printf 'normal run\n' > "$OSLAB_WORKSPACE/lab3/evidence-note.txt"
+mkdir -p -- "$OSLAB_WORKSPACE/lab3/evidence"
+printf 'kept\n' > "$OSLAB_WORKSPACE/lab3/evidence/links.txt"
+printf 'hidden\n' > "$OSLAB_WORKSPACE/lab3/evidence/.hidden"
+ln -s links.txt "$OSLAB_WORKSPACE/lab3/evidence/alias.txt"
+"${tool[@]}" check lab3 >/dev/null
+record=$(ls "$OSLAB_INBOX"/lab3.check.student-a.*.json)
+grep -q '"path": "evidence/links.txt"' "$record"
+grep -q '"path": "evidence-note.txt"' "$record"
+if grep -q 'hidden\|alias' "$record"; then echo 'dotfile or link recorded' >&2; exit 1; fi
+rm -- "$OSLAB_WORKSPACE/lab3/evidence-note.txt" "$OSLAB_WORKSPACE/lab3/evidence/alias.txt"
 printf 'changed\n' > "$lab2/TechCorp/$owner/$file2"
 "${tool[@]}" check lab2 | grep -q 'TRY : TechCorp'
 "${tool[@]}" reset lab2
