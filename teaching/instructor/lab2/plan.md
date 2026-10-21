@@ -17,6 +17,21 @@ This lab uses the pilot format. Read the [student instruction](../../../labs/lab
 - Prepare a roster file with one account name per line. All `oslab-teach` commands below take `--roster FILE`.
 - Read the Lab 1 retrospective in the [roadmap](../../ROADMAP.md) and adjust the first five minutes if the `oslab` commands were unclear last week.
 
+## Guide
+
+Project the guide (`labs/lab2/guides/slides.html`, 59 slides; PDF `lab2-guides.pdf`). It follows the instruction:
+
+| Slides | Part | When |
+|---|---|---|
+| 1 to 3 | Cover, objectives, opening question | Start of class |
+| 4 to 25 | Concepts first: the tree from `/`, every folder in `/` and what it is for (pictures on 7 and 12), the home directory, absolute and relative paths, `.` and `..`, names with spaces, the commands | Minutes 5 to 10; students have read it before class |
+| 26 to 33 | How the lab works, setup, values and placeholders | Setup |
+| 34 to 36 | Guided: where am I? | Minutes 10 to 20 |
+| 37 to 38 | Prediction | Prediction |
+| 39 to 46 | Core 1 to 3, Plus and Challenge | Core |
+| 47 to 52 | Live checkpoint | Before you release it |
+| 53 to 59 | Debrief, submit, grading, mistakes, takeaways | End of class |
+
 ## Timetable and What You Do
 
 Keep `sudo oslab-teach board lab2 --roster FILE --watch 20` open on your own screen. Do not project it: it shows names.
@@ -24,7 +39,7 @@ Keep `sudo oslab-teach board lab2 --roster FILE --watch 20` open on your own scr
 | Minutes | Students | You |
 |---|---|---|
 | 0–5 | Setup | Check the `started` column. The most common first error is losing the quotes when typing `file1='…'` |
-| 5–20 | Guided: where am I? | Type along on the projector. At step 4, let the unquoted `ls` fail and ask the class to read the error aloud: it names two files that do not exist |
+| 5–20 | Guided: where am I? | First five minutes: go through Concepts First with the guide (the tree from `/`, the home directory, the path table, `.` and `..`). Then type along on the projector. At step 4, let the unquoted `ls` fail and ask the class to read the error aloud: it names two files that do not exist |
 | 20–30 | Prediction, then class discussion | At minute 25 read the **prediction spread** aloud without names. The `same` question (does `../reports` still work from the lab folder?) is the one to discuss |
 | 30–40 | Core 1: build the company folders | Short. Move on at minute 40 even if some are slow; Core 2 does not depend on the reader and third folders |
 | 40–65 | Core 2: move and copy with your own paths | Nobody is given commands here. Sort your visits by the board: no check yet, then stuck at 1/4. Answer with "run `pwd`; now draw where the file must go" |
