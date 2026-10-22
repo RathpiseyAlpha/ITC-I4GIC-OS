@@ -36,6 +36,26 @@ printf '%s\n' "$error" "Fix: reports/$file1" >> "$lab2/evidence/paths.txt"
 printf '%s\n' "../$owner/$file1" "$lab2/TechCorp/$owner/$file1" "$error" "Fix: cat '../../reports/$file1'" > "$lab2/evidence/paths.txt"
 "${tool[@]}" check lab2 | grep -q 'milestones: 5/5'
 grep -q '"path_error": {"error": true, "fix": true}' $(ls -t "$OSLAB_INBOX"/lab2.check.student-a.*.json | head -1)
+# Students type variables in nano, as the instruction shows them: the check reads them the way bash would.
+cp -- "$lab2/evidence/paths.txt" "$tmp/paths.keep"
+printf '%s\n' 'mv -- "$file1" ../reports/' 'mv -- "$OSLAB_WORKSPACE/lab2/incoming/$file2" "${OSLAB_WORKSPACE}/lab2/reports/"' \
+  "$error" 'Fix: ../../reports/"$file1"' > "$lab2/evidence/paths.txt"
+"${tool[@]}" check lab2 | grep -q 'milestones: 5/5'
+printf '%s\n' "$error" "Fix: ../../reports/'$file1'" 'cat ~/x' > "$lab2/evidence/paths.txt"
+"${tool[@]}" check lab2 | grep -q 'milestones: 5/5'
+# A failed milestone says why, on screen and in the record for the marking screen.
+printf '%s\n' 'Error: I forgot' 'Fix: reports/$file1' > "$lab2/evidence/paths.txt"
+out=$("${tool[@]}" check lab2)
+grep -q 'why: no relative path' <<<"$out"
+grep -q 'why: no absolute path' <<<"$out"
+grep -q 'why: the Error: line must hold' <<<"$out"
+grep -q "leads to TechCorp/$reader/reports/$file1" <<<"$out"
+printf '%s\n' "$error" 'Fix: "$OSLAB_WORKSPACE/lab2/reports/$file1"' > "$lab2/evidence/paths.txt"
+"${tool[@]}" check lab2 | grep -q 'why: Fix: .* This is an absolute path'
+printf '%s\n' "$error" 'Fix: ../reports/"$file1"' > "$lab2/evidence/paths.txt"
+"${tool[@]}" check lab2 | grep -q "leads to TechCorp/reports/$file1"
+grep -q '"reasons": {' $(ls -t "$OSLAB_INBOX"/lab2.check.student-a.*.json | head -1)
+cp -- "$tmp/paths.keep" "$lab2/evidence/paths.txt"
 test -d "$lab2/TechCorp/$owner" && test -n "$reader"
 # Debrief: the right answers after the lab, marked against the prediction key; it may be run again.
 printf '../reports\nyes\n1\n2\nI guessed\n' | "${tool[@]}" predict lab2 | grep -q 'Saved and sent'
@@ -47,6 +67,14 @@ sys.path.insert(0, sys.argv[1])
 import oslab
 assert oslab.mark("dir", "TechCorp/HR", "TechCorp/HR/") and oslab.mark("dir", "TechCorp/HR", "./TechCorp/HR")
 assert oslab.mark("dir", ".", ".") and not oslab.mark("dir", "TechCorp/HR", "TechCorp") and not oslab.mark("dir", ".", "")
+# A quote in the middle of a path, or none around a name with a space, is read as bash reads it.
+assert oslab.mark("path", ["TechCorp/HR", "reports/a b.txt"], "../../reports/'a b.txt'")
+assert oslab.mark("path", ["TechCorp/HR", "reports/a b.txt"], "../../reports/a b.txt")
+# Arrow keys typed without readline leave ESC [ D; none of it may stay in the answer.
+assert oslab.clean("../re\x1b[Dports\x1bOA") == "../reports"
+env = {"file1": "a b.txt", "OSLAB_WORKSPACE": "/w", "HOME": "/h"}
+assert oslab.shell_words('cat "$OSLAB_WORKSPACE/lab2/$file1" ~/x \'$file1\' a\\ b', env) == ["cat", "/w/lab2/a b.txt", "/h/x", "$file1", "a b"]
+assert oslab.read_path("../$owner/x", env)[1].startswith("oslab does not know the variable $owner")
 PY
 # Each check records the hash of the evidence it saw, so the submitted copy can be compared with it.
 sha=$(sha256sum -- "$lab2/evidence/paths.txt" | cut -d' ' -f1)

@@ -465,7 +465,7 @@ Three steps. Each one says what you should see.
    milestones: 5/5
    ```
 
-   A line that starts with `TRY` names what is still missing. Fix that part, then run `oslab check lab2` again. `oslab hint lab2 1` can help.
+   A line that starts with `TRY` names what is still missing, and the `why:` lines under it say what `oslab` found instead. Fix that part, then run `oslab check lab2` again. `oslab hint lab2 1` can help.
 
 **Core is complete when** `oslab check lab2` shows `milestones: 5/5`.
 

@@ -109,7 +109,7 @@ For Part B you need a Linux of your own with `sudo`: WSL (Ubuntu) or your virtua
    oslab check lab1
    ```
 
-   It prints one line for each part of the lab. `TRY` means "not done yet" and `PASS` means "done". At the start every line says `TRY`, because you have not done anything yet. Run it again whenever you want to see what is still missing.
+   It prints one line for each part of the lab. `TRY` means "not done yet" and `PASS` means "done". Under a `TRY` line, `why:` says what is wrong. At the start every line says `TRY`, because you have not done anything yet. Run it again whenever you want to see what is still missing.
 
 ## Task 1 — Which System Is This? (10–20)
 

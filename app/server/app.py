@@ -1704,7 +1704,7 @@ def _oslab_activity(username, lab):
         return out
 
     checks = [{"passed": c.get("passed", 0), "total": c.get("total", 0),
-               "failed": c.get("failed", []), "time": c.get("time", ""),
+               "failed": c.get("failed", []), "reasons": c.get("reasons", {}), "time": c.get("time", ""),
                "checkpoint": c.get("checkpoint"), "pathError": c.get("path_error")}
               for c in kinds.get("check", [])]
     out = {

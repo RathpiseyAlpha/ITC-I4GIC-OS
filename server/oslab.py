@@ -20,6 +20,11 @@ import tempfile
 import time
 from pathlib import Path
 
+try:
+    import readline  # noqa: F401  arrow keys, Backspace and history while typing an answer
+except ImportError:
+    pass
+
 LABS = tuple(f"lab{n}" for n in range(1, 12))
 MARKER = ".oslab-managed.json"
 MAX_ARCHIVES = 3
@@ -301,23 +306,94 @@ def mark(kind, expect, answer):
     if kind == "word":
         return str(answer).strip().lower() == str(expect).strip().lower()
     if kind == "path":
-        text = str(answer).strip().strip("'\"")
+        text = (shell_words(str(answer), {}, split=False) or [""])[0]
         return bool(text) and not text.startswith("/") and posixpath.normpath(posixpath.join(expect[0], text)) == expect[1]
     if kind == "dir":
-        text = str(answer).strip().strip("'\"").strip()
+        text = (shell_words(str(answer), {}, split=False) or [""])[0].strip()
         return bool(text) and posixpath.normpath(text) == expect
     return None
 
 
+# Arrow and function keys send ESC sequences; without readline they would end up in the answer as "[D".
+ESCAPES = re.compile(r"\x1b(\[[0-?]*[ -/]*[@-~]|O.|.)?")
+VARIABLE = re.compile(r"\$(\{(\w+)\}|(\w+))")
+PROMPTS = {"int": "number", "yesno": "yes/no", "path": "path", "dir": "folder", "word": "word", "text": "sentence"}
+
+
 def clean(raw):
-    return "".join(ch for ch in raw if ch.isprintable()).strip()[:300]
+    return "".join(ch for ch in ESCAPES.sub("", raw) if ch.isprintable()).strip()[:300]
 
 
-def ask(item):
+def interactive():
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def bold(text):
+    return f"\033[1m{text}\033[0m" if sys.stdout.isatty() else text
+
+
+def shell_words(text, env, split=True):
+    """Read text the way bash would: quotes removed, $NAME and ${NAME} filled in from env outside single
+    quotes, ~ at the start of a word replaced by HOME. A variable env does not know stays as typed.
+    With split=False the whole text is one word, so an unquoted name with a space stays together."""
+    text = text.strip()
+    words, word, started, quote, i = [], "", False, None, 0
+    while i < len(text):
+        ch = text[i]
+        if quote == "'":
+            if ch == "'":
+                quote = None
+            else:
+                word += ch
+        elif ch == "$" and VARIABLE.match(text, i):
+            found = VARIABLE.match(text, i)
+            word += str(env.get(found.group(2) or found.group(3), found.group(0)))
+            started, i = True, found.end()
+            continue
+        elif quote == '"':
+            if ch == '"':
+                quote = None
+            else:
+                word += ch
+        elif ch == "\\" and i + 1 < len(text):
+            i += 1
+            word += text[i]
+        elif ch in "'\"":
+            quote = ch
+        elif ch.isspace() and split:
+            if started:
+                words.append(word)
+            word, started, i = "", False, i + 1
+            continue
+        elif ch == "~" and not started and text[i + 1:i + 2] in ("", "/", " "):
+            word += str(env.get("HOME", "~"))
+        else:
+            word += ch
+        started, i = True, i + 1
+    if started:
+        words.append(word)
+    return words
+
+
+def read_path(answer, env):
+    """(path, problem) for a path answer, with the student's own variables filled in."""
+    path = (shell_words(answer, env, split=False) or [""])[0]
+    unknown = VARIABLE.search(path)
+    if unknown:
+        return path, f"oslab does not know the variable {unknown.group(0)}. Type the path itself."
+    if path.startswith("/"):
+        return path, "This is an absolute path: it starts at /. Type a relative path, from your current directory."
+    return path, None
+
+
+def ask(item, label="", env=None):
     kind = item["kind"]
+    if sys.stdout.isatty():
+        sys.stdout.write("\033[?25h")  # show the cursor, in case an earlier program hid it
+    print(f"\n{bold(label + item['text'])}")
     while True:
         try:
-            answer = clean(input(f"\n{item['text']}\n> "))
+            answer = clean(input(f"{PROMPTS[kind]} > "))
         except EOFError:
             fail("no answer was given; run the command again")
         if kind == "int" and re.match(r"^-?\d{1,6}$", answer):
@@ -325,13 +401,53 @@ def ask(item):
         if kind == "yesno" and answer.lower() in ("y", "n", "yes", "no"):
             return answer.lower()[:1]
         if kind in ("path", "dir") and answer:
-            return answer
+            if env is None:
+                return answer
+            path, problem = read_path(answer, env)
+            if kind == "dir" and path.startswith("/"):
+                problem = "Type the folder's path from the lab folder, not from /."
+            if not problem:
+                if path != answer:
+                    print(f"Read as: {path}")
+                return path
+            print(problem)
+            continue
         if kind == "word" and answer and " " not in answer:
             return answer
         if kind == "text" and len(answer) >= 3:
             return answer
         print({"int": "Type a whole number.", "yesno": "Type yes or no.", "path": "Type a path.", "dir": "Type a folder path.",
                "word": "Type one word or number, without spaces.", "text": "Write a short sentence."}[kind])
+
+
+def ask_all(items, env=None):
+    """Ask every question, then, in a terminal, show the answers and let the student change any before saving."""
+    answers = {}
+    for number, item in enumerate(items, 1):
+        answers[item["key"]] = ask(item, f"[{number}/{len(items)}] ", env)
+    if not interactive():
+        return answers
+    while True:
+        print(f"\n{bold('Your answers:')}")
+        for number, item in enumerate(items, 1):
+            question = item["text"].splitlines()[0]
+            print(f"  {number}. {question[:70] + '...' if len(question) > 70 else question}\n     {answers[item['key']]}")
+        try:
+            choice = clean(input(f"Press Enter to save, or type a number (1-{len(items)}) to change that answer > "))
+        except EOFError:
+            fail("no answer was given; run the command again")
+        if not choice:
+            return answers
+        if choice.isdigit() and 1 <= int(choice) <= len(items):
+            item = items[int(choice) - 1]
+            answers[item["key"]] = ask(item, f"[{choice}/{len(items)}] ", env)
+        else:
+            print(f"Type a number from 1 to {len(items)}, or press Enter to save.")
+
+
+def shell_env(base, values):
+    """The variables a student may type in an answer or an evidence file."""
+    return dict({k: str(v) for k, v in values.items()}, OSLAB_WORKSPACE=base.as_posix(), HOME=Path.home().as_posix())
 
 
 def workspace():
@@ -524,7 +640,7 @@ def predict(base, lab):
     values = lab_values(lab, current_user())
     print("Prediction: answer BEFORE you run the experiment. No AI, no neighbour.")
     print("A wrong prediction costs nothing. You will compare it with the real result later.")
-    answers = {item["key"]: ask(item) for item in PREDICT[lab](values)}
+    answers = ask_all(PREDICT[lab](values), shell_env(base, values))
     save_record(base, lab, "predict", {"values": values, "answers": answers})
 
 
@@ -540,12 +656,9 @@ def debrief(base, lab):
     values = lab_values(lab, current_user())
     print("Debrief: now that you have done the lab, give the right answer to each prediction question.")
     print("If your prediction was right, type it again. Your prediction itself stays saved as it was.")
-    answers = {}
-    for item in PREDICT[lab](values):
-        if item["expect"] is None:
-            continue
-        shown = dict(item, text=f"{item['text']}\n(Your prediction was: {first['answers'].get(item['key'], '')})")
-        answers[item["key"]] = ask(shown)
+    items = [dict(item, text=f"{item['text']}\n(Your prediction was: {first['answers'].get(item['key'], '')})")
+             for item in PREDICT[lab](values) if item["expect"] is not None]
+    answers = ask_all(items, shell_env(base, values))
     save_record(base, lab, "debrief", {"values": values, "answers": answers})
 
 
@@ -573,7 +686,9 @@ def checkpoint(base, lab):
     values, intro, items, after = checkpoint_task(lab, current_user(), nonce)
     print("Checkpoint: your own work. Close AI tools; do not ask a neighbour." + (" (practice values)" if practice else ""))
     print("\n" + "\n".join(intro))
-    answers = {item["key"]: ask(item) for item in items}
+    if interactive():
+        print("Use the arrow keys and Backspace to correct an answer. You can review all answers before they are saved.")
+    answers = ask_all(items, shell_env(base, lab_values(lab, current_user())))
     save_record(base, lab, "checkpoint", {"values": values, "answers": answers, "practice": practice})
     print("\n" + "\n".join(after))
 
@@ -614,33 +729,52 @@ def reset_store(store, stock):
 def check_lab8(target, values, extra):
     source = target / "store/buy.sh"
     if not source.is_file() or source.is_symlink():
-        return [("store/buy.sh exists", False)]
+        return [("store/buy.sh exists", ["store/buy.sh does not exist or is a link: run `oslab reset lab8` to get it back"])]
     stock, a, b = values["stock"], values["buyer_a"], values["buyer_b"]
     results = []
     sandbox = Path(tempfile.mkdtemp(prefix=".check-", dir=str(target)))
+
+    def state(expected_left, expected_sold):
+        left, sold = store_state(sandbox)
+        problems = []
+        if left != expected_left:
+            problems.append(f"stock.txt holds {'no number' if left is None else left}, expected {expected_left}")
+        if sold != expected_sold:
+            problems.append(f"sales.log shows {sold} sold, expected {expected_sold}")
+        return problems
     try:
         script = sandbox / "buy.sh"
         shutil.copyfile(str(source), str(script))
         reset_store(sandbox, stock)
         code = finish(run_buy(script, ["2"]))
-        results.append(("one buyer of 2 is accepted and recorded", code == 0 and store_state(sandbox) == (stock - 2, 2)))
+        problems = ([f"`buy.sh 2` with stock {stock} ended with exit status {code}, expected 0"] if code else []) + state(stock - 2, 2)
+        results.append(("one buyer of 2 is accepted and recorded", problems))
         reset_store(sandbox, stock)
-        codes = [finish(run_buy(script, bad)) for bad in (["0"], ["abc"], [], [str(stock + 1)])]
-        results.append(("bad or too large quantities change nothing", all(codes) and store_state(sandbox) == (stock, 0)))
+        bad_inputs = (["0"], ["abc"], [], [str(stock + 1)])
+        codes = [finish(run_buy(script, bad)) for bad in bad_inputs]
+        problems = [f"`buy.sh {' '.join(bad)}` was accepted (exit status 0)" for bad, code in zip(bad_inputs, codes) if code == 0]
+        results.append(("bad or too large quantities change nothing", problems + state(stock, 0)))
         reset_store(sandbox, stock)
         buyers = [run_buy(script, [str(a)], "1"), run_buy(script, [str(b)], "1")]
         accepted = [finish(buyer) for buyer in buyers].count(0)
         left, sold = store_state(sandbox)
-        results.append((f"two buyers at once ({a} and {b} of {stock}): sold + left = {stock}",
-                        accepted == 1 and left is not None and left + sold == stock and sold in (a, b)))
+        problems = [f"{accepted} purchases were accepted, expected 1"] if accepted != 1 else []
+        if left is None or left + sold != stock or sold not in (a, b):
+            problems.append(f"sold {sold} + left {'?' if left is None else left} should be {stock} with one buyer's units sold: "
+                            "the second buyer still read the stock before the first one wrote it")
+        results.append((f"two buyers at once ({a} and {b} of {stock}): sold + left = {stock}", problems))
         if extra:
             limit = extra["limit"]
             reset_store(sandbox, limit + 5)
             over = finish(run_buy(script, [str(limit + 1)]))
-            unchanged = store_state(sandbox) == (limit + 5, 0)
+            problems = [f"`buy.sh {limit + 1}` ended with exit status {over}, expected 4"] if over != 4 else []
+            problems += [f"after `buy.sh {limit + 1}`: {p}" for p in state(limit + 5, 0)]
             exact = finish(run_buy(script, [str(limit)]))
-            results.append((f"checkpoint: more than {limit} units exits 4 and changes nothing; {limit} is allowed",
-                            over == 4 and unchanged and exact == 0 and store_state(sandbox) == (5, limit)))
+            if exact != 0:
+                problems.append(f"`buy.sh {limit}` ended with exit status {exact}, expected 0: {limit} units are still allowed")
+            elif not problems:
+                problems += [f"after `buy.sh {limit}`: {p}" for p in state(5, limit)]
+            results.append((f"checkpoint: more than {limit} units exits 4 and changes nothing; {limit} is allowed", problems))
     finally:
         shutil.rmtree(str(sandbox), ignore_errors=True)
     if PAY_DELAY.split("#")[0].strip() not in source.read_text(encoding="utf-8", errors="replace"):
@@ -660,28 +794,80 @@ def sleep_rows(text):
     return re.findall(r"^\s*\d+\s+\S+\s+\S+\s+sleep\s*$", text, re.M)
 
 
+def missing(target, name):
+    """A problem line when lab file `name` does not exist, else None."""
+    return None if (target / name).is_file() else f"{name} does not exist (run `ls` in the lab folder)"
+
+
+def found(text):
+    """How a file's content is shown in a problem line."""
+    text = text.strip()
+    return "it is empty" if not text else f"it holds: {text[:60] + '...' if len(text) > 60 else text}"
+
+
 def check_lab1(target, values, extra):
+    """Each result is (milestone, problems): the milestone passes when the list of problems is empty."""
     info = read_text(target / "task1_os_info.txt")
+    problems = [p for p in [missing(target, "task1_os_info.txt")] if p] or [
+        p for p, bad in (("no kernel line: the word Linux is not in the file", "Linux" not in info),
+                         ("no distribution description: Distributor ID or Ubuntu is not in the file",
+                          "Distributor ID" not in info and "Ubuntu" not in info)) if bad]
+    results = [("task1_os_info.txt has the kernel line and the distribution description", problems)]
     folder = target / "task2_files"
     first, second = values["file1"], values["file2"]
-    files_ok = (read_text(folder / f"{first}.txt") == f"This is file {first}\n"
-                and (folder / f"{second}_renamed.txt").is_file()
-                and not (folder / f"{first}_copy.txt").exists() and not (folder / f"{second}.txt").exists()
-                and folder.name in read_text(target / "task2_file_commands.txt"))
+    problems = []
+    if not folder.is_dir():
+        problems.append("the folder task2_files does not exist")
+    else:
+        if not (folder / f"{first}.txt").is_file():
+            problems.append(f"task2_files/{first}.txt does not exist")
+        elif read_text(folder / f"{first}.txt") != f"This is file {first}\n":
+            problems.append(f"task2_files/{first}.txt must hold the line: This is file {first}; {found(read_text(folder / f'{first}.txt'))}")
+        if not (folder / f"{second}_renamed.txt").is_file():
+            problems.append(f"task2_files/{second}_renamed.txt does not exist")
+        for name, step in ((f"{first}_copy.txt", "delete it"), (f"{second}.txt", "rename it")):
+            if (folder / name).exists():
+                problems.append(f"task2_files/{name} is still there: {step}")
+    commands = read_text(target / "task2_file_commands.txt")
+    if not commands:
+        problems.append("task2_file_commands.txt does not exist or is empty")
+    elif folder.name not in commands:
+        problems.append("task2_file_commands.txt does not name the folder task2_files")
+    results.append((f"task2_files holds {first}.txt and {second}_renamed.txt (no copy left), and task2_file_commands.txt names the folder", problems))
     count = values["count"]
+    one = len(sleep_rows(read_text(target / "task4_process_list.txt")))
+    many = len(sleep_rows(read_text(target / "task5_multitasking.txt")))
+    problems = [p for p in (missing(target, "task4_process_list.txt"), missing(target, "task5_multitasking.txt")) if p]
+    if not problems and one < 1:
+        problems.append("task4_process_list.txt has no line of `ps` output for sleep")
+    if not problems and many < count:
+        problems.append(f"task5_multitasking.txt shows {many} sleep line(s); start {count} copies in the background, "
+                        "then run `ps` while they all still run")
+    results.append((f"task4_process_list.txt shows a sleep process and task5_multitasking.txt shows {count} at the same time", problems))
     virt = [line for line in read_text(target / "task6_virtualization_check.txt").splitlines() if line.strip()]
-    results = [("task1_os_info.txt has the kernel line and the distribution description", "Linux" in info and ("Distributor ID" in info or "Ubuntu" in info)),
-               (f"task2_files holds {first}.txt and {second}_renamed.txt (no copy left), and task2_file_commands.txt names the folder", files_ok),
-               (f"task4_process_list.txt shows a sleep process and task5_multitasking.txt shows {count} at the same time",
-                len(sleep_rows(read_text(target / "task4_process_list.txt"))) >= 1 and len(sleep_rows(read_text(target / "task5_multitasking.txt"))) >= count),
-               ("task6_virtualization_check.txt has the detection result, kernel release and host name", len(virt) >= 3)]
+    problems = [p for p in [missing(target, "task6_virtualization_check.txt")] if p] or (
+        [f"the file has {len(virt)} line(s) with text; it needs 3: the detection result, the kernel release and the host name"] if len(virt) < 3 else [])
+    results.append(("task6_virtualization_check.txt has the detection result, kernel release and host name", problems))
     if extra:
         box = target / extra["folder"]
         text = f"{extra['text']}\n"
         listing = read_text(target / "checkpoint.txt")
-        results.append(("checkpoint: the folder holds the renamed file and the copy with the right text, and the listing is saved",
-                        read_text(box / extra["old"]) == text and read_text(box / extra["copy"]) == text
-                        and not (box / extra["note"]).exists() and extra["old"] in listing and extra["copy"] in listing))
+        problems = []
+        if not box.is_dir():
+            problems.append(f"the folder {extra['folder']} does not exist in the lab1 folder")
+        else:
+            for name in (extra["old"], extra["copy"]):
+                if not (box / name).is_file():
+                    problems.append(f"{extra['folder']}/{name} does not exist")
+                elif read_text(box / name) != text:
+                    problems.append(f"{extra['folder']}/{name} must hold the line: {extra['text']}; {found(read_text(box / name))}")
+            if (box / extra["note"]).exists():
+                problems.append(f"{extra['folder']}/{extra['note']} is still there: rename it to {extra['old']}")
+        if not listing:
+            problems.append("checkpoint.txt does not exist or is empty: save the list of files there (step 5)")
+        elif extra["old"] not in listing or extra["copy"] not in listing:
+            problems.append(f"checkpoint.txt does not list both {extra['old']} and {extra['copy']}")
+        results.append(("checkpoint: the folder holds the renamed file and the copy with the right text, and the listing is saved", problems))
     return results
 
 
@@ -692,42 +878,119 @@ def same_bytes(first, second):
         return False
 
 
-def lab2_path_error(target, values):
+def lab2_error_fix(target, values):
     """Core 3, step 2: an Error: line with a real "No such file or directory", and a Fix: line holding a
-    relative path that reaches one of the two reports from the reader department."""
+    relative path that reaches one of the two reports from the reader department. The path is read as bash
+    would read it, so "$file1", quotes and backslashes work. Returns (error, fix, problems)."""
     error = fix = False
-    start = (target / "TechCorp" / values["reader"]).as_posix()
+    errors, fixes = [], []
+    reader = f"TechCorp/{values['reader']}"
+    start = (target / reader).as_posix()
     reports = {(target / "reports" / values[n]).as_posix() for n in ("file1", "file2")}
+    env = shell_env(target.parent, values)
     for line in read_text(target / "evidence/paths.txt").splitlines():
         head, _, rest = line.partition(":")
         head, rest = head.strip().lower(), rest.strip()
-        if head == "error" and "no such file or directory" in rest.lower():
-            error = True
+        if head == "error":
+            errors.append(rest)
+            error = error or "no such file or directory" in rest.lower()
         if head == "fix":
             if rest.lower().startswith("cat "):
                 rest = rest[4:].strip()
-            path = rest.strip("'\"")
-            if path and not path.startswith(("/", "~", "$")) and posixpath.normpath(posixpath.join(start, path)) in reports:
+            if rest.startswith("-- "):
+                rest = rest[3:]
+            path, problem = read_path(rest, env)
+            if not rest:
+                problem = "the Fix: line has no path after it"
+            elif problem:
+                problem = f"Fix: {rest} -> {problem}"
+            elif posixpath.normpath(posixpath.join(start, path)) in reports:
                 fix = True
+            else:
+                reached = posixpath.relpath(posixpath.normpath(posixpath.join(start, path)), target.as_posix())
+                problem = (f"Fix: {rest} -> from {reader} this path leads to {reached}, not to reports/<your file>. "
+                           f"Count the folders you must go up from {reader} to reach the lab folder")
+            fixes.append(problem)
+    problems = []
+    if not errors:
+        problems.append("no line starts with Error: (Core 3, step 2)")
+    elif not error:
+        problems.append("the Error: line must hold the message that cat printed, with: No such file or directory")
+    if not fixes:
+        problems.append("no line starts with Fix: (Core 3, step 2)")
+    elif not fix:
+        problems.append(fixes[-1])
+    return error, fix, problems
+
+
+def lab2_path_error(target, values):
+    error, fix, _ = lab2_error_fix(target, values)
     return {"error": error, "fix": fix}
 
 
+def lab2_path_kinds(target, values):
+    """Problems with milestone 4: paths.txt needs a relative path that goes up with .. and an absolute path.
+    "$OSLAB_WORKSPACE/lab2/..." and ~/... count as absolute, because bash makes them start with /."""
+    text = read_text(target / "evidence/paths.txt")
+    if not text.strip():
+        return ["evidence/paths.txt does not exist or is empty: write the commands that worked into it (Core 2)"]
+    env = shell_env(target.parent, values)
+    words = [word for line in text.splitlines() for word in shell_words(line, env)]
+    relative = "../" in text or any(not w.startswith("/") and ".." in w.split("/") for w in words)
+    absolute = re.search(r"(^|[\s'\"])/", text) is not None or any(w.startswith("/") for w in words)
+    problems = []
+    if not relative:
+        problems.append("no relative path that goes up with .. was found, such as ../reports/ (Core 2, step 1)")
+    if not absolute:
+        problems.append('no absolute path was found: one that starts with / or with "$OSLAB_WORKSPACE/lab2/" (Core 2, step 2)')
+    return problems
+
+
 def check_lab2(target, values, extra):
+    """Each result is (milestone, problems): the milestone passes when the list of problems is empty."""
     names = (values["file1"], values["file2"])
     wanted = (f"amount,{values['amount1']}\n", f"amount,{values['amount2']}\n")
-    owner = target / "TechCorp" / values["owner"]
-    moved = all(read_text(target / "reports" / n) == w and not (target / "incoming" / n).exists() for n, w in zip(names, wanted))
-    paths = read_text(target / "evidence/paths.txt")
-    path_error = lab2_path_error(target, values)
+    owner = f"TechCorp/{values['owner']}"
+    moved, copies = [], []
+    for name, content in zip(names, wanted):
+        report = target / "reports" / name
+        if (target / "incoming" / name).exists():
+            moved.append(f"incoming/{name} is still there: move it with mv, do not copy it")
+        if not report.is_file():
+            moved.append(f"reports/{name} does not exist")
+            copies.append(f"reports/{name} does not exist, so there is nothing to compare with")
+        elif read_text(report) != content:
+            moved.append(f"reports/{name} must hold {content.strip()}; {found(read_text(report))}")
+        if report.is_file() and not (target / owner / name).is_file():
+            copies.append(f"{owner}/{name} does not exist")
+        elif report.is_file() and not same_bytes(report, target / owner / name):
+            copies.append(f"{owner}/{name} is not the same as reports/{name}: copy it again")
+    archive = target / owner / "archive/first-original.txt"
+    if not archive.is_file():
+        archived = [f"{owner}/archive/first-original.txt does not exist"]
+    elif read_text(archive) != wanted[0]:
+        archived = [f"it must be a copy of your first file, {names[0]} ({wanted[0].strip()}); {found(read_text(archive))}"]
+    else:
+        archived = []
     results = [("both files were moved into reports/ with their contents", moved),
-               (f"TechCorp/{values['owner']}/ holds identical copies", all(same_bytes(target / "reports" / n, owner / n) for n in names)),
-               ("archive/first-original.txt is a copy of your first file", read_text(owner / "archive/first-original.txt") == wanted[0]),
-               ("evidence/paths.txt records a relative and an absolute path", "../" in paths and re.search(r"(^|[\s'\"])/", paths) is not None),
+               (f"{owner}/ holds identical copies", copies),
+               ("archive/first-original.txt is a copy of your first file", archived),
+               ("evidence/paths.txt records a relative and an absolute path", lab2_path_kinds(target, values)),
                ("evidence/paths.txt has your Error: line and a Fix: path that works from your reader department",
-                path_error["error"] and path_error["fix"])]
+                lab2_error_fix(target, values)[2])]
     if extra:
-        results.append(("checkpoint: evidence/checkpoint.txt holds the content of the target file",
-                        extra["content"] in read_text(target / "evidence/checkpoint.txt")))
+        saved = target / "evidence/checkpoint.txt"
+        if not saved.is_file():
+            problems = ["evidence/checkpoint.txt does not exist: run the cat ... | tee line that oslab checkpoint printed"]
+        elif not read_text(saved).strip():
+            problems = [f"evidence/checkpoint.txt is empty: cat did not find the file, so the path does not lead from "
+                        f"{extra['cwd']} to {extra['target']}. Read the error cat printed"]
+        elif extra["content"] not in read_text(saved):
+            problems = [f"evidence/checkpoint.txt does not hold {extra['content']}, so the file you read is not {extra['target']}; "
+                        f"{found(read_text(saved))}"]
+        else:
+            problems = []
+        results.append(("checkpoint: evidence/checkpoint.txt holds the content of the target file", problems))
     return results
 
 
@@ -780,15 +1043,18 @@ def check(base, lab):
         record = read_record(base, lab, "checkpoint")
         values = lab_values(lab, current_user())
         results = CHECKS[lab](target, values, record["values"] if record else None)
-        for text, passed in results:
-            print(f"{'PASS' if passed else 'TRY '}: {text}")
-        passed = [text for text, ok in results if ok]
-        print(f"milestones: {len(passed)}/{len(results)}")
+        for text, problems in results:
+            print(f"{'TRY ' if problems else 'PASS'}: {text}")
+            for problem in problems:
+                print(f"      why: {problem}")
+        failed = [(text, problems) for text, problems in results if problems]
+        print(f"milestones: {len(results) - len(failed)}/{len(results)}")
         if lab in CHECK_DETAILS:
             evidence.update(CHECK_DETAILS[lab](target, values))
-        submit(lab, "check", dict(evidence, passed=len(passed), total=len(results),
-                                  failed=[t for t, ok in results if not ok],
-                                  checkpoint=results[-1][1] if record else None))
+        submit(lab, "check", dict(evidence, passed=len(results) - len(failed), total=len(results),
+                                  failed=[text for text, _ in failed],
+                                  reasons={text: [p[:200] for p in problems[:4]] for text, problems in failed},
+                                  checkpoint=not results[-1][1] if record else None))
         return
     if lab == "lab10":
         print("Inspect archive contents and retention manually; public checks cannot grade cron behaviour.")

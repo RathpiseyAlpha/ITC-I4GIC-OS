@@ -1290,7 +1290,12 @@
             html += '<div style="color:var(--yellow);font-size:11px;margin:6px 0;">⚠️ A prediction or checkpoint was sent more than once, or removed. The first one received is shown.</div>';
         }
         if (best && best.failed && best.failed.length) {
-            html += '<div style="color:var(--comment);font-size:11px;margin:4px 0;">Still failing: ' + escapeHtml(best.failed.join('; ')) + '</div>';
+            html += '<div style="color:var(--comment);font-size:11px;margin:4px 0;">Still failing:<ul style="margin:2px 0 0 16px;padding:0;">';
+            best.failed.forEach(function (f) {
+                var why = (best.reasons && best.reasons[f]) || [];
+                html += '<li>' + escapeHtml(f) + (why.length ? '<br><i>why: ' + escapeHtml(why.join('; ')) + '</i>' : '') + '</li>';
+            });
+            html += '</ul></div>';
         }
         html += a.prediction
             ? answersTable('Prediction, saved ' + escapeHtml(a.prediction.time), a.prediction.answers)
