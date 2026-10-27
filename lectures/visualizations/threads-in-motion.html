@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Threads in Motion — an animated infographic of kernel threads</title>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16212f; --ink:#e7eef7; --muted:#8aa0b6;
+    --accent:#60a5fa; --border:#233042;
+    --ok:#22c55e; --bad:#ef4444; --pick:#f59e0b;
+    --s1:#0c141d; --s2:#0e1826; --s3:#13233f; --s4:#243446; --s5:#2e4459; --s6:#33485f;
+    --s7:#1b2735; --s9:#1a2942; --s12:#1d2c3e; --t1:#cdd9e6;
+    --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  h1{margin:0}
+  .sub{color:var(--muted);margin-top:4px}
+  .wrap{display:flex;gap:20px;padding:20px 24px 70px;flex-wrap:wrap}
+  .stage{flex:1 1 540px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .side{flex:0 0 370px;min-width:0;max-width:100%;position:sticky;top:calc(var(--hh,92px) + 12px);align-self:flex-start}
+  .caption{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:110px;margin-bottom:14px}
+  .caption .step{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+  .caption .text{font-size:15px;line-height:1.55}
+  .verdict{font-size:16px;font-weight:700;margin-top:10px}
+  .verdict.ok{color:var(--ok)} .verdict.bad{color:var(--bad)} .verdict.warn{color:var(--pick)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  button{background:var(--s4);color:var(--ink);border:1px solid var(--s6);border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  button:hover:not(:disabled){background:var(--s5)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:600}
+  button.small{padding:5px 9px;font-size:12px}
+  .tabgroup{background:linear-gradient(160deg,var(--s9),var(--s2));border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:14px}
+  .algos{display:flex;flex-wrap:wrap;gap:4px;background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .algos button{flex:1 1 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;color:var(--muted);font-weight:600;font-size:13px}
+  .algos button:hover:not(.active){background:rgba(128,160,200,.12);color:var(--ink)}
+  .algos button.active{background:linear-gradient(180deg,#7cbaff,#3f82e6);color:#06152b;border-color:rgba(255,255,255,.22);font-weight:700;box-shadow:0 3px 9px rgba(37,99,235,.35)}
+  .progress{font-size:12px;color:var(--muted);margin-left:auto}
+  .builder{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .builder h3,.blockTitle{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700}
+  .blockTitle{color:var(--muted);font-weight:600;font-size:11px}
+  .brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  input[type=text],input[type=number],select{background:var(--s1);color:var(--ink);border:1px solid var(--s6);border-radius:7px;padding:7px 8px;font-size:14px;font-family:inherit}
+  input[type=number]{width:64px}
+  select{min-width:0;max-width:100%}
+  input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
+  label.lbl{font-size:13px;color:var(--muted)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th,table.t td{border:1px solid var(--border);padding:6px 8px;text-align:center}
+  table.t th{background:var(--s7);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stats{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+  .stat .big{font-size:24px;font-weight:800}
+  .stat .lab{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:5px 10px;border-radius:8px;font-weight:700;font-size:13px;color:#fff;background:var(--c0)}
+  .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
+  .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
+  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
+  header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
+         display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
+  header a.back{grid-column:1;grid-row:1 / span 2;font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+  header h1{grid-column:2;grid-row:1;font-size:clamp(17px,2.5vh,24px)}
+  header .sub{grid-column:2;grid-row:2;font-size:clamp(11px,1.5vh,14px)}
+  .lobj{margin:16px 24px 0;border:1px solid var(--s6);border-left:4px solid var(--accent);border-radius:10px;background:rgba(96,165,250,.08);padding:2px 16px}
+  .lobj summary{cursor:pointer;padding:11px 0;font-weight:700;color:var(--accent);font-size:14px}
+  .lobj summary span{color:var(--muted);font-weight:500;font-size:12px}
+  .lobj ul{margin:4px 0 14px;padding-left:22px;color:var(--t1);font-size:13.5px;line-height:1.7}
+  .fsBtn{grid-column:3;grid-row:1 / span 2;justify-self:end;font-size:clamp(11px,1.5vh,13px);font-weight:600;padding:8px 12px;white-space:nowrap}
+  .fsExit{position:fixed;top:14px;right:16px;z-index:100;display:none;font-size:13px;font-weight:600;padding:8px 12px}
+  .fsRoot:fullscreen{background:var(--bg);overflow:auto;padding:20px}
+  .fsRoot:fullscreen .fsExit{display:inline-flex}
+  .fsRoot:fullscreen .side{top:14px}
+  @media (max-width:820px){ .side{position:static;flex:1 1 100%} .wrap{padding:14px} .lobj{margin:12px 14px 0}
+    header{grid-template-columns:1fr auto} header a.back{grid-column:1;grid-row:auto} header h1,header .sub{grid-column:1 / -1;grid-row:auto} .fsBtn{grid-column:2;grid-row:1} }
+  svg#map{width:100%;display:block}
+  .lay{font-size:11px;fill:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+  .band{fill:var(--s7);stroke:var(--border)}
+  .ut{cursor:pointer}
+  .ut circle{stroke-width:3;stroke:transparent}
+  .ut:hover circle{stroke:var(--ink)}
+  .ut text,.kt text,.cpu text{font-size:12px;font-weight:700;fill:#fff;text-anchor:middle;pointer-events:none}
+  .ut text.small,.kt text.small{font-size:10.5px;font-weight:500;fill:var(--muted)}
+  .kt rect{stroke:var(--border);stroke-width:2}
+  .cpu rect{fill:var(--s5);stroke:var(--s6);stroke-width:2}
+  .cpu.busy rect{fill:var(--ok)}
+  .cpu.busy text{fill:#06121f}
+  .cpu text{fill:var(--muted)}
+  .lnk{stroke-width:2.5;fill:none}
+  .lnk.idle{stroke:var(--s6);stroke-dasharray:4 4;stroke-width:1.5}
+  .srow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .srow label{flex:0 0 132px}
+  .srow output{min-width:20px;font-weight:800;text-align:right}
+</style>
+<style id="os-theme-vars">
+html[data-theme=light]{
+  --bg:#f4f7fb; --panel:#ffffff; --ink:#16222e; --muted:#566575; --border:#d5deea; --accent:#2563eb;
+  --s1:#eef2f7; --s2:#f1f5fa; --s3:#dce9fb; --s4:#e8eef5; --s5:#d8e2ec; --s6:#c3cdd9;
+  --s7:#e4eaf1; --s8:#e1e9f4; --s9:#eaf0f7; --s10:#e6ecf3; --s11:#dbe6f2; --s12:#e2e9f1; --s13:#cdd8e4;
+  --t1:#2a3744; --t2:#4b5a6b; --t3:#23415f;
+  --ok:#15803d; --bad:#dc2626; --pick:#b45309;
+  color-scheme:light;
+}
+html[data-theme=light] body{background:var(--bg);color:var(--ink)}
+.themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.themeBtn .ic{font-size:15px;line-height:1}
+</style>
+<style>
+  .modeSw{display:flex;margin:0 0 12px;border:1px solid var(--s6);border-radius:10px;overflow:hidden}
+  .modeSw button{flex:1;border:0;border-radius:0;background:var(--s2);padding:10px 8px}
+  .modeSw button.on{background:var(--accent);color:#06121f;font-weight:700}
+  .dots{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+  .dots button{width:34px;height:34px;padding:0;border-radius:50%;font-size:13px}
+  .dots button.on{background:var(--accent);color:#06121f;border-color:var(--accent);font-weight:700}
+  .prog{height:4px;background:var(--s4);border-radius:2px;overflow:hidden;margin-top:12px}
+  .prog i{display:block;height:100%;width:0;background:var(--accent)}
+  .speed{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);margin:0 0 14px}
+  .speed input{flex:1}
+  .note{font-size:14px;color:var(--t1);margin-top:10px;line-height:1.5}
+  .note b{color:var(--accent)}
+  #scene{width:100%;height:auto;display:block}
+  #scene text{font-family:"Segoe UI",system-ui,sans-serif}
+  #scene .tok{transition:transform .9s cubic-bezier(.4,.1,.2,1),opacity .6s}
+  #scene .link{transition:opacity .6s}
+  #scene .kernelchip{transition:transform .9s cubic-bezier(.4,.1,.2,1)}
+  @keyframes pulse{0%,100%{filter:drop-shadow(0 0 0 rgba(34,197,94,0))}50%{filter:drop-shadow(0 0 9px rgba(34,197,94,.95))}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+  .tok.run .body{animation:pulse 1.4s ease-in-out infinite}
+  .ring{transform-box:fill-box;transform-origin:center;animation:spin 7s linear infinite}
+  .blink{animation:blink 1.6s ease-in-out infinite}
+  .ps{margin-top:14px;background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:12px 14px;overflow-x:auto}
+  .ps .cmd{font:600 13px/1.5 ui-monospace,Consolas,"Cascadia Mono",monospace;color:var(--ok);margin-bottom:8px;white-space:nowrap}
+  .ps table{border-collapse:collapse;font:13px/1.6 ui-monospace,Consolas,"Cascadia Mono",monospace;min-width:420px}
+  .ps th{color:var(--muted);text-align:left;font-weight:600;padding:2px 14px 4px 0;border-bottom:1px solid var(--border)}
+  .ps td{padding:1px 14px 1px 0;white-space:nowrap}
+  .ps tr.new td{animation:flash 1.6s ease-out}
+  @keyframes flash{0%{background:rgba(96,165,250,.35)}100%{background:transparent}}
+  .legend .row .sq.k{background:#64748b}
+  @media (max-width:820px){ .ps table{min-width:380px} }
+  @media (prefers-reduced-motion:reduce){ .ring,.blink,.tok.run .body{animation:none} #scene .tok,#scene .link,#scene .kernelchip{transition:none} }
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="index.html">&larr; All visualizations</a>
+  <h1>Threads in Motion — one process, many kernel threads</h1>
+  <div class="sub">Week 4 — watch one program create threads, see the kernel give each one an ID and a core, and read the same facts from <code>ps -L</code>. It loops by itself, or you can click through it step by step.</div>
+</header>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Say that every pthread is backed by a kernel thread with its own thread ID, and that the main thread's ID equals the PID.</li><li>Read the LWP, NLWP and PSR columns of <code>ps -L</code> and match them to what the kernel is doing.</li><li>Follow a thread through ready, running, sleeping and finished, and a context switch between two threads.</li><li>Name the kernel's own threads, such as <code>kthreadd</code>, and say that they also need the CPU.</li></ul></details>
+<div class="wrap">
+  <div class="stage">
+    <svg id="scene" viewBox="0 44 960 508" role="img" aria-label="Animated map: the threads of one process, the kernel threads behind them, and two CPU cores"></svg>
+    <div class="ps"><div class="cmd" id="cmd"></div><table><thead><tr><th>PID</th><th>LWP</th><th>NLWP</th><th>PSR</th><th>STAT</th><th>COMM</th></tr></thead><tbody id="psBody"></tbody></table></div>
+  </div>
+  <div class="side">
+    <div class="modeSw" role="group" aria-label="Play mode">
+      <button id="mLoop" class="on" type="button">&#8635; Loop (plays by itself)</button>
+      <button id="mStep" type="button">&#9197; Step by step</button>
+    </div>
+    <div class="controls">
+      <button id="prev" type="button">&#9664; Back</button>
+      <button id="play" class="primary" type="button">&#9208; Pause</button>
+      <button id="next" type="button">Next &#9654;</button>
+    </div>
+    <div class="speed"><label for="spd">Speed</label><input type="range" id="spd" min="0.5" max="2" step="0.25" value="1"><output id="spdO">1&times;</output></div>
+    <div class="dots" id="dots" aria-label="Go to a step"></div>
+    <div class="caption">
+      <div class="step" id="stepLabel"></div>
+      <div class="text" id="captionText"></div>
+      <div class="note" id="noteText"></div>
+      <div class="prog" id="progWrap"><i id="prog"></i></div>
+    </div>
+    <div class="legend">
+      <div class="row"><span class="sq" style="background:var(--ok)"></span> Running on a core</div>
+      <div class="row"><span class="sq" style="background:var(--pick)"></span> Ready, waiting for a core</div>
+      <div class="row"><span class="sq" style="background:var(--muted)"></span> Sleeping (a blocking call)</div>
+      <div class="row"><span class="sq k"></span> A thread the kernel runs for itself</div>
+    </div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id), NS='http://www.w3.org/2000/svg', PID=4200, COMM='threads_observe';
+const COLORS=['var(--c0)','var(--c1)','var(--c2)','var(--c3)','var(--c4)'], NAMES=['main','worker 1','worker 2','worker 3','worker 4'];
+const rowY=i=>236+i*56, SLOT=[{x:742,y:188},{x:742,y:360}];
+/* state of the five threads in each step: u = user thread exists, s = ready | run0 | run1 | wait | gone */
+const S=(u,s)=>({u,s});
+const STEPS=[
+ {t:'A program starts',
+  x:'Every process starts with one thread, the main thread. Its thread ID (TID, shown as LWP) is the same number as the PID.',
+  n:'<b>Look at</b> the table: one row, NLWP is 1, and LWP equals PID.',
+  th:[S(1,'run0'),S(0,'gone'),S(0,'gone'),S(0,'gone'),S(0,'gone')], ks:null},
+ {t:'pthread_create, four times',
+  x:'Each call to pthread_create makes a new thread. With one-to-one threading the kernel makes a kernel thread for each one and gives it its own TID.',
+  n:'<b>Look at</b> the table: five rows now, NLWP is 5, and every row has the same PID with a different LWP.',
+  th:[S(1,'run0'),S(1,'ready'),S(1,'ready'),S(1,'ready'),S(1,'ready')], ks:null},
+ {t:'The scheduler picks threads for the cores',
+  x:'The kernel scheduler sees kernel threads, not your program. With two cores it can run two threads at once. The rest wait, ready.',
+  n:'<b>Look at</b> PSR: it names the core a thread last ran on.',
+  th:[S(1,'run0'),S(1,'run1'),S(1,'ready'),S(1,'ready'),S(1,'ready')], ks:null},
+ {t:'The time slice ends: a context switch',
+  x:'When a time slice ends, the kernel saves the running threads and gives the cores to others. Nothing in the program asked for this.',
+  n:'<b>Look at</b> PSR: worker 2 and worker 3 now hold the cores. The others keep their old PSR.',
+  th:[S(1,'ready'),S(1,'ready'),S(1,'run0'),S(1,'run1'),S(1,'ready')], ks:null},
+ {t:'The kernel has threads of its own',
+  x:'Kernel threads such as ksoftirqd belong to no program. They are children of kthreadd, PID 2, and they also take turns on the cores.',
+  n:'<b>Try</b> <code>ps --ppid 2 -o pid,ppid,psr,comm</code> to list them. Never send them a signal.',
+  th:[S(1,'ready'),S(1,'ready'),S(1,'run0'),S(1,'ready'),S(1,'ready')], ks:1},
+ {t:'A thread goes to sleep',
+  x:'Worker 1 calls sleep(60). It cannot run, so the kernel leaves it off the cores. The other threads keep running.',
+  n:'<b>Look at</b> STAT: the sleeping thread shows S. Runnable threads show R.',
+  th:[S(1,'ready'),S(1,'wait'),S(1,'run0'),S(1,'ready'),S(1,'run1')], ks:null},
+ {t:'The workers finish and main joins them',
+  x:'Each worker ends, and main collects it with pthread_join. The kernel threads disappear one by one and NLWP falls back to 1.',
+  n:'The loop starts again from a single thread.',
+  th:[S(1,'run0'),S(1,'gone'),S(1,'gone'),S(1,'gone'),S(1,'gone')].map((o,i)=>i?S(1,'gone'):o), ks:null}
+];
+STEPS[6].th=[S(1,'run0'),S(0,'gone'),S(0,'gone'),S(0,'gone'),S(0,'gone')];
+
+/* the ps table for each step, worked out from the states */
+(function(){ let last=[0,0,0,0,0], seen=[0,0,0,0,0];
+  STEPS.forEach(st=>{ st.ps=[]; const live=st.th.filter(o=>o.s!=='gone').length;
+    st.th.forEach((o,i)=>{ if(o.s==='run0') last[i]=0; if(o.s==='run1') last[i]=1;
+      if(o.s!=='gone'){ st.ps.push({i,lwp:PID+i,nlwp:live,psr:last[i],stat:o.s==='wait'?'S':'R',fresh:!seen[i]}); }
+      seen[i]=o.s!=='gone'?1:0; }); });
+})();
+
+/* ---- the scene ---- */
+const svg=$('scene');
+function el(tag,at,parent,txt){ const e=document.createElementNS(NS,tag); for(const k in at) e.setAttribute(k,at[k]); if(txt!=null) e.textContent=txt; (parent||svg).appendChild(e); return e; }
+function panel(x,y,w,h,title,sub){ el('rect',{x,y,width:w,height:h,rx:14,fill:'var(--s2)',stroke:'var(--s6)'});
+  el('text',{x:x+16,y:y+26,fill:'var(--accent)','font-size':15,'font-weight':700},null,title);
+  if(sub) el('text',{x:x+16,y:y+46,fill:'var(--muted)','font-size':12.5},null,sub); }
+panel(20,60,320,480,'Your process','one address space, shared by all its threads');
+panel(364,60,300,480,'Kernel','keeps one kernel thread for each thread');
+panel(688,60,256,480,'CPU','two cores');
+el('rect',{x:36,y:112,width:288,height:60,rx:8,fill:'var(--s7)',stroke:'var(--s6)'});
+el('text',{x:48,y:136,fill:'var(--t1)','font-size':13,'font-weight':600},null,'Shared: code, data, heap, open files');
+el('text',{x:48,y:158,fill:'var(--muted)','font-size':12.5},null,'Each thread has its own stack and registers');
+el('text',{x:380,y:122,fill:'var(--muted)','font-size':12.5},null,'Threads the kernel runs for itself:');
+[['[kthreadd]  PID 2',380,134],['[kworker/0:1]',380,160]].forEach(([t,x,y])=>{ el('rect',{x,y,width:132,height:22,rx:6,fill:'var(--s7)',stroke:'var(--s6)'}); el('text',{x:x+8,y:y+15,fill:'var(--t1)','font-size':11.5},null,t); });
+const links=[], uts=[], kts=[];
+for(let i=0;i<5;i++){
+  const y=rowY(i), g=el('g',{class:'link',opacity:0}); links.push(g);
+  el('line',{x1:164,y1:y+19,x2:392,y2:y+19,stroke:COLORS[i],'stroke-width':2.5,'stroke-dasharray':'6 5',opacity:.8},g);
+  const dot=el('circle',{r:4.5,fill:COLORS[i]},g); const am=el('animateMotion',{dur:(1.5+i*0.12)+'s',repeatCount:'indefinite',path:'M164,'+(y+19)+' L392,'+(y+19)},dot);
+}
+for(let i=0;i<5;i++){
+  const u=el('g',{class:'tok',opacity:0,transform:'translate(44,'+rowY(i)+')'}); uts.push(u);
+  el('rect',{class:'body',width:120,height:38,rx:10,fill:COLORS[i]},u);
+  el('text',{x:12,y:24,fill:'#fff','font-size':14,'font-weight':700},u,NAMES[i]);
+  el('rect',{x:96,y:9,width:14,height:5,rx:2,fill:'#fff',opacity:.8},u); el('rect',{x:96,y:17,width:14,height:5,rx:2,fill:'#fff',opacity:.8},u); el('rect',{x:96,y:25,width:14,height:5,rx:2,fill:'#fff',opacity:.8},u);
+  const k=el('g',{class:'tok',opacity:0,transform:'translate(392,'+rowY(i)+')'}); kts.push(k);
+  el('rect',{class:'body',width:150,height:38,rx:10,fill:COLORS[i]},k);
+  el('text',{x:12,y:17,fill:'#fff','font-size':13.5,'font-weight':700},k,'TID '+(PID+i)+(i?'':' = PID'));
+  const st=el('text',{x:12,y:31,fill:'#fff','font-size':11.5,opacity:.9,class:'kst'},k,'');
+}
+/* the kernel's own thread chip, drawn on top so it can visit a core */
+const ks=el('g',{class:'kernelchip',transform:'translate(380,186)'});
+el('rect',{width:132,height:22,rx:6,fill:'#64748b'},ks); el('text',{x:8,y:15,fill:'#fff','font-size':11.5,'font-weight':700},ks,'[ksoftirqd/0]');
+/* cores */
+const cores=[0,1].map(c=>{ const y=c?290:118, g=el('g',{}); el('rect',{x:704,y,width:224,height:150,rx:12,fill:'var(--s1)',stroke:'var(--s6)'},g);
+  el('text',{x:720,y:y+26,fill:'var(--t1)','font-size':14,'font-weight':700},g,'Core '+c);
+  const r=el('circle',{class:'ring',cx:898,cy:y+24,r:9,fill:'none',stroke:'var(--accent)','stroke-width':2,'stroke-dasharray':'5 4'},g);
+  const idle=el('text',{x:816,y:y+98,'text-anchor':'middle',fill:'var(--muted)','font-size':13,class:'blink'},g,'idle'); return {idle}; });
+el('text',{x:36,y:528,fill:'var(--muted)','font-size':12.5},null,'Dots on the dashed lines: a user thread and its kernel thread are a pair.');
+/* keep the kernel tokens and the chip above the cores */
+kts.forEach(k=>svg.appendChild(k)); svg.appendChild(ks);
+
+/* ---- showing a step ---- */
+let cur=0, prev=-1;
+function show(n,quiet){
+  cur=(n+STEPS.length)%STEPS.length; const st=STEPS[cur];
+  st.th.forEach((o,i)=>{
+    const vis=o.s!=='gone', run=o.s==='run0'||o.s==='run1';
+    uts[i].setAttribute('opacity',o.u?1:0); links[i].setAttribute('opacity',o.u&&vis?1:0);
+    const k=kts[i]; k.setAttribute('opacity',vis?(o.s==='wait'?.55:1):0); k.classList.toggle('run',run);
+    let x=392,y=rowY(i); if(o.s==='run0'){x=SLOT[0].x;y=SLOT[0].y;} if(o.s==='run1'){x=SLOT[1].x;y=SLOT[1].y;}
+    k.setAttribute('transform','translate('+x+','+y+')');
+    k.querySelector('.kst').textContent=o.s==='wait'?'sleeping':run?'running on core '+(o.s==='run0'?0:1):vis?'ready':'';
+    uts[i].classList.toggle('run',run);
+  });
+  const kc=st.ks; ks.setAttribute('transform',kc==null?'translate(380,186)':'translate('+(SLOT[kc].x-14)+','+(SLOT[kc].y+8)+')');
+  [0,1].forEach(c=>{ const busy=st.th.some(o=>o.s==='run'+c)||st.ks===c; cores[c].idle.setAttribute('opacity',busy?0:1); });
+  $('stepLabel').textContent='Step '+(cur+1)+' of '+STEPS.length+' — '+st.t;
+  $('captionText').textContent=st.x; $('noteText').innerHTML=st.n;
+  $('cmd').textContent='$ ps -L -o pid,lwp,nlwp,psr,stat,comm -p '+PID;
+  const tb=$('psBody'); tb.innerHTML='';
+  st.ps.forEach(r=>{ const tr=document.createElement('tr'); if(r.fresh&&!quiet) tr.className='new';
+    [PID,r.lwp,r.nlwp,r.psr,r.stat,COMM].forEach(v=>{ const td=document.createElement('td'); td.textContent=v; tr.appendChild(td); }); tb.appendChild(tr); });
+  document.querySelectorAll('#dots button').forEach((b,i)=>{ b.classList.toggle('on',i===cur); b.setAttribute('aria-current',i===cur?'step':'false'); });
+  prev=cur;
+}
+
+/* ---- loop and step modes ---- */
+const BASE=3800; let mode=(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)?'step':'loop', paused=false, speed=1, timer=null, t0=0, raf=0;
+function dur(){ return BASE/speed; }
+function stopTimers(){ clearTimeout(timer); cancelAnimationFrame(raf); }
+function frame(){ const p=Math.min(1,(performance.now()-t0)/dur()); $('prog').style.width=(p*100)+'%'; if(mode==='loop'&&!paused) raf=requestAnimationFrame(frame); }
+function schedule(){ stopTimers(); $('prog').style.width='0%';
+  if(mode!=='loop'||paused) return;
+  t0=performance.now(); raf=requestAnimationFrame(frame);
+  timer=setTimeout(()=>{ show(cur+1); schedule(); },dur()); }
+function go(n){ show(n); schedule(); }
+function setMode(m){ mode=m; $('mLoop').classList.toggle('on',m==='loop'); $('mStep').classList.toggle('on',m==='step');
+  $('play').disabled=(m!=='loop'); $('progWrap').style.visibility=m==='loop'?'visible':'hidden'; paused=false; $('play').innerHTML='&#9208; Pause'; schedule(); }
+function togglePlay(){ if(mode!=='loop') return; paused=!paused; $('play').innerHTML=paused?'&#9654; Play':'&#9208; Pause'; schedule(); }
+STEPS.forEach((s,i)=>{ const b=document.createElement('button'); b.type='button'; b.textContent=i+1; b.title=s.t; b.addEventListener('click',()=>go(i)); $('dots').appendChild(b); });
+$('mLoop').addEventListener('click',()=>setMode('loop')); $('mStep').addEventListener('click',()=>setMode('step'));
+$('next').addEventListener('click',()=>go(cur+1)); $('prev').addEventListener('click',()=>go(cur-1)); $('play').addEventListener('click',togglePlay);
+$('spd').addEventListener('input',e=>{ speed=+e.target.value; $('spdO').textContent=speed+'\u00d7'; schedule(); });
+document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select') return;
+  if(e.key==='ArrowRight') go(cur+1); else if(e.key==='ArrowLeft') go(cur-1); else if(e.key===' '){ e.preventDefault(); togglePlay(); }
+  else if(e.key==='l'||e.key==='L') setMode('loop'); else if(e.key==='s'||e.key==='S') setMode('step'); });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) stopTimers(); else schedule(); });
+show(0,true); setMode(mode);
+</script>
+<script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
+<script>(function(){
+  var wrap=document.querySelector('[data-fs-root]')||document.querySelector('.wrap'); if(!wrap) return; wrap.classList.add('fsRoot');
+  var header=document.querySelector('header'); if(!header) return;
+  function reqFs(el){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  function exitFs(){ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null; }
+  var enter=document.createElement('button');
+  enter.className='fsBtn'; enter.type='button';
+  enter.innerHTML='<span class="fsIcon">⛶ </span><span class="fsTxt">Full screen</span>';
+  enter.addEventListener('click',function(){ fsEl()===wrap?exitFs():reqFs(wrap); });
+  header.appendChild(enter);
+  var exit=document.createElement('button');
+  exit.className='fsExit'; exit.type='button';
+  exit.innerHTML='✕ Exit full screen';
+  exit.addEventListener('click',exitFs);
+  wrap.appendChild(exit);
+  function sync(){ var t=enter.querySelector('.fsTxt'); if(t) t.textContent=(fsEl()===wrap)?'Exit full screen':'Full screen'; }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+})();</script>
+<script>(function(){
+  var KEY='os-theme', root=document.documentElement;
+  function cur(){ return root.getAttribute('data-theme')==='light'?'light':'dark'; }
+  function apply(t){ if(t==='light') root.setAttribute('data-theme','light'); else root.removeAttribute('data-theme'); }
+  var btn=document.createElement('button');
+  btn.className='themeBtn'; btn.type='button'; btn.title='Toggle light / dark';
+  document.body.appendChild(btn);
+  function render(){ btn.innerHTML = cur()==='light' ? '<span class="ic">☾</span><span>Dark</span>' : '<span class="ic">☀</span><span>Light</span>'; }
+  render();
+  btn.addEventListener('click',function(){ var t=cur()==='light'?'dark':'light'; apply(t); try{localStorage.setItem(KEY,t);}catch(e){} render(); window.dispatchEvent(new Event('themechange')); });
+})();</script>
+</body>
+</html>

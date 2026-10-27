@@ -8,6 +8,7 @@ Step-through, animated explanations of OS concepts. Each file is **self-containe
 | [system-call-path.html](system-call-path.html) | One request from a C program down to the hardware, through a monolithic, a layered and a microkernel operating system | Week 2 (Ch 2) |
 | [process-states.html](process-states.html) | Process states and the PCB: fire events and watch processes move between new, ready, running, waiting and terminated, with a context switch at each change | Week 3 (Ch 3) |
 | [fork-tree.html](fork-tree.html) | `fork()` process trees: step through small C programs and count the processes and the lines of output | Week 3 (Ch 3) |
+| [threads-in-motion.html](threads-in-motion.html) | Animated infographic (loops, or step by step): one process, its kernel threads, the cores and the matching `ps -L` output | Week 4 (Ch 4) |
 | [threading-models.html](threading-models.html) | Many-to-one, one-to-one and many-to-many threading models, and what stops when one thread blocks | Week 4 (Ch 4) |
 | [amdahls-law.html](amdahls-law.html) | Amdahl's law: how the serial fraction limits the speedup from more cores | Week 4 (Ch 4) |
 | [cpu-scheduling.html](cpu-scheduling.html) | FCFS, SJF, SRTF, Round Robin and Priority on the same processes, one time unit at a time, with waiting-time comparison | Weeks 5–6 (Ch 5–6) |

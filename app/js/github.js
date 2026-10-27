@@ -51,7 +51,7 @@ const GitHubAPI = (function () {
         "lectures/visualizations/contiguous-allocation.html", "lectures/visualizations/cpu-scheduling.html", "lectures/visualizations/critical-section.html", "lectures/visualizations/deadlock-detection.html", "lectures/visualizations/demand-paging.html", "lectures/visualizations/dining-philosophers.html",
         "lectures/visualizations/eat-calculator.html", "lectures/visualizations/file-allocation.html", "lectures/visualizations/file-permissions.html", "lectures/visualizations/fork-tree.html", "lectures/visualizations/index.html", "lectures/visualizations/interrupts-dual-mode.html",
         "lectures/visualizations/mlfq.html", "lectures/visualizations/page-replacement.html", "lectures/visualizations/paging-translation.html", "lectures/visualizations/pc-sandbox.html", "lectures/visualizations/process-states.html", "lectures/visualizations/producer-consumer.html",
-        "lectures/visualizations/rag-deadlock.html", "lectures/visualizations/readers-writers.html", "lectures/visualizations/system-call-path.html", "lectures/visualizations/threading-models.html", "lectures/visualizations/tlb.html"
+        "lectures/visualizations/rag-deadlock.html", "lectures/visualizations/readers-writers.html", "lectures/visualizations/system-call-path.html", "lectures/visualizations/threading-models.html", "lectures/visualizations/threads-in-motion.html", "lectures/visualizations/tlb.html"
     ];
 
     // Persisted cache (localStorage so it survives reloads/new tabs, unlike sessionStorage).

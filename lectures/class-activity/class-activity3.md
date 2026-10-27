@@ -49,7 +49,7 @@ In the lectures, you learned that processes can **communicate** with each other 
 1. **Build a TCP client/server** in C using the POSIX socket API to exchange messages between two processes.
 2. **Create and manage threads** on Linux using the POSIX Threads (pthreads) library.
 3. **Write a multithreaded Java program** using `Thread` and `Runnable` and observe thread behavior.
-4. **Observe threads** at the OS level using `ps`, `htop`, and Task Manager to see how the kernel schedules threads.
+4. **Observe threads** at the OS level using `ps`, `htop`, `/proc` and Task Manager, and **visualize the kernel's own threads** with a few Linux commands, to see how the kernel schedules threads.
 
 By the end, you will have hands-on experience with inter-process communication via sockets and concurrent programming with threads on two different operating systems.
 
@@ -134,6 +134,16 @@ A **thread** is the smallest unit of execution scheduled by the OS. Multiple thr
  └───────────────────────────────────────────────┘
 ```
 
+**User threads and kernel threads.** On Linux every thread you create with `pthread_create()` is backed by a **kernel thread**. The kernel schedules these threads (it calls them *tasks*) and gives each one a thread ID, shown as **TID** or **LWP**. The kernel also runs threads of its own, such as `kthreadd` (always PID 2) and the threads it starts, which belong to no user program. You can see both kinds from the shell:
+
+| Command | What it shows |
+|---------|---------------|
+| `ps -L -o pid,lwp,nlwp,psr,comm -p <PID>` | The threads of one process: thread ID (LWP), thread count (NLWP) and the CPU core last used (PSR) |
+| `ls /proc/<PID>/task/` | One folder for each thread of the process |
+| `top -H -p <PID>` | A live view with one row for each thread |
+| `ps --ppid 2 -o pid,ppid,psr,comm` | The kernel threads: the children of `kthreadd` |
+| `pstree -p` | A tree of processes and threads with their IDs |
+
 **POSIX Threads (pthreads) — C:**
 
 | Function | Purpose |
@@ -165,7 +175,7 @@ A **thread** is the smallest unit of execution scheduled by the OS. Multiple thr
 | **Task 1** | Build a TCP server and client in C that exchange messages | Linux | `socket()`, `bind()`, `listen()`, `accept()`, `connect()`, `send()`, `recv()` |
 | **Task 2** | Write a multithreaded C program using pthreads | Linux | `pthread_create()`, `pthread_join()`, thread IDs, shared data |
 | **Task 3** | Write a multithreaded Java program using `Thread` and `Runnable` | Linux/Windows | `Thread`, `Runnable`, `ExecutorService`, `synchronized` |
-| **Task 4** | Observe threads at the OS level using `ps`, `htop`, and Task Manager | Linux + Windows | `/proc/<pid>/task/`, `ps -eLf`, `htop` thread view, Task Manager |
+| **Task 4** | Observe threads at the OS level using `ps`, `htop`, Task Manager, and Linux commands that show the kernel's own threads | Linux + Windows | `/proc/<pid>/task/`, `ps -eLf`, `ps -L`, `top -H`, `kthreadd`, `pstree`, `htop` thread view, Task Manager |
 
 ---
 
@@ -910,7 +920,47 @@ $ htop
 
 > 📸 **Required Screenshot:** Take a screenshot of `htop` showing individual threads of your program (after pressing Shift+H).
 
-##### 5. Clean up
+##### 5. Visualize kernel threads from the shell
+
+While `threads_observe` is still running, use the commands below. They only read information. **Never send a signal to a kernel thread.**
+
+```bash
+# (a) Your program's threads as the kernel sees them:
+#     PID, thread ID (LWP), number of threads (NLWP), CPU core last used (PSR)
+$ ps -L -o pid,lwp,nlwp,psr,stat,comm -p <PID>
+
+# (b) The same facts from /proc: one folder per thread, and the thread count
+$ ls /proc/<PID>/task/
+$ grep -E 'Name|State|Threads' /proc/<PID>/status
+
+# (c) A live view with one row for each thread (press q to quit)
+$ top -H -p <PID>
+
+# (d) The kernel's own threads: kthreadd is PID 2, and its children are kernel threads
+$ ps -o pid,ppid,psr,comm -p 2
+$ ps --ppid 2 -o pid,ppid,psr,comm | head -15
+
+# (e) One tree that shows kernel threads and your program together
+$ ps -eo pid,ppid,nlwp,comm --forest | head -30
+$ pstree -p | head -20
+```
+
+Save the evidence:
+
+```bash
+$ { ps -L -o pid,lwp,nlwp,psr,stat,comm -p <PID>; ps --ppid 2 -o pid,ppid,psr,comm | head -15; } >> result_observe_linux.txt
+```
+
+How to read the output:
+
+- Your program has **five** threads: the main thread and the four workers. The main thread's TID is equal to the PID. The other four have their own TIDs, and NLWP is 5.
+- **PSR** is the core a thread last ran on. Run command (a) twice: threads that sleep usually stay on the same core.
+- **Kernel threads** have no user address space. In `ps -ef` their names are in square brackets, for example `[kthreadd]` or `[ksoftirqd/0]`.
+- A container or WSL may hide the kernel threads. If command (d) shows almost nothing, say so in your README. Do not conclude that the kernel has no threads.
+
+> 📸 **Required Screenshot:** one terminal showing the output of commands (a) and (d).
+
+##### 6. Clean up
 
 ```bash
 $ kill %1 2>/dev/null  # Kill the background threads_observe process
@@ -960,6 +1010,8 @@ Answer these in your `README.md`:
 2. **How many entries did you find in `/proc/<PID>/task/`? Does it match the number of threads in your program (including the main thread)?**
 3. **In Task Manager, why does `java.exe` show more threads than the 3 you created? What are the extra threads?**
 4. **Compare how Linux (`ps`, `/proc`) and Windows (Task Manager) display threads. Which gives more detail?**
+5. **What is `kthreadd`, and what is its PID? Name three kernel threads you found, and say how you can tell from the `ps` output that they are kernel threads.** (If your system hides them, say so.)
+6. **In the output of command (a), which thread has a TID equal to the PID, and what is NLWP? On which cores (PSR) did your threads run?**
 
 ---
 
@@ -1153,6 +1205,12 @@ _(Paste the relevant ps output here)_
 
 ![htop threads](screenshots/task4_htop_threads.png)
 
+### Linux — Kernel Threads
+
+![kernel threads](screenshots/task4_kernel_threads.png)
+
+_(Paste the output of `ps -L ...` and `ps --ppid 2 ...` here)_
+
 ### Windows — Task Manager
 
 ![Task Manager threads](screenshots/task4_taskmanager_threads.png)
@@ -1171,6 +1229,12 @@ _(Paste the relevant ps output here)_
 4. **Linux vs Windows thread viewing:**
    > _Your answer_
 
+5. **kthreadd and three kernel threads:**
+   > _Your answer_
+
+6. **TID equal to PID, NLWP and cores:**
+   > _Your answer_
+
 ---
 
 ## Reflection
@@ -1187,7 +1251,7 @@ _(Paste the relevant ps output here)_
 | **Task 1 — Socket Communication** | 25 | Server/client compile, run, and exchange messages correctly. Output saved. Questions answered. |
 | **Task 2 — POSIX Threads** | 25 | Both versions (race condition + mutex fix) compile and run. Race condition observed and explained. Questions answered. |
 | **Task 3 — Java Multithreading** | 25 | All three Java programs compile and run. Thread interleaving and pool behavior observed. Questions answered. |
-| **Task 4 — Thread Observation** | 15 | Screenshots of `ps`, `htop` (thread view), and Task Manager showing threads. Questions answered. |
+| **Task 4 — Thread Observation** | 15 | Screenshots of `ps`, `htop` (thread view), the kernel-thread commands, and Task Manager showing threads. Questions answered. |
 | **README Quality** | 10 | Well-organized README with all screenshots embedded, clear answers, and reflection. |
 | **Total** | **100** | |
 
