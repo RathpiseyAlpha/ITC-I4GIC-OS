@@ -20,6 +20,21 @@ Read the [student instruction](../../../labs/lab7/lab7-instruction.md), [report 
 - Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
 - Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
 
+## Guide
+
+Project the guide (`labs/lab7/guides/slides.html`, 45 slides; PDF `lab7-guides.pdf`). It follows the instruction. The "Beyond the core" slides are optional background and are not in the 120-minute timetable.
+
+| Slides | Content |
+|---|---|
+| 1 to 3 | Cover, learning objectives and an opening question. |
+| 4 to 9 | Concepts first: a script, running modes, quoting arguments, the leading dash and exit status. |
+| 10 to 15 | How the lab works: the scenario, the timetable, the rules, setup and the starting tree. |
+| 16 to 21 | Guided: script basics, then the prediction. |
+| 22 to 31 | Task 2: your personal file command, then the tests. |
+| 32 to 34 | The individual checkpoint: why, and the practice question. |
+| 35 to 40 | Correction, submission, grading, common mistakes. |
+| 41 to 45 | Beyond the core: PATH, login messages and the outbox, then takeaways and the next lab. |
+
 ## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |

@@ -20,6 +20,21 @@ Read the [student instruction](../../../labs/lab4/lab4-instruction.md), [report 
 - Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
 - Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
 
+## Guide
+
+Project the guide (`labs/lab4/guides/slides.html`, 52 slides; PDF `lab4-guides.pdf`). It follows the instruction. The "Beyond the core" slides are optional background and are not in the 120-minute timetable.
+
+| Slides | Content |
+|---|---|
+| 1 to 3 | Cover, learning objectives and an opening question. |
+| 4 to 13 | Concepts first: the three streams, redirection operators, pipes and the filters grep, cut and awk. |
+| 14 to 19 | How the lab works: the scenario, the timetable, the rules, setup and the starting tree. |
+| 20 to 26 | Guided: redirection and pipelines, then the prediction. |
+| 27 to 36 | Task 3: build the report, then the tests. |
+| 37 to 39 | The individual checkpoint: why, and the practice question. |
+| 40 to 45 | Correction, submission, grading, common mistakes. |
+| 46 to 52 | Beyond the core: processes, jobs and signals, then takeaways and the next lab. |
+
 ## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |

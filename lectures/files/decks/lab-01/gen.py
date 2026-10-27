@@ -30,6 +30,8 @@ import labcoverart  # noqa: E402
 from oslib import (h2, para, statement, em, lst, row, col, grid, card, rule, table,  # noqa: E402,F401
                    box, arrow, flow, layers, lanes, OSDeck, setup)
 
+decklib.PAGE_BADGE = True  # the page number is a round badge at the bottom right, as in the ICT decks
+
 # ---- this guide's own look ------------------------------------------------
 UBUNTU = "font-family:'Ubuntu', 'Segoe UI', Arial, sans-serif"
 MONO = "font-family:'Ubuntu Mono', 'Courier New', monospace"

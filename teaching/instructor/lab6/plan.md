@@ -20,6 +20,21 @@ Read the [student instruction](../../../labs/lab6/lab6-instruction.md), [report 
 - Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
 - Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
 
+## Guide
+
+Project the guide (`labs/lab6/guides/slides.html`, 45 slides; PDF `lab6-guides.pdf`). It follows the instruction. The "Beyond the core" slides are optional background and are not in the 120-minute timetable.
+
+| Slides | Content |
+|---|---|
+| 1 to 3 | Cover, learning objectives and an opening question. |
+| 4 to 10 | Concepts first: users and groups, the mode string, octal and symbolic modes, directory search and the whole path. |
+| 11 to 16 | How the lab works: the scenario, the timetable, the rules, setup and the starting tree. |
+| 17 to 22 | Guided: permission basics, then the prediction. |
+| 23 to 31 | Task 3: policy, modes and traversal, then the tests. |
+| 32 to 34 | The individual checkpoint: why, and the practice question. |
+| 35 to 40 | Correction, submission, grading, common mistakes. |
+| 41 to 45 | Beyond the core: accounts, ACLs and special bits, then takeaways and the next lab. |
+
 ## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |

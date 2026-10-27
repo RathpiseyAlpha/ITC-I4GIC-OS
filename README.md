@@ -52,7 +52,7 @@ ITC-I4GIC-OS/
 ├── lectures/
 │   ├── files/                 # Lecture slides
 │   │   ├── Converted Slides/  #   This term's slides, one PDF per week (Weeks 1–6, 9–13)
-│   │   │   └── Labs/          #     Lab guide PDFs (Lab 1, Lab 2)
+│   │   │   └── Labs/          #     Lab guide PDFs (Labs 1–11)
 │   │   └── ch1.pdf … ch10.pdf #   Earlier chapter slides
 │   │
 │   ├── notes/                 # 📝 Note-taking templates (one per week)
@@ -131,16 +131,16 @@ Each lab is a 120-minute individual session on the course server. Start with the
 | Lab | Title | Status | Link |
 |:---:|-------|:------:|:----:|
 | 1 | Introduction to Operating Systems | ✅ Available | [Instructions](labs/lab1/lab1-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 1.pdf>) |
-| 2 | Linux Navigation & File Management | ✅ Available | [Instructions](labs/lab2/lab2-instruction.md) · [Guide](labs/lab2/guides/lab2-guides.pdf) |
-| 3 | Wildcards, Links, GRUB & Shared Libraries | ✅ Available | [Instructions](labs/lab3/lab3-instruction.md) |
-| 4 | I/O Redirection, Pipelines & Process Management | ✅ Available | [Instructions](labs/lab4/lab4-instruction.md) |
-| 5 | Threads, Kernel Workers & Process Signals | ✅ Available | [Instructions](labs/lab5/lab5-instruction.md) |
-| 6 | Linux Security, Users, Groups & File Permissions | ✅ Available | [Instructions](labs/lab6/lab6-instruction.md) |
-| 7 | Bash Scripting, Permissions & Server Automation | ✅ Available | [Instructions](labs/lab7/lab7-instruction.md) |
-| 8 | Secure Bash Scripting, Race Conditions & File Locking | ✅ Available | [Instructions](labs/lab8/lab8-instruction.md) |
-| 9 | Vault Deadlock, Resource Ordering & Recovery | ✅ Available | [Instructions](labs/lab9/lab9-instruction.md) |
-| 10 | Backups, Archiving, Scheduling & cron Automation | ✅ Available | [Instructions](labs/lab10/lab10-instruction.md) |
-| 11 | Linux Disk Management Utilities (bonus) | ✅ Available | [Instructions](labs/lab11/lab11-instruction.md) |
+| 2 | Linux Navigation & File Management | ✅ Available | [Instructions](labs/lab2/lab2-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 2.pdf>) |
+| 3 | Wildcards, Links, GRUB & Shared Libraries | ✅ Available | [Instructions](labs/lab3/lab3-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 3.pdf>) |
+| 4 | I/O Redirection, Pipelines & Process Management | ✅ Available | [Instructions](labs/lab4/lab4-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 4.pdf>) |
+| 5 | Threads, Kernel Workers & Process Signals | ✅ Available | [Instructions](labs/lab5/lab5-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 5.pdf>) |
+| 6 | Linux Security, Users, Groups & File Permissions | ✅ Available | [Instructions](labs/lab6/lab6-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 6.pdf>) |
+| 7 | Bash Scripting, Permissions & Server Automation | ✅ Available | [Instructions](labs/lab7/lab7-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 7.pdf>) |
+| 8 | Secure Bash Scripting, Race Conditions & File Locking | ✅ Available | [Instructions](labs/lab8/lab8-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 8.pdf>) |
+| 9 | Vault Deadlock, Resource Ordering & Recovery | ✅ Available | [Instructions](labs/lab9/lab9-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 9.pdf>) |
+| 10 | Backups, Archiving, Scheduling & cron Automation | ✅ Available | [Instructions](labs/lab10/lab10-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 10.pdf>) |
+| 11 | Linux Disk Management Utilities (bonus) | ✅ Available | [Instructions](labs/lab11/lab11-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 11.pdf>) |
 
 ### Lab 1 Highlights
 

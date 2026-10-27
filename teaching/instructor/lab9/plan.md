@@ -20,6 +20,21 @@ Read the [student instruction](../../../labs/lab9/lab9-instruction.md), [report 
 - Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
 - Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
 
+## Guide
+
+Project the guide (`labs/lab9/guides/slides.html`, 46 slides; PDF `lab9-guides.pdf`). It follows the instruction. The "Beyond the core" slides are optional background and are not in the 120-minute timetable.
+
+| Slides | Content |
+|---|---|
+| 1 to 3 | Cover, learning objectives and an opening question. |
+| 4 to 8 | Concepts first: the four conditions, holdings and requests as edges, bounded locks, prevention and recovery. |
+| 9 to 14 | How the lab works: the scenario, the timetable, the rules, setup and the starting tree. |
+| 15 to 19 | Guided: locks and the vault, then the prediction. |
+| 20 to 32 | Levels 2 and 3: naive workers and a local deadlock. Levels 5 and 6: global order, then the tests. |
+| 33 to 35 | The individual checkpoint: why, and the practice question. |
+| 36 to 41 | Correction, submission, grading, common mistakes. |
+| 42 to 46 | Beyond the core: wait traces and site-to-site sync, then takeaways and the next lab. |
+
 ## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |

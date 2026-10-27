@@ -20,6 +20,21 @@ Read the [student instruction](../../../labs/lab3/lab3-instruction.md), [report 
 - Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
 - Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
 
+## Guide
+
+Project the guide (`labs/lab3/guides/slides.html`, 54 slides; PDF `lab3-guides.pdf`). It follows the instruction. The "Beyond the core" slides are optional background and are not in the 120-minute timetable.
+
+| Slides | Content |
+|---|---|
+| 1 to 3 | Cover, learning objectives and an opening question. |
+| 4 to 13 | Concepts first: wildcards, quoting, inodes, hard and symbolic links and how a relative target is read. |
+| 14 to 19 | How the lab works: the scenario, the timetable, the rules, setup and the starting tree. |
+| 20 to 25 | Guided example: wildcards and the first links, then the prediction. |
+| 26 to 35 | Task 2: hard links and symbolic links, then the tests. |
+| 36 to 38 | The individual checkpoint: why, and the practice question. |
+| 39 to 44 | Correction, submission, grading, common mistakes. |
+| 45 to 54 | Beyond the core: GRUB and shared libraries, then takeaways and the next lab. |
+
 ## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |

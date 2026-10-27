@@ -20,6 +20,21 @@ Read the [student instruction](../../../labs/lab11/lab11-instruction.md), [repor
 - Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
 - Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
 
+## Guide
+
+Project the guide (`labs/lab11/guides/slides.html`, 44 slides; PDF `lab11-guides.pdf`). It follows the instruction. The "Beyond the core" slides are optional background and are not in the 120-minute timetable.
+
+| Slides | Content |
+|---|---|
+| 1 to 3 | Cover, learning objectives and an opening question. |
+| 4 to 8 | Concepts first: capacity, length and allocation, sparse files, stat, and disk images. |
+| 9 to 14 | How the lab works: the scenario, the timetable, the rules, setup and the starting tree. |
+| 15 to 20 | Guided: inventory and usage, then the prediction. |
+| 21 to 30 | Levels 2 and 3: create and inspect an image, format it, then the tests. |
+| 31 to 33 | The individual checkpoint: why, and the practice question. |
+| 34 to 39 | Correction, submission, grading, common mistakes. |
+| 40 to 44 | Beyond the core: mounting, checking, growing and a utility, then takeaways. |
+
 ## Exact 120-minute Timetable
 
 | Minutes | Teacher action and evidence |

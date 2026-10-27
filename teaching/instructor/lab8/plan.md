@@ -18,6 +18,21 @@ This lab uses the pilot format. Read the [student instruction](../../../labs/lab
 - Prepare a roster file with one account name per line (the same allowlist as for installation). All `oslab-teach` commands below take `--roster FILE`.
 - The evening before, run `sudo oslab-teach board lab8 --roster FILE` and remind students who have no pre-lab entry.
 
+## Guide
+
+Project the guide (`labs/lab8/guides/slides.html`, 47 slides; PDF `lab8-guides.pdf`). It follows the instruction. The "Beyond the core" slides are optional background and are not in the 120-minute timetable.
+
+| Slides | Content |
+|---|---|
+| 1 to 3 | Cover, learning objectives and an opening question. |
+| 4 to 9 | Concepts first: the critical section, a race condition, the invariant, flock and advisory locks. |
+| 10 to 17 | How the lab works: the scenario, the timetable, the helper commands, the rules, setup and your values. |
+| 18 to 20 | Read and trace the script. |
+| 21 to 22 | The prediction. |
+| 23 to 32 | Core 1 and 2, then Plus and Challenge. |
+| 33 to 36 | The live checkpoint: why it exists, what happens and how it is marked. |
+| 37 to 47 | Debrief, submission, grading, common mistakes, beyond the core, takeaways and the next lab. |
+
 ## Timetable and What You Do
 
 Keep `sudo oslab-teach board lab8 --roster FILE --watch 20` open on your own screen for the whole session. Do not project it: it shows names.
