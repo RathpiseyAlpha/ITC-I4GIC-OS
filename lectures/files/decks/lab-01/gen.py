@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 import oslib  # noqa: E402  (it puts the shared library on the path)
 import decklib  # noqa: E402
+import labcoverart  # noqa: E402
 from oslib import (h2, para, statement, em, lst, row, col, grid, card, rule, table,  # noqa: E402,F401
                    box, arrow, flow, layers, lanes, OSDeck, setup)
 
@@ -34,6 +35,8 @@ UBUNTU = "font-family:'Ubuntu', 'Segoe UI', Arial, sans-serif"
 MONO = "font-family:'Ubuntu Mono', 'Courier New', monospace"
 decklib.SERIF = decklib.SANS = oslib.SERIF = UBUNTU
 decklib.FACES = {
+    "newsreader": {"family": "Newsreader", "href": "https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400..600;1,400..500&display=swap"},
+    "dm-sans": {"family": "DM Sans", "href": "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400..700&display=swap"},
     "ubuntu": {"family": "Ubuntu", "href": "https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap"},
     "ubuntu-mono": {"family": "Ubuntu Mono", "href": "https://fonts.googleapis.com/css2?family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400&display=swap"},
 }
@@ -220,9 +223,8 @@ def tree(t, root, kids, cmd=None, title="student@server: ~/oslab-work/lab1", siz
 
 
 # ---- opening --------------------------------------------------------------
-d.cover("Exploring Operating System Basics",
-        "Lab 1 guide: Linux in brief, then find out which system you are on, practise the basic commands, and see programs and processes at work.",
-        size=96)
+labcoverart.cover(d, "lab-01", "Exploring Operating System Basics",
+        "Lab 1 guide: Linux in brief, then find out which system you are on, practise the basic commands, and see programs and processes at work.", size=96)
 
 d.slide("objectives", "Learning objectives", lambda t: row(
     lst(t, ["Identify basic operating system and kernel information.",

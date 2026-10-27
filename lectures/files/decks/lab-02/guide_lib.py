@@ -53,4 +53,4 @@ def page(deck):
 render.blobs = blobs
 render.page = page
 render.HERE = DECKS
-render.OUT = os.path.join(os.path.dirname(DECKS), "Converted Slides")
+render.OUT = os.path.join(os.path.dirname(DECKS), "Converted Slides", "Labs")

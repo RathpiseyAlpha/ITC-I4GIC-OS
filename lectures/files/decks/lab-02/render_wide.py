@@ -2,7 +2,7 @@
 
     python -X utf8 render_wide.py
 
-Writes "Converted Slides/<deck title>.pdf" and lists every element outside the safe area.
+Writes "Converted Slides/Labs/<deck title>.pdf" and lists every element outside the safe area.
 """
 import os
 

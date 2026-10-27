@@ -51,7 +51,8 @@ ITC-I4GIC-OS/
 │
 ├── lectures/
 │   ├── files/                 # Lecture slides
-│   │   ├── Converted Slides/  #   This term's slides, one PDF per week (Weeks 1–6, 9–13) + Lab 1 guide
+│   │   ├── Converted Slides/  #   This term's slides, one PDF per week (Weeks 1–6, 9–13)
+│   │   │   └── Labs/          #     Lab guide PDFs (Lab 1, Lab 2)
 │   │   └── ch1.pdf … ch10.pdf #   Earlier chapter slides
 │   │
 │   ├── notes/                 # 📝 Note-taking templates (one per week)
@@ -129,7 +130,7 @@ Each lab is a 120-minute individual session on the course server. Start with the
 
 | Lab | Title | Status | Link |
 |:---:|-------|:------:|:----:|
-| 1 | Introduction to Operating Systems | ✅ Available | [Instructions](labs/lab1/lab1-instruction.md) · [Guide](<lectures/files/Converted Slides/Operating Systems — Lab 1.pdf>) |
+| 1 | Introduction to Operating Systems | ✅ Available | [Instructions](labs/lab1/lab1-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 1.pdf>) |
 | 2 | Linux Navigation & File Management | ✅ Available | [Instructions](labs/lab2/lab2-instruction.md) · [Guide](labs/lab2/guides/lab2-guides.pdf) |
 | 3 | Wildcards, Links, GRUB & Shared Libraries | ✅ Available | [Instructions](labs/lab3/lab3-instruction.md) |
 | 4 | I/O Redirection, Pipelines & Process Management | ✅ Available | [Instructions](labs/lab4/lab4-instruction.md) |
