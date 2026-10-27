@@ -152,9 +152,9 @@ html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 <header>
   <a class="back" href="index.html">&larr; All visualizations</a>
   <h1>Threads in Motion — one process, many kernel threads</h1>
-  <div class="sub">Week 4 — watch one program create threads, see the kernel give each one an ID and a core, and read the same facts from <code>ps -L</code>. It loops by itself, or you can click through it step by step.</div>
+  <div class="sub">Week 4 — watch one program create threads, see the kernel give each one an ID and a core, and read the same facts from <code>ps -L</code> or in <code>htop</code> (<code>H</code> shows threads, <code>K</code> shows kernel threads). It loops by itself, or you can click through it step by step.</div>
 </header>
-<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Say that every pthread is backed by a kernel thread with its own thread ID, and that the main thread's ID equals the PID.</li><li>Read the LWP, NLWP and PSR columns of <code>ps -L</code> and match them to what the kernel is doing.</li><li>Follow a thread through ready, running, sleeping and finished, and a context switch between two threads.</li><li>Name the kernel's own threads, such as <code>kthreadd</code>, and say that they also need the CPU.</li></ul></details>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Say that every pthread is backed by a kernel thread with its own thread ID, and that the main thread's ID equals the PID.</li><li>Read the LWP, NLWP and PSR columns of <code>ps -L</code> (the PID, NLWP and PROCESSOR columns in <code>htop</code>) and match them to what the kernel is doing.</li><li>Follow a thread through ready, running, sleeping and finished, and a context switch between two threads.</li><li>Name the kernel's own threads, such as <code>kthreadd</code>, and say that they also need the CPU.</li></ul></details>
 <div class="wrap">
   <div class="stage">
     <svg id="scene" viewBox="0 44 960 508" role="img" aria-label="Animated map: the threads of one process, the kernel threads behind them, and two CPU cores"></svg>
