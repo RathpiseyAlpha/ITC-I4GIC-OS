@@ -268,13 +268,14 @@ SCENES = {"lab-01": scene_lab01, "lab-02": scene_lab02, "lab-03": scene_lab03, "
 
 
 def cover(deck, key, title, subtitle, size=96):
-    """Set the cover of a lab guide in the lecture-slide style: DM Sans text and a Newsreader title, though the guide itself is in Ubuntu."""
+    """Set the cover of a lab guide in the lecture-slide layout, with every line in Ubuntu like the rest of the guide (instructor, 2026-10-29)."""
     import decklib
     import oslib
+    ubuntu = "font-family:'Ubuntu', 'Segoe UI', Arial, sans-serif"
     saved = oslib.SERIF
-    oslib.SERIF = "font-family:'Newsreader', Georgia, serif"
+    oslib.SERIF = ubuntu
     try:
         body = oslib.cover(deck.week, title, subtitle, decklib.ASSET["seal"], size, SCENES[key]())
     finally:
         oslib.SERIF = saved
-    deck.S["cover"] = (oslib.D, None, body.replace('<p style="', '<p style="font-family:\'DM Sans\', Arial, sans-serif;'), {})
+    deck.S["cover"] = (oslib.D, None, body.replace('<p style="', f'<p style="{ubuntu};'), {})
