@@ -121,6 +121,130 @@ d.slide("wild-brace", "Brackets and braces are not the same",
                       gap=40, align="flex-start"),
         label=BG)
 
+SVG_SANS = "Ubuntu, Segoe UI, Arial, sans-serif"
+SVG_MONO = "Ubuntu Mono, DejaVu Sans Mono, Consolas, monospace"
+
+
+def _arrow(x1, y1, x2, y2, color, dash=False, head=True):
+    """A straight arrow drawn as a line and a triangle, so every renderer shows the same head."""
+    import math
+    a = math.atan2(y2 - y1, x2 - x1)
+    bx, by = x2 - 16 * math.cos(a), y2 - 16 * math.sin(a)
+    tri = (f'<polygon points="{x2},{y2} {bx + 8 * math.sin(a):.1f},{by - 8 * math.cos(a):.1f} '
+           f'{bx - 8 * math.sin(a):.1f},{by + 8 * math.cos(a):.1f}" fill="{color}"/>') if head else ""
+    d = ' stroke-dasharray="10 7"' if dash else ""
+    return f'<line x1="{x1}" y1="{y1}" x2="{bx if head else x2:.1f}" y2="{by if head else y2:.1f}" stroke="{color}" stroke-width="4"{d}/>{tri}'
+
+
+def _text(x, y, s, size=24, fill="#1b2a41", mono=False, bold=False, anchor="start"):
+    fam = SVG_MONO if mono else SVG_SANS
+    weight = ' font-weight="700"' if bold else ""
+    return f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-family="{fam}" font-size="{size}"{weight} fill="{fill}">{s}</text>'
+
+
+def _svg(width, height, label, parts, back):
+    bg = f'<rect x="0" y="0" width="{width}" height="{height}" fill="{back}"/>' if back else ""
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" aria-label="{label}" viewBox="0 0 {width} {height}" '
+            f'width="{width}" height="{height}" style="width:{width}px;height:{height}px">{bg}{"".join(parts)}</svg>')
+
+
+def inode_svg(accent, ink, fill, edge, line, back=None):
+    """What an inode looks like: a directory entry (name and inode number), the inode record, and the data blocks."""
+    amber = "#c77d00"
+    p = [_text(270, 44, "The directory", 28, ink, bold=True, anchor="middle"),
+         _text(910, 44, "The inode", 28, ink, bold=True, anchor="middle"),
+         _text(1550, 44, "Data blocks on the disk", 28, ink, bold=True, anchor="middle")]
+    # directory table: one row per name
+    p.append(f'<rect x="20" y="80" width="500" height="171" rx="12" fill="{fill}" stroke="{edge}" stroke-width="2"/>')
+    p.append(f'<line x1="300" y1="80" x2="300" y2="251" stroke="{edge}" stroke-width="2"/>'
+             f'<line x1="20" y1="137" x2="520" y2="137" stroke="{edge}" stroke-width="2"/>'
+             f'<line x1="20" y1="194" x2="520" y2="194" stroke="{edge}" stroke-width="2"/>')
+    p.append(_text(40, 118, "name", 24, ink, bold=True) + _text(320, 118, "inode number", 24, ink, bold=True))
+    p.append(f'<rect x="24" y="141" width="492" height="49" rx="8" fill="{accent}" fill-opacity=".14" stroke="{accent}" stroke-width="3"/>')
+    p.append(_text(40, 175, "report1.txt", 24, ink, mono=True) + _text(320, 175, "12345", 24, ink, mono=True, bold=True))
+    p.append(_text(40, 232, "report2.txt", 24, ink, mono=True) + _text(320, 232, "12346", 24, ink, mono=True))
+    # the inode record
+    x0, w = 640, 540
+    p.append(f'<rect x="{x0}" y="70" width="{w}" height="380" rx="14" fill="{fill}" stroke="{accent}" stroke-width="3"/>')
+    p.append(f'<path d="M{x0} 130V84a14 14 0 0 1 14-14H{x0 + w - 14}a14 14 0 0 1 14 14V130Z" fill="{accent}"/>')
+    p.append(_text(x0 + w // 2, 112, "inode 12345", 30, "#ffffff", bold=True, anchor="middle"))
+    rows = [("mode", "-rw-r--r--"), ("owner", "student"), ("size", "4 bytes"), ("times", "3 timestamps"),
+            ("link count", "1"), ("data", "block 8841")]
+    for i, (k, v) in enumerate(rows):
+        y = 130 + i * 53
+        if i:
+            p.append(f'<line x1="{x0 + 16}" y1="{y}" x2="{x0 + w - 16}" y2="{y}" stroke="{edge}" stroke-width="1.5"/>')
+        p.append(_text(x0 + 28, y + 36, k, 24, ink) + _text(x0 + 250, y + 36, v, 24, ink, mono=True, bold=(k == "data")))
+    # data blocks
+    for i, (num, txt) in enumerate((("block 8841", "hello"), ("block 8842", "(unused)"))):
+        y = 180 + i * 96
+        dash = "" if i == 0 else ' stroke-dasharray="8 6"'
+        p.append(f'<rect x="1340" y="{y}" width="420" height="72" rx="10" fill="{fill if i == 0 else "none"}" stroke="{accent if i == 0 else edge}" stroke-width="3"{dash}/>')
+        p.append(_text(1364, y + 45, num, 24, ink) + _text(1736, y + 45, txt, 24, ink, mono=True, anchor="end"))
+    # arrows
+    p.append(_arrow(516, 165, 636, 165, accent))
+    p.append(_arrow(1176, 120 + 53 * 5 + 24, 1336, 216, accent))
+    p.append(_text(900, 500, "The directory maps a name to an inode number. The inode describes the file and says where its data is.",
+                   26, ink, anchor="middle"))
+    p.append(_text(900, 540, "The name is not stored in the inode.", 26, amber, bold=True, anchor="middle"))
+    return _svg(1800, 570, "What an inode looks like. The directory has a row for each file name with an inode number, for example report1.txt with 12345. "
+                "Inode 12345 holds the mode, owner, size, timestamps, link count and the block where the data is. "
+                "The data block holds the bytes of the file. The file name is not stored in the inode.", p, back)
+
+
+def links_svg(accent, ink, fill, edge, line, back=None):
+    """Hard link and symbolic link side by side: two names for one inode, and a small file that stores a path."""
+    amber = "#c77d00"
+    red = "#c0392b"
+    p = []
+
+    def box(x, y, w, h, label, sub=None, mono=True, hot=False, dashed=False):
+        st = accent if hot else edge
+        dash = ' stroke-dasharray="8 6"' if dashed else ""
+        p.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="10" fill="{fill}" stroke="{st}" stroke-width="3"{dash}/>')
+        if sub:
+            p.append(_text(x + w // 2, y + 34, label, 24, ink, mono=mono, bold=True, anchor="middle"))
+            p.append(_text(x + w // 2, y + 68, sub, 24, ink, mono=mono, anchor="middle"))
+        else:
+            p.append(_text(x + w // 2, y + h // 2 + 8, label, 24, ink, mono=mono, anchor="middle"))
+
+    # left panel: hard link
+    p.append(_text(450, 44, "Hard link", 32, accent, bold=True, anchor="middle"))
+    p.append(_text(450, 84, "ln report1.txt hard-demo.txt", 24, ink, mono=True, anchor="middle"))
+    box(30, 150, 240, 70, "report1.txt")
+    box(30, 330, 240, 70, "hard-demo.txt")
+    box(350, 230, 310, 110, "inode 12345", "link count 2", hot=True)
+    box(740, 245, 140, 80, "hello")
+    p.append(_arrow(270, 185, 346, 262, accent) + _arrow(270, 365, 346, 308, accent) + _arrow(660, 285, 736, 285, accent))
+    p.append(_text(450, 470, "Two names for one inode.", 26, ink, bold=True, anchor="middle"))
+    p.append(_text(450, 508, "Remove one name and the data stays.", 26, ink, anchor="middle"))
+    # right panel: symbolic link
+    ox = 920
+    p.append(_text(ox + 450, 44, "Symbolic link", 32, accent, bold=True, anchor="middle"))
+    p.append(_text(ox + 450, 84, "ln -s report1.txt soft-demo.txt", 24, ink, mono=True, anchor="middle"))
+    box(ox + 30, 150, 240, 70, "soft-demo.txt")
+    box(ox + 350, 140, 310, 110, "inode 99001", "stores report1.txt", dashed=True)
+    box(ox + 30, 330, 240, 70, "report1.txt")
+    box(ox + 350, 320, 310, 110, "inode 12345", "link count 1", hot=True)
+    box(ox + 740, 335, 140, 80, "hello")
+    p.append(_arrow(ox + 270, 185, ox + 346, 185, accent) + _arrow(ox + 270, 365, ox + 346, 375, accent) + _arrow(ox + 660, 375, ox + 736, 375, accent))
+    p.append(f'<path d="M{ox + 505} 250V290H{ox + 150}V326" stroke="{amber}" stroke-width="4" stroke-dasharray="10 7" fill="none"/>'
+             f'<polygon points="{ox + 150},328 {ox + 142},{312} {ox + 158},{312}" fill="{amber}"/>')
+    p.append(_text(ox + 170, 282, "looks up that name", 24, amber, bold=True))
+    p.append(_text(ox + 450, 470, "Its own inode, storing a path.", 26, ink, bold=True, anchor="middle"))
+    p.append(_text(ox + 450, 508, "Rename the target and the path breaks.", 26, ink, anchor="middle"))
+    p.append(f'<line x1="900" y1="120" x2="900" y2="520" stroke="{line}" stroke-width="2" stroke-dasharray="4 8"/>')
+    return _svg(1800, 540, "Hard link and symbolic link. A hard link: report1.txt and hard-demo.txt are two names for inode 12345, which has link count 2 and holds the data. "
+                "A symbolic link: soft-demo.txt has its own inode, 99001, which stores the path report1.txt. That path is looked up as a name, "
+                "which leads to inode 12345 and the data.", p, back)
+
+
+if os.environ.get("GUIDE_REPO"):
+    for _name, _fn in (("inode.svg", inode_svg), ("hard-soft-links.svg", links_svg)):
+        os.makedirs(os.path.join(os.environ["GUIDE_REPO"], "labs", "lab3", "figures"), exist_ok=True)
+        with open(os.path.join(os.environ["GUIDE_REPO"], "labs", "lab3", "figures", _name), "w", encoding="utf-8") as _f:
+            _f.write(_fn("#1f5fbf", "#1b2a41", "#eef3fb", "#9db4d6", "#8d97aa", back="#ffffff") + "\n")
+
 d.slide("inode", "A name is not the file",
         lambda t: row(lst(t, ["The data of a file lives on the disk. An inode is the record that describes it: size, owner, permissions and where the data is.",
                               "Every inode has a number. A file name is only an entry in a directory that points to an inode number.",
@@ -135,6 +259,11 @@ d.slide("inode", "A name is not the file",
         note="The 2 in the third column is the link count: two names point to inode 12345. The symbolic link has its own inode, 99001.",
         label=BG)
 
+d.slide("inode-look", "What an inode looks like",
+        lambda t: inode_svg(t["accent"], "#1b2a41", "#ffffff", "#9db4d6", "#8d97aa"),
+        note="Read it from left to right: the name leads to an inode number, the inode leads to the data. ls -li shows that number.",
+        label=BG, gap=24)
+
 d.slide("hard-soft", "Hard link and symbolic link",
         lambda t: tbl(t, ["", "Hard link", "Symbolic link"],
                       [["Command", mono("ln target link"), mono("ln -s target link")],
@@ -147,6 +276,11 @@ d.slide("hard-soft", "Hard link and symbolic link",
                       [3, 6, 6]),
         note="Inspect with ls -li (inode numbers), stat (link count) and readlink (the stored path).",
         label=BG)
+
+d.slide("links-drawn", "The two kinds of link, drawn",
+        lambda t: links_svg(t["accent"], "#1b2a41", "#ffffff", "#9db4d6", "#8d97aa"),
+        note="A hard link is a second name for the inode. A symbolic link is a separate small file that holds a name to look up.",
+        label=BG, gap=24)
 
 d.slide("rel-target", "A relative target is read from the link's folder",
         lambda t: row(term(t, ["cd ~/oslab-work/lab3",

@@ -106,6 +106,14 @@ The workspace is for experiments. Your personal course Git repository holds the 
 
    A hard link names the same inode on one filesystem. A symbolic link stores a path, resolved relative to the link's directory when that path is relative. `ls -l` displays the stored target.
 
+   An inode is the record that describes a file: its mode, owner, size, timestamps, link count and where its data is. The directory only holds a name and the inode number, so the name is not part of the inode. `ls -li` prints that number in the first column.
+
+   ![What an inode looks like. The directory has a row for each file name with an inode number, for example report1.txt with 12345. Inode 12345 holds the mode, owner, size, timestamps, link count and the block where the data is. The data block holds the bytes of the file. The file name is not stored in the inode.](figures/inode.svg)
+
+   ![Hard link and symbolic link. A hard link: report1.txt and hard-demo.txt are two names for inode 12345, which has link count 2 and holds the data. A symbolic link: soft-demo.txt has its own inode, 99001, which stores the path report1.txt. That path is looked up as a name, which leads to inode 12345 and the data.](figures/hard-soft-links.svg)
+
+   The inode numbers in the figures (12345, 99001) are examples. Yours will be different, so compare your own `ls -li` output.
+
    **Observe:** Which inode numbers match? Why is `report1.txt` the appropriate relative target here instead of `practice/report1.txt`?
 
 ## Prediction (25–35)
