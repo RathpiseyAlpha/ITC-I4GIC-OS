@@ -13,7 +13,7 @@ import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PILOTS = (1, 2, 4, 5, 6, 7, 8, 9, 10)  # labs whose fences use personal values and Core sections
+PILOTS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)  # labs whose fences use personal values and Core sections
 if os.geteuid() == 0:
     raise SystemExit('Run as an ordinary user: root bypasses the permission-denial case.')
 
@@ -142,16 +142,29 @@ test -f "$OSLAB_WORKSPACE/lab2/TechCorp/$third/found.txt"
 ''', home, env, 'Lab2 path/content')
     assert 'milestones: 5/5' in out, out
 
-    core = [code for section, code in routes[3] if section.startswith('## Task 2')]
-    shell(core[0]+core[1]+'rm -- soft.txt\nln -s renamed.txt soft.txt\n'+core[2]+core[3], base/'lab3', env, 'Lab3 rename/repair')
-    assert (base/'lab3/links/hard.txt').read_text() == 'version 1\n'
-    assert (base/'lab3/links/source.txt').read_text() == 'version 2\n'
-    assert os.stat(base/'lab3/links/hard.txt').st_ino == os.stat(base/'lab3/links/renamed.txt').st_ino
-    out = shell(prefix + 'oslab check lab3\n', home, env, 'Lab3 checked walkthrough')
-    assert 'milestones: 4/4' in out, out
-    trace = (base/'lab3/evidence/links.txt').read_text()
-    assert all(label in trace for label in ('BEFORE RENAME', 'AFTER RENAME, BEFORE REPAIR', 'AFTER REPAIR'))
+    # Lab 3: Core 1 with the student's own middle command, Core 2 as written, the repair the student writes, Core 3, Plus, Challenge.
+    middle = "  printf '<%s>\\n' notes/\"$name\"?.txt\n"
+    core1 = section(3, 'Core 1')
+    assert core1.count('  # write the middle command here\n') == 1, 'Lab 3 Core 1 changed'
+    core1 = core1.replace('  # write the middle command here\n', middle)
+    core2 = ''.join(personal(3, code) for sec, code in routes[3] if sec.startswith('## Core 2'))
+    core3 = [personal(3, code) for sec, code in routes[3] if sec.startswith('## Core 3')]
+    repair = 'rm -- "$name-soft.txt"\nln -s "$name-$tag.txt" "$name-soft.txt"\n'
+    decision = "printf 'Decision: relative target\\n' >> ../evidence/links.txt\n"
+    out = shell(prefix + section(3, 'Setup') + core1 + core2 + repair + core3[0] + decision + core3[1]
+                + section(3, 'Plus') + section(3, 'Challenge'), home, env, 'Lab3 core')
+    assert 'milestones: 5/5' in out, out
+    name3, tag3, v13, v23 = (values[3][k] for k in ('name', 'tag', 'v1', 'v2'))
+    lab3 = base/'lab3'
+    assert (lab3/'links'/f'{name3}-hard.txt').read_text() == f'version {v13}\n'
+    assert (lab3/'links'/f'{name3}.txt').read_text() == f'version {v23}\n'
+    assert os.stat(lab3/'links'/f'{name3}-hard.txt').st_ino == os.stat(lab3/'links'/f'{name3}-{tag3}.txt').st_ino
+    assert os.readlink(lab3/'links'/f'{name3}-soft.txt') == f'{name3}-{tag3}.txt'
+    trace = (lab3/'evidence/links.txt').read_text()
+    assert all(label in trace for label in ('BEFORE RENAME', 'AFTER RENAME, BEFORE REPAIR', 'AFTER REPAIR', 'Decision:'))
     assert 'No such file or directory' in trace
+    assert f'soft: version {v23}' in (lab3/'evidence/replacement.txt').read_text()
+    assert (lab3/'extra/three.txt').is_file() and (lab3/'evidence/wildcards.txt').read_text().count('\n') == 6
 
     # Lab 4: the student's own report.sh is the public model with the personal status word in front of it.
     status4 = values[4]['status']

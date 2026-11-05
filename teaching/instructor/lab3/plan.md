@@ -1,103 +1,108 @@
-# Instructor plan — OS Lab 3: Wildcards and Links
+# Instructor plan — OS Lab 3 - Wildcards, Hard Links and Symbolic Links (Hands-on)
 
-**Public repository notice:** this plan and its answers are public. Personal checkpoint names reduce direct copying; they do not make the answers private. Observe the individual checkpoint in class and keep any additional graded variants private.
+**Public repository notice:** this plan is public, and so is the code that computes every student's values and answers. Personal values stop neighbour copying and force each answer to use the student's own numbers; they are not secret. The live checkpoint is protected by its release time, not by secrecy. Keep anything that must stay private outside this repository.
 
-## Objectives and scope
+This lab uses the pilot format. Read the [student instruction](../../../labs/lab3/lab3-instruction.md) and the [report template](../../../labs/lab3/README.md) first.
 
-Students expand wildcard patterns, compare hard-link inode identity, and diagnose a symbolic link after a rename. The required experiment uses only ordinary-user files. GRUB and shared-library work remain [optional extensions](../../../labs/lab3/extensions.md).
+## Objectives
 
-Use the [student instruction](../../../labs/lab3/lab3-instruction.md) and [short report](../../../labs/lab3/README.md). The visual guide (62 slides, rebuilt 2026-11-05) follows the instruction, including the terminal prediction, checkpoint and debrief; if the two differ, the Markdown instruction governs. Slides 1 to 3 are the cover and opening question, 4 to 15 the concepts, 16 to 22 the lab overview and setup, 23 to 26 the guided example, 27 and 28 the prediction, 29 to 35 Task 2, 36 to 41 the tests with Plus and Challenge, 42 to 45 the checkpoint, 46 to 52 debrief, submission, grading and mistakes, 53 to 60 GRUB and shared libraries, and 61 and 62 the takeaways.
+1. Explain which filenames a Bash wildcard selects and what quoting changes.
+2. Use inode numbers to distinguish a hard link from a separate copy.
+3. Explain and repair a symbolic link after its target is renamed.
 
-## Before class: make collection work
+GRUB and shared libraries stay in the [optional extensions](../../../labs/lab3/extensions.md), with a longer chain of links. The core uses only ordinary-user files and needs no `sudo`, compiler or VM.
 
-1. Update the installed helper **and the website's matching source** from this revision using the [server runbook](../../../server/RUNBOOK.md). Review and back up the current installation first. Restart the website service after updating it; no live deployment is performed by editing these files.
-2. In an ordinary test account, verify `oslab doctor` says **class inbox: connected**. Confirm `oslab predict lab3` asks the rename questions, instead of saying the lab uses paper. Check that the website service account can read the inbox; see the runbook's `--inbox-reader` instructions.
-3. Open the board before predictions and keep it running during class. Use your actual private account roster:
+## Before Class
 
-   ```bash
-   sudo oslab-teach board lab3 --roster /secure/path/students.txt --watch 20
-   ```
+- Install or update the helper as in the [runbook](../../../server/RUNBOOK.md), and the website source with it. Check that `/var/lib/itc-oslab/inbox` exists with mode `1733` and that `/var/lib/itc-oslab/release/lab3.checkpoint` does **not** exist.
+- As an ordinary test account: `oslab doctor` must say `class inbox: connected`; `oslab start lab3`; `oslab values lab3` prints a name, a tag and two version numbers; `ls -a notes` shows five files with that name; `ls links` shows one file; `oslab check lab3` must say `0/5`.
+- A student who started Lab 3 before this update has `links/source.txt` and `links/target-name.txt`. `oslab start lab3` removes both while they are unchanged, adds the student's own report and the `notes/` folder. A student who already renamed or edited `source.txt` keeps their files; `oslab reset lab3` saves the old attempt and starts clean.
+- Prepare a roster file with one account name per line. All `oslab-teach` commands below take `--roster FILE`.
+- Ask students to run `oslab prelab lab3` the evening before. Look at the `prelab` column.
 
-4. Give students their server/account and personal Git repository paths. Verify `ln`, `readlink`, Bash and Python are available. Students need no sudo, compiler or VM for the core.
-5. Test the class release with a disposable account before class. A release stays open; do not silently replace an existing release or erase students' first answers. Use a separate test inbox/release directory when rehearsing.
+## Guide
 
-## Exact 120-minute Timetable
+The slide guide (`labs/lab3/guides/slides.html`, 68 slides) was rebuilt on 2026-11-06 in the pilot format: personal values, the guided part, `oslab predict`, Core 1 to 3, Plus and Challenge, the live checkpoint and `oslab debrief`. If the guide and the Markdown instruction ever differ, the instruction governs. Slides 1 to 3 are the cover and opening question, 4 to 16 the concepts, 17 to 26 the lab overview and setup, 27 to 30 the guided part, 31 and 32 the prediction, 33 to 36 Core 1, 37 to 41 Core 2, 42 to 45 Core 3, 46 and 47 Plus and Challenge, 48 to 51 the checkpoint, 52 to 58 debrief, submission, grading and mistakes, 59 to 66 GRUB and shared libraries, and 67 and 68 the takeaways.
 
-| Minutes | Teacher action and evidence |
-|---|---|
-| 0–10 | Verify individual accounts, inbox connection and lab root |
-| 10–25 | Demonstrate wildcard expansion, inode numbers and a relative symbolic target |
-| 25–35 | Students run `oslab predict lab3`; check board for missing answers before Task 2 |
-| 35–70 | Students create links, rename, repair and recreate the old filename |
-| 70–85 | Students run `oslab check lab3`; use TRY reasons to target help |
-| 85–100 | Release checkpoint; students answer and complete their separate link task alone |
-| 100–110 | Students run debrief and complete the short report; discuss misconceptions |
-| 110–120 | Verify three evidence files and report copied to the personal Git repository |
+## Timetable and What You Do
 
-## Expected results and public model
+Keep `sudo oslab-teach board lab3 --roster FILE --watch 20` open on your own screen. Do not project it: it shows names.
 
-Key: the two unquoted patterns each print `practice/report1.txt` and `practice/report2.txt`; the quoted pattern prints `practice/*.txt` literally. Capture this before the demo links add more `.txt` filenames.
+| Minutes | Students | You |
+|---|---|---|
+| 0–5 | Setup | Check the `started` column. The most common first error is a space around `=` in `name=maple` |
+| 5–20 | Guided: names, inodes and links | First five minutes: Concepts First with the guide (the shell expands patterns, inode and names, hard against symbolic link). Then type along. Ask who can say why `report.log` is never in the list, and what `ls -li` shows for the two names of one file |
+| 20–30 | Prediction, then class discussion | At minute 25 read the **prediction spread** aloud without names. The `soft` question (what does the symbolic link print after a new file takes the old name?) is the one to discuss: most students answer with their first version |
+| 30–40 | Core 1: wildcards on your own files | Short. The most common TRY is a middle command that also prints `<name>12.txt` (a `*` instead of `?`) |
+| 40–60 | Core 2: rename, break, and reuse the old name | Make the class read the `No such file or directory` error aloud. At step 3 ask who is surprised that the dangling link works again |
+| 60–75 | Core 3: repair and prove it | Nobody is given the repair. Sort your visits by the board: stuck at 2/5 or 3/5 is normal. Ask "from which folder is the stored target read?" |
+| 75–90 | Plus and Challenge (or finish Core) | Work only with students below 5/5 |
+| 90–105 | Live checkpoint | At minute 90 say "close AI tools" and run `sudo oslab-teach release lab3` |
+| 105–115 | Debrief | Students run `oslab debrief lab3` first (two minutes), then use the script below |
+| 115–120 | Submit | Run `sudo oslab-teach export lab3 --roster FILE > lab3.csv` |
 
-In `links/`, `source.txt` starts with `version 1`. After the rename, `hard.txt` and `renamed.txt` still name the same inode. `soft.txt` stores `source.txt`, so it is dangling until repaired. A new `source.txt` containing `version 2` has a different inode and does not change the original data.
+## Expected Results
 
-Public model for the repair (only after inspecting the owned link): `rm -- soft.txt`, then `ln -s renamed.txt soft.txt`. Never repair by replacing `hard.txt` or renaming the original back. Accept other targets that resolve to `renamed.txt`.
+Every student has other names and numbers; the shape is the same. For a student whose `oslab values lab3` says `name = maple`, `tag = old`, `v1 = 417`, `v2 = 463`:
 
-## Collection and checkpoint
+- **Core 1:** `notes/*.txt` prints `notes/maple1.txt`, `notes/maple12.txt` and `notes/maple2.txt` (the order depends on the locale; the check ignores it), and not the hidden `notes/.maple.txt`. The student's own middle command is `notes/"$name"?.txt`: it prints `maple1.txt` and `maple2.txt`. The quoted pattern prints `notes/*.txt`.
+- **Core 2:** `maple-hard.txt` and `maple-old.txt` share an inode and print `version 417`. `maple-soft.txt` stores `maple.txt`: after the rename `cat` fails. After a new `maple.txt` with `version 463`, the symbolic link prints `version 463` (the wrong file), the hard link still prints `version 417`, and the inode of the new file differs.
+- **Core 3** (public model, only after the student has tried): `rm -- maple-soft.txt`, then `ln -s maple-old.txt maple-soft.txt`. Never repair by replacing the hard link or by renaming the report back. `oslab check` accepts any relative target that reaches the renamed report, and refuses an absolute one.
+- **Plus:** `notes/"$name"[12].txt` prints `maple1.txt` and `maple2.txt`; `notes/"$name"[!1]*` prints `maple.log` and `maple2.txt` (the hidden file never matches, and `maple1` and `maple12` are excluded).
+- **Challenge:** after the second `rm` the link count of the remaining name is 2, then 1; the data is gone only when the last name is removed.
 
-- `oslab predict lab3` saves the first prediction and sends it to the class inbox. The student does not upload a prediction file. Wrong initial answers do not lose accuracy points.
-- `oslab check lab3` sends **four core milestones**, including actual inode identity and symbolic target checks. Its records include hashes of evidence files; it does not establish that an earlier rename/failure happened. Review the labelled transcript for that.
-- At minute 85, release the checkpoint:
+## Checkpoint Key and Marking
 
-  ```bash
-  sudo oslab-teach release lab3
-  ```
+Key: `sudo oslab-teach key lab3 --roster FILE` prints each student's values and expected answers, including the checkpoint after release. Each student gets a new folder `cp-WORD/`, a data file, and a new tag for the renamed file.
 
-- Students run `oslab checkpoint lab3`. Each gets a separate `checkpoint-WORD/` folder and a named data file; `shortcut.txt` is described as storing an incorrect `../NAME.txt` target. They submit two path answers and one explanation, then create the small repaired example printed by the helper. Their next check adds a fifth milestone. This task is independent of unfinished `links/` work.
-- Key: the described shortcut fails because `../NAME.txt` refers to a nonexistent file in the **lab root**. Use `NAME.txt` to reach a data file beside the link. Relative targets start from the **link's directory**, not the shell's current directory. `readlink shortcut.txt` and `cat shortcut.txt` verify the stored target and result.
-- `oslab debrief lab3` collects the corrected prediction answers without replacing the original. Records are visible on the board and in the website's **view and mark** screen.
-- Export one class CSV instead of opening each student's prediction file:
+The checkpoint is a chain: `links/hard.txt` is a hard link to the data file, `links/first.txt` stores `../DATA.txt`, `links/second.txt` stores `first.txt`, and the data file is renamed. The five questions: does the hard link still read (yes), does `second.txt` read (no), the relative target `first.txt` must store (`../RENAMED.txt`), whether `second.txt` works after only `first.txt` is repaired (yes), and one sentence on which folder the stored target is read from (the folder that holds the link, `links/`). Then the student builds the case with the printed commands, repairs `first.txt`, and saves the output in `evidence/checkpoint.txt`.
 
-  ```bash
-  sudo oslab-teach export lab3 --roster /secure/path/students.txt > lab3.csv
-  ```
+The checkpoint is worth 3 points:
 
-The CSV checkpoint automatic points are out of 2: one for the marked answers (0.5 if at least half correct), one for the working repaired link. It includes the explanation sentence for a quick human review. A practice checkpoint is flagged as practice and does not earn a class checkpoint suggestion.
+| Part | Points | Source |
+|---|---:|---|
+| The four marked answers: hard link, chain, target, second link (all right 1, at least half 0.5) | 1 | `checkpoint_auto_points` in the export |
+| The file task: `first.txt` repaired with a relative target, `second.txt` unchanged, `hard.txt` intact, output saved | 1 | milestone 6 of `oslab check` |
+| The sentence: the stored target is read from the folder that holds the link | 1 | you read it in the export |
 
-The first-seen record/duplicate flag supports review; this is not tamper-proof assessment. The board must be open before collection to retain first-seen evidence. If students use a practice inbox, their work does not reach you.
+The `flag` column says `rewritten` when a prediction or checkpoint was sent more than once or removed; look at that student's work before marking.
 
-## Pre-lab, hints, Plus and Challenge
+## Debrief Script (10 minutes)
 
-Same style as the pilot labs. None of it changes the timetable or the 10 points.
+1. Show the prediction spread for `soft`. Ask a student who answered with `v1`: "What does a symbolic link store? Then what does `cat` do after a new file takes that name?"
+2. Ask: "Which of the two links would you trust to keep reading your original report, and why?" Lead to: the hard link follows the inode; the symbolic link follows a name.
+3. Ask who stored an absolute target in the repair, and what happens when the folder is moved.
+4. Name the limit: a hard link cannot cross filesystems and cannot point to a folder; a symbolic link can do both.
 
-- `oslab prelab lab3` asks three multiple-choice questions (who expands `*`, hard-link inode, what a symbolic link stores). Its result shows on the board's pre-lab column. Ask students to run it the evening before.
-- `oslab hint lab3 1`, `2`, `3` give the ladder: compare inodes; read the stored target; the target is resolved from the link's folder. Hint use appears on the board.
-- Plus (bracket wildcards `[12]` and `[!1]`) and Challenge (a chain of two symbolic links in `extra/`, `readlink` versus `readlink -f`) are optional. They write only to `extra/` and `evidence/plus.txt`, so `oslab check lab3` is unaffected. Key: `report[12].txt` prints `report1.txt` and `report2.txt`; `report[!1].*` prints only `report2.txt`. After renaming `end.txt`, `cat start.txt` fails because the chain ends in a missing name.
+## Misconceptions
 
-## Topic rubric (10 points)
+- A symbolic link is a copy, or knows which file it was made for (it stores a path and repeats it).
+- A hard link breaks when the original is renamed or deleted (both names are equal).
+- A file with the same content is the same file (only the inode shows it).
+- A relative target is read from where I am (it is read from the folder that holds the link).
+- `*` is understood by the command (Bash expands it first; quotes switch that off).
 
-| Evidence mapped to lab objectives | Points |
+Use the hints in order (`oslab hint lab3 1` to `3`).
+
+## Caveats Moved Out of the Student Text
+
+- `oslab check lab3` looks at the student's files only. It does not prove the rename happened in that order; `evidence/links.txt` carries the labelled states, and milestone 5 checks that the failure and the repair are written there with the student's own names and numbers.
+- The helper permits links that resolve inside the managed lab and never follows them during cleanup. Links that escape the lab folder are refused.
+- `oslab reset lab3` saves the current attempt and creates a fresh fixture. Do not suggest it for one wrong link: `rm --` and `ln -s` repair it.
+- The evidence is copied to the repository with `cp`; the prediction, check, checkpoint and debrief reach you through the inbox.
+
+## Fallback
+
+Without the class inbox, everything works in practice mode: answers stay in the student's workspace, the checkpoint uses practice values, and you collect predictions by a show of hands. If the server is down, students can do the whole lab in WSL or a local Linux with the [local setup](../../../labs/SETUP.md).
+
+## Topic Rubric (10 points)
+
+| Evidence | Points |
 |---|---:|
-| Wildcard result, hard-link identity and repaired symbolic target: 1 point each | 3 |
-| Labelled rename/failure/repair evidence and recreated-name comparison: 1 point each | 2 |
-| Original prediction saved, followed by debrief and an evidence-based correction: 1 point each | 2 |
-| Individual checkpoint: path answers and working repaired link: 1 point each | 2 |
-| Complete short report and three evidence files submitted | 1 |
+| Correct files: `oslab check lab3` passes Core milestones 1 to 4 | 2 |
+| Tests: the failure after the rename and the repaired link in `links.txt` (milestone 5) | 2 |
+| Prediction saved in time, and corrected with `oslab debrief lab3` | 2 |
+| Live checkpoint: the four answers, the repaired chain and the saved output, and the sentence | 3 |
+| Complete submission: the required files in the repository, on time | 1 |
 
-## Quick marking sequence
-
-1. Open **view and mark**. The website suggests points from the four milestones, original prediction/debrief, checkpoint answers/task and required submitted files. Suggestions are provisional; saving remains the teacher's decision.
-2. Review `evidence/links.txt`: BEFORE RENAME must show version 1 through both links; AFTER RENAME must show the dangling target and error; AFTER REPAIR must show the new target and successful read. Add the remaining evidence point after this review. Read `replacement.txt` only if the new-source milestone or report is inconsistent.
-3. Read the short report's wildcard explanation, original versus new inode comparison and one-sentence correction. Check the checkpoint sentence identifies the link's directory. Correct suggestions if the explanation contradicts the files or is missing.
-4. Save the five rubric rows. Use the existing publish-marks control when ready to show marks. Do not ask students for a second copy of terminal answers, long essays, or command screenshots.
-
-Only the README and `wildcards.txt`, `links.txt`, `replacement.txt` go in the personal course submission. The terminal answers go to the inbox. Keep practical work until grading ends; cleanup is optional. Extensions do not affect the 10 core points.
-
-## Common problems and support
-
-- `File exists`: inspect the previous entry rather than repeating `ln` or resetting all work.
-- More wildcard matches than expected: demo links were created before the wildcard record. Inspect the practice directory, preserve work, and record the original three-file example in a fresh practice attempt; do not fabricate output.
-- Hard link prints version 2: the student wrote through the original inode rather than creating a new name after renaming. Compare the actual inode numbers.
-- Symbolic link still fails: read its target from the link's own directory. Draw the two path components before supplying the repair.
-- Missing prediction/checkpoint on the board: inspect `oslab doctor` and the installed helper version before telling students to submit again. The first prediction is deliberately retained.
-
-The local lifecycle and walkthrough suites exercise disposable workspaces; live multi-account inbox ownership, website permissions and deployment still need the instructor's server checks.
+Every row is suggested on the marking screen: rows 1 and 2 from the best `oslab check` record (milestone 5 gives 1 point for the failure recorded and 1 for the repair recorded), row 3 from the prediction (1) and the last debrief (1 when all its answers are right, 0.5 when at least half are), row 4 from the checkpoint, and row 5 from the website's file check of the repository. Press "fill the empty boxes with the suggested points", look only at rows whose note shows a problem, then save. Read the `Decision:` line in `links.txt` and the report if a row looks wrong; the report itself is not marked.

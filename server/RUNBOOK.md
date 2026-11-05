@@ -20,7 +20,7 @@ Topic tools: `gcc`/pthread (Lab 5), `flock` (Labs 8–9), `tar` and user cron (L
 | `/usr/local/bin/oslab-teach` | root, `0755` | Instructor tool. It must list the inbox, so run it with `sudo` |
 | `/opt/itc-os-labs/inbox-reader` | root, `0644` | Only with `--inbox-reader=ACCOUNT`. Names the one account, besides root, that may list the inbox |
 
-Lab 3 uses the same inbox for prediction, checks, checkpoint and debrief. Its four core milestones check wildcard output, hard-link identity, repaired symbolic target and the new source. A released checkpoint adds a fifth milestone in a separate folder. Update the installed helper and website source together, then restart the website service. Its rubric remains 3/2/2/2/1, with suggestions for objective results and short human review of the transcript and explanations.
+Lab 3 is in the pilot format and uses the same inbox for personal values, prediction, checks, checkpoint and debrief. Its five core milestones check wildcard output, hard-link identity, the repaired symbolic target, the new file under the old name, and the failure and repair recorded in `evidence/links.txt`. A released checkpoint adds a sixth milestone in a separate folder (a chain of two symbolic links and a hard link). Update the installed helper and website source together, then restart the website service. Its rubric is the pilot 2/2/2/3/1, with suggestions for every row. A student who started Lab 3 before this update keeps their work; `oslab start lab3` replaces only the unchanged shared files.
 
 ### Marking from the website
 

@@ -100,6 +100,77 @@ printf 'unrelated\n' > "$OSLAB_WORKSPACE/unrelated.txt"
 "${tool[@]}" clean lab2
 test -e "$OSLAB_WORKSPACE/unrelated.txt"
 test ! -e "$OSLAB_WORKSPACE/lab2"
+# Lab 3: personal names, an older workspace, five milestones on real files, and the checkpoint chain.
+lab3="$OSLAB_WORKSPACE/lab3"
+name=$(value lab3 name); tag=$(value lab3 tag); v1=$(value lab3 v1); v2=$(value lab3 v2)
+test -n "$name" && test -n "$tag" && test "$v2" -gt "$v1"
+test "$(cat "$lab3/links/$name.txt")" = "version $v1"
+test "$(ls -A "$lab3/notes" | wc -l)" = 5
+test -e "$lab3/notes/.$name.txt"
+test ! -e "$lab3/links/source.txt"
+# A workspace from before the update holds the shared files: start removes them while they are unchanged and adds yours.
+rm -rf -- "$lab3/links" "$lab3/notes" "$lab3/evidence"
+mkdir -p -- "$lab3/links" "$lab3/evidence"
+printf 'version 1\n' > "$lab3/links/source.txt"; printf 'A symlink target for diagnosis.\n' > "$lab3/links/target-name.txt"
+"${tool[@]}" start lab3 | grep -q 'links/source.txt was an old shared file'
+test ! -e "$lab3/links/source.txt" && test ! -e "$lab3/links/target-name.txt"
+test "$(cat "$lab3/links/$name.txt")" = "version $v1"
+test -e "$lab3/notes/$name.log"
+printf 'my own edit\n' > "$lab3/links/source.txt"
+"${tool[@]}" start lab3 | grep -q 'existing work preserved'
+test "$(cat "$lab3/links/source.txt")" = 'my own edit'
+rm -- "$lab3/links/source.txt"
+"${tool[@]}" check lab3 | grep -q 'milestones: 0/5'
+# Core 1 to 3 as a student types them. The middle wildcard command is the one the student writes.
+(
+  cd "$lab3"
+  { printf '<%s>\n' notes/*.txt; printf '<%s>\n' notes/"$name"?.txt; printf '<%s>\n' 'notes/*.txt'; } | tee evidence/wildcards.txt >/dev/null
+  cd links
+  ln "$name.txt" "$name-hard.txt"
+  ln -s "$name.txt" "$name-soft.txt"
+  { printf '\n=== BEFORE RENAME ===\n'; ls -li "$name.txt" "$name-hard.txt" "$name-soft.txt"
+    printf 'hard: '; cat "$name-hard.txt"; printf 'soft: '; cat "$name-soft.txt"; printf 'stored target: '; readlink "$name-soft.txt"; } > ../evidence/links.txt
+  mv -- "$name.txt" "$name-$tag.txt"
+  { printf '\n=== AFTER RENAME, BEFORE REPAIR ===\n'; printf 'hard: '; cat "$name-hard.txt"
+    printf 'stored target: '; readlink "$name-soft.txt"; printf 'soft: '; cat "$name-soft.txt"; } >> ../evidence/links.txt 2>&1 || true  # cat fails: expected
+  printf 'version %s\n' "$v2" > "$name.txt"
+  { printf '\n=== NEW FILE USING THE OLD NAME ===\n'; printf 'hard: '; cat "$name-hard.txt"; printf 'soft: '; cat "$name-soft.txt"; } > ../evidence/replacement.txt 2>&1
+)
+grep -q 'No such file or directory' "$lab3/evidence/links.txt"
+grep -q "^soft: version $v2\$" "$lab3/evidence/replacement.txt"
+out=$("${tool[@]}" check lab3 || true)
+printf '%s\n' "$out" | grep -q 'milestones: 3/5'
+printf '%s\n' "$out" | grep -q 'it reads the NEW file'
+printf '%s\n' "$out" | grep -q 'no `=== AFTER REPAIR'
+# An absolute target is refused, a copy is not a hard link, a middle command with * instead of ? is named.
+(cd "$lab3/links" && rm -- "$name-soft.txt" && ln -s "$lab3/links/$name-$tag.txt" "$name-soft.txt")
+"${tool[@]}" check lab3 | grep -q 'is an absolute path'
+(cd "$lab3/links" && rm -- "$name-soft.txt" && ln -s "$name-$tag.txt" "$name-soft.txt")
+cp -- "$lab3/evidence/wildcards.txt" "$tmp/wildcards.keep"
+{ printf '<%s>\n' "$lab3"/notes/*.txt | sed "s|$lab3/||"; printf '<%s>\n' "$lab3"/notes/"$name"*.txt | sed "s|$lab3/||"; printf '<notes/*.txt>\n'; } > "$lab3/evidence/wildcards.txt"
+"${tool[@]}" check lab3 | grep -q "the lines for notes/$name?.txt must be"
+cp -- "$tmp/wildcards.keep" "$lab3/evidence/wildcards.txt"
+(cd "$lab3/links" && printf '\n=== AFTER REPAIR ===\n' >> ../evidence/links.txt && printf 'stored target: '  >> ../evidence/links.txt && readlink "$name-soft.txt" >> ../evidence/links.txt \
+  && printf 'soft: ' >> ../evidence/links.txt && cat "$name-soft.txt" >> ../evidence/links.txt && printf 'Decision: relative, so it survives a move of the folder\n' >> ../evidence/links.txt)
+"${tool[@]}" check lab3 | grep -q 'milestones: 5/5'
+grep -q '"path_error": {"error": true, "fix": true}' "$(ls -t "$OSLAB_INBOX"/lab3.check.student-a.*.json | head -1)"
+# A copy is not a hard link: equal bytes but another inode.
+(cd "$lab3/links" && rm -- "$name-hard.txt" && cp -- "$name-$tag.txt" "$name-hard.txt")
+"${tool[@]}" check lab3 | grep -q 'are not the same file'
+(cd "$lab3/links" && rm -- "$name-hard.txt" && ln "$name-$tag.txt" "$name-hard.txt")
+printf 'no\n%s\n%s\nit stores a name\n' "$v1" "$v2" | "${tool[@]}" predict lab3 | grep -q 'Saved and sent'
+"${teach[@]}" release lab3
+cpout=$(printf 'yes\nno\n../x.txt\nyes\nthe folder of the link\n' | "${tool[@]}" checkpoint lab3)
+moved=$(printf '%s\n' "$cpout" | sed -n 's/^  mv [^ ]* \(.*\)$/\1/p')
+build=$(printf '%s\n' "$cpout" | sed -n 's/^  \(cd .*\|mkdir .*\|printf .*\|ln .*\|mv .*\)$/\1/p')
+saver=$(printf '%s\n' "$cpout" | sed -n 's/^  \({ ls .*\)$/\1/p')
+test -n "$moved" && test -n "$saver"
+"${tool[@]}" check lab3 | grep -q 'milestones: 5/6'
+bash -c "$build"$'\n'"rm -- links/first.txt"$'\n'"ln -s ../$moved links/first.txt"$'\n'"$saver"
+"${tool[@]}" check lab3 | grep -q 'milestones: 6/6'
+printf 'no\n%s\n%s\n' "$v1" "$v2" | "${tool[@]}" debrief lab3 | grep -q 'Saved and sent'
+"${teach[@]}" export lab3 | grep -q '^student-a,'
+"${tool[@]}" hint lab3 3 | grep -q 'rm --'
 # Lab 4: personal CSV, a check that runs the student's own script, a prediction key and a checkpoint with a new file.
 lab4="$OSLAB_WORKSPACE/lab4"
 status=$(value lab4 status); other=$(value lab4 other)

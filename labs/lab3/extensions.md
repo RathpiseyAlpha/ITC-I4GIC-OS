@@ -48,3 +48,22 @@ Use your individual account on the shared Ubuntu server for unprivileged tasks. 
 5. Restore the original configuration/snapshot and demonstrate one normal boot. This exercise does not damage or reinstall GRUB itself. Bootloader installation/device recovery requires a separate instructor-tested VM exercise; never substitute a physical disk command on the server.
 
 **Evidence:** source/config distinction, one VM boot observation and recovery record, or clearly labeled demonstration analysis. Consult the [GNU GRUB manual](https://www.gnu.org/software/grub/manual/grub/grub.html) for the VM version.
+
+## D. A Chain of Links
+
+The live checkpoint uses a chain of two symbolic links. Build a longer one in a new folder, `extra/`, and find where it ends.
+
+```bash
+cd "$OSLAB_WORKSPACE/lab3"
+mkdir -p extra
+cd extra
+printf 'chain end\n' > end.txt
+ln -s end.txt middle.txt
+ln -s middle.txt start.txt
+ls -l start.txt middle.txt
+readlink start.txt
+readlink -f start.txt
+cat start.txt
+```
+
+`readlink` prints one step; `readlink -f` follows the whole chain. Predict, then test inside `extra/` only: what does `cat start.txt` do if you rename `end.txt`? Which link do you repair, and does the other one need a change?

@@ -1706,8 +1706,7 @@ def _oslab_activity(username, lab):
 
     checks = [{"passed": c.get("passed", 0), "total": c.get("total", 0),
                "failed": c.get("failed", []), "reasons": c.get("reasons", {}), "time": c.get("time", ""),
-               "checkpoint": c.get("checkpoint"), "pathError": c.get("path_error"),
-               "lab3Checks": c.get("lab3_checks")}
+               "checkpoint": c.get("checkpoint"), "pathError": c.get("path_error")}
               for c in kinds.get("check", [])]
     out = {
         "available": True, "values": values, "released": bool(nonce),
@@ -1755,33 +1754,10 @@ def _share(right, total):
 
 
 def _mark_suggestions(rubric, activity, grade=None, lab=None):
-    """Provisional points from lab records, for Lab 3 and the pilot rubric.
+    """Provisional points from lab records, for the pilot rubric.
     grade is the file check of the submitted folder, for the last row."""
     if not activity.get("available"):
         return {}
-    if lab == "lab3" and [r["max"] for r in rubric] == [3.0, 2.0, 2.0, 2.0, 1.0]:
-        out = {}
-        best = max(activity["checks"], key=lambda c: c["passed"], default=None)
-        if best and best.get("lab3Checks") is not None:
-            core = best["lab3Checks"]
-            out["r1"] = {"points": float(sum(core[:3])),
-                         "note": "Wildcard, hard-link and repaired-target checks; review the wildcard explanation."}
-            out["r2"] = {"points": float(core[3]),
-                         "note": "New-source comparison checked; add up to 1 after reviewing the labelled rename/failure/repair record."}
-        if activity.get("prediction"):
-            debrief = activity.get("debrief")
-            marks = [a["ok"] for a in debrief["answers"] if a["ok"] is not None] if debrief else []
-            out["r3"] = {"points": 1.0 + (_share(sum(marks), len(marks)) if debrief else 0),
-                         "note": "Original prediction saved (accuracy not graded); review the report correction against the debrief."}
-        cp = activity.get("checkpoint")
-        if cp and not cp["practice"]:
-            marks = [a["ok"] for a in cp["answers"] if a["ok"] is not None]
-            out["r4"] = {"points": _share(sum(marks), len(marks)) + float(cp["taskDone"]),
-                         "note": "Path answers plus repaired-link task; read the sentence about the link's directory."}
-        if grade and grade.get("found"):
-            complete = all(item.get("status") == "ok" for item in grade.get("items", []))
-            out["r5"] = {"points": float(complete), "note": "Required submission files present; review the short report."}
-        return out
     if [r["max"] for r in rubric] != [2.0, 2.0, 2.0, 3.0, 1.0]:
         return {}
     out = {}
@@ -1792,14 +1768,16 @@ def _mark_suggestions(rubric, activity, grade=None, lab=None):
         core_passed = best["passed"] - (1 if best["checkpoint"] else 0)
         error = best.get("pathError")
         if error is not None:
-            # Lab 2: the path-error milestone belongs to the tests row, not to the files row.
+            # Labs 2 and 3: the path-error / failure-and-repair milestone belongs to the tests row, not to the files row.
             found, fixed = bool(error.get("error")), bool(error.get("fix"))
             core_total -= 1
             core_passed -= 1 if found and fixed else 0
             out["r2"] = {
                 "points": float(found) + float(fixed),
-                "note": f"paths.txt: Error line {'found' if found else 'missing'}, "
-                        f"Fix path {'works' if fixed else 'missing or wrong'}",
+                "note": (f"links.txt: failure after the rename {'recorded' if found else 'missing'}, "
+                         f"repair {'recorded' if fixed else 'missing or wrong'}" if lab == "lab3" else
+                         f"paths.txt: Error line {'found' if found else 'missing'}, "
+                         f"Fix path {'works' if fixed else 'missing or wrong'}"),
             }
         if core_total > 0:
             out["r1"] = {

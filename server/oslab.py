@@ -71,7 +71,7 @@ FIXTURES = {
     "lab2": lambda v: {f"incoming/{v['file1']}": f"amount,{v['amount1']}\n",
                        f"incoming/{v['file2']}": f"amount,{v['amount2']}\n",
                        "reports/README.txt": "Move the two incoming files here; keep their names.\n"},
-    "lab3": {"links/source.txt": "version 1\n", "links/target-name.txt": "A symlink target for diagnosis.\n"},
+    "lab3": lambda v: lab3_fixture(v),
     "lab4": lambda v: lab4_fixture(v),
     "lab5": lambda v: lab5_fixture(v),
     "lab6": lambda v: lab6_fixture(v),
@@ -93,9 +93,9 @@ HINTS = {
     "lab2": ("Draw the folders on paper. Mark where you are (`pwd`) and where the file must go.",
              "Each `..` goes up one folder. From `incoming/`, one `..` brings you to the lab folder. Which folders are next to `incoming` there?",
              "From one department folder, go up once to TechCorp, then down into the other department: `../DEPARTMENT/'file name'`."),
-    "lab3": ("Which commands did you run, and in which folder? Check with `pwd`. Then run `ls -li` and compare the inode numbers in the first column.",
-             "A hard link shares the inode of the original, so it still works after the rename. A symbolic link stores a name; run `readlink soft.txt` and ask: does a file with that name exist now?",
-             "A relative target is read from the folder that holds the link. To point `soft.txt` at `renamed.txt`, which sits in the same folder, the stored target is only the file name. Remove the old link with `rm -- soft.txt`, then `ln -s` again."),
+    "lab3": ("Which command did you run, and in which folder? Check with `pwd`, then run `ls -li` in links/ and compare the inode numbers in the first column. Your own names are in `oslab values lab3`.",
+             "A hard link shares the inode of the original, so it still works after the rename. A symbolic link stores a name; run `readlink` on it and ask: is there a file with that name now? A NEW file with that name makes the link work again, but on the wrong file.",
+             "A relative target is read from the folder that holds the link. To point the soft link at the renamed file in the same folder, the stored target is only that file name. Remove the old link with `rm --`, then `ln -s TARGET LINK` again, with your own names."),
     "lab4": ("Run each stage of the pipeline alone and read what it prints. Which stage still shows the word `STATUS` or rows you do not want?",
              "The total is a sum, not a count of lines. `wc -l` counts rows. Which command can add the numbers in column 2? Try `awk -F, '{ total += $2 } END { print total+0 }'` on the selected rows only.",
              "Select the rows whose FIRST field is exactly your status: `$1 == \"STATUS\"` in awk, or `grep '^STATUS,'` (the comma stops a look-alike such as `STATUS-late`). Print the label and the total once, in `END`. For a missing file, print the message with `>&2` and `exit 1`."),
@@ -311,31 +311,64 @@ def lab2_checkpoint(pick, v):
     return cv, intro, qs, after
 
 
+LAB3_TAGS = ("old", "saved", "final", "draft", "backup")
+
+
+def lab3_values(pick):
+    """Your report's name, the word added when it is renamed, and two version numbers."""
+    first = 100 + pick("v1", 800)
+    return {"name": WORDS[pick("name", len(WORDS))], "tag": LAB3_TAGS[pick("tag", len(LAB3_TAGS))],
+            "v1": first, "v2": first + 1 + pick("v2", 90)}
+
+
+def lab3_notes(v):
+    """The notes/ folder of the wildcard task: two one-digit names, one two-digit name, a log and a hidden file."""
+    n = v["name"]
+    return {f"notes/{n}1.txt": "note 1\n", f"notes/{n}2.txt": "note 2\n", f"notes/{n}12.txt": "note 12\n",
+            f"notes/{n}.log": "log\n", f"notes/.{n}.txt": "hidden note\n"}
+
+
+def lab3_fixture(v):
+    return {f"links/{v['name']}.txt": f"version {v['v1']}\n", **lab3_notes(v)}
+
+
 def lab3_predict(v):
-    return [question("hard", "In links/, source.txt contains version 1. You create hard.txt with `ln source.txt hard.txt`, then rename source.txt to renamed.txt. Can `cat hard.txt` still read version 1? (yes/no)", "yesno", "y"),
-            question("soft", "In the same experiment, soft.txt was created with `ln -s source.txt soft.txt`. After the rename, before repair or creating any new source.txt, can `cat soft.txt` read the file? (yes/no)", "yesno", "n"),
-            question("replacement", "Next you create a NEW source.txt containing version 2. You have not changed hard.txt. Which version does `cat hard.txt` print? Type 1 or 2.", "int", [1]),
-            question("why", "One sentence: explain why a hard link and a symbolic link behave differently after the rename.", "text")]
+    n, t = v["name"], v["tag"]
+    return [question("broken", f"You run  mv {n}.txt {n}-{t}.txt  in links/. {n}-soft.txt was made with  ln -s {n}.txt {n}-soft.txt.  "
+                     f"Can  cat {n}-soft.txt  read a file now? (yes/no)", "yesno", "n"),
+            question("hard", f"{n}-hard.txt was made with  ln {n}.txt {n}-hard.txt  before the rename. You now create a NEW {n}.txt that holds "
+                     f"`version {v['v2']}`. `cat {n}-hard.txt` prints `version N`. What is N?", "int", [v["v1"]]),
+            question("soft", f"At the same moment, `cat {n}-soft.txt` prints `version N`. What is N?", "int", [v["v2"]]),
+            question("why", "One sentence: why do a hard link and a symbolic link behave differently when a new file takes the old name?", "text")]
 
 
 def lab3_checkpoint(pick, v):
-    folder, name = two_words(pick, "folder", "name")
-    cwd = f"checkpoint-{folder}"
-    target = f"{cwd}/{name}.txt"
-    cv = {"folder": cwd, "name": f"{name}.txt", "content": f"checkpoint {folder} {name}"}
-    intro = [f"Separate case: inside lab3/{cwd}/, the ONLY data file is {name}.txt.",
-             f"A symbolic link called shortcut.txt is in that same folder but stores ../{name}.txt.",
-             f"There is no lab3/{name}.txt. Answer before creating the checkpoint files."]
-    qs = [question("works", "Does the current shortcut resolve to the data file? (yes/no)", "yesno", "n"),
-          question("target", "What relative target should shortcut.txt store to read the data file beside it? Type the target path, not an ln command.", "path", [cwd, target]),
-          question("why", "One sentence: which directory is the starting point when Linux resolves a symbolic link's relative target?", "text")]
-    after = ["Now demonstrate your repair in a NEW folder, separate from links/:",
-             f'  cd "$OSLAB_WORKSPACE/lab3"',
-             f"  mkdir -p {cwd}",
-             f"  printf '%s\\n' '{cv['content']}' > {target}",
-             f"  cd {cwd}",
-             f"  ln -s YOUR_TARGET shortcut.txt  # replace YOUR_TARGET with your answer",
-             'Then run: oslab check lab3']
+    folder, data = two_words(pick, "folder", "data")
+    tag = LAB3_TAGS[pick("tag", len(LAB3_TAGS))]
+    box = f"cp-{folder}"
+    cv = {"folder": box, "data": f"{data}.txt", "moved": f"{data}-{tag}.txt", "content": f"checkpoint {folder} {data}"}
+    intro = [f"New case, in the folder lab3/{box}/. It holds the data file {cv['data']} and a folder links/.",
+             f"links/hard.txt is a hard link to {cv['data']}. links/first.txt is a symbolic link that stores ../{cv['data']}.",
+             "links/second.txt is a symbolic link that stores first.txt. Then you rename "
+             f"{cv['data']} to {cv['moved']}, and change nothing else."]
+    qs = [question("hard", "Does links/hard.txt still read the data? (yes/no)", "yesno", "y"),
+          question("chain", "Does links/second.txt read the data? (yes/no)", "yesno", "n"),
+          question("target", f"Type the relative target that links/first.txt must store to reach {cv['moved']}. Type only the path.", "path",
+                   [f"{box}/links", f"{box}/{cv['moved']}"]),
+          question("second", "You repair ONLY links/first.txt. Does links/second.txt read the data now, with no change to it? (yes/no)", "yesno", "y"),
+          question("why", "One sentence: from which folder does Linux read the stored target of links/first.txt?", "text")]
+    after = ["Now build this case and repair it, in your lab3 folder:",
+             '  cd "$OSLAB_WORKSPACE/lab3"',
+             f"  mkdir -p {box}/links",
+             f"  cd {box}",
+             f"  printf '%s\\n' '{cv['content']}' > {cv['data']}",
+             f"  ln {cv['data']} links/hard.txt",
+             f"  ln -s ../{cv['data']} links/first.txt",
+             "  ln -s first.txt links/second.txt",
+             f"  mv {cv['data']} {cv['moved']}",
+             "  (repair links/first.txt: write the two commands yourself, with rm -- and ln -s)",
+             '  { ls -li . links; cat links/hard.txt links/second.txt; } | tee "$OSLAB_WORKSPACE/lab3/evidence/checkpoint.txt"',
+             "Then run: oslab check lab3"]
     return cv, intro, qs, after
 
 
@@ -1301,7 +1334,7 @@ def lab8_checkpoint(pick, v):
     return cv, intro, qs, after
 
 
-VALUES = {"lab1": lab1_values, "lab2": lab2_values, "lab3": lambda pick: {}, "lab4": lab4_values, "lab5": lab5_values, "lab6": lab6_values, "lab7": lab7_values, "lab9": lab9_values, "lab10": lab10_values, "lab8": lab8_values}
+VALUES = {"lab1": lab1_values, "lab2": lab2_values, "lab3": lab3_values, "lab4": lab4_values, "lab5": lab5_values, "lab6": lab6_values, "lab7": lab7_values, "lab9": lab9_values, "lab10": lab10_values, "lab8": lab8_values}
 PREDICT = {"lab1": lab1_predict, "lab2": lab2_predict, "lab3": lab3_predict, "lab4": lab4_predict, "lab5": lab5_predict, "lab6": lab6_predict, "lab7": lab7_predict, "lab9": lab9_predict, "lab10": lab10_predict, "lab8": lab8_predict}
 CHECKPOINT = {"lab1": lab1_checkpoint, "lab2": lab2_checkpoint, "lab3": lab3_checkpoint, "lab4": lab4_checkpoint,
               "lab5": lab5_checkpoint, "lab6": lab6_checkpoint, "lab7": lab7_checkpoint, "lab9": lab9_checkpoint, "lab10": lab10_checkpoint, "lab8": lab8_checkpoint}
@@ -1595,13 +1628,15 @@ def show_values(lab):
 # Fixture files whose content changed when a lab got personal values. A workspace started before the change
 # still holds the old content; `oslab start` replaces such a file only while it is exactly the old content.
 LEGACY_FIXTURES = {
+    "lab3": {"links/source.txt": "version 1\n", "links/target-name.txt": "A symlink target for diagnosis.\n"},
     "lab4": {"data/events.csv": "status,count\nok,3\nfail,2\nok,5\n", "data/expected.txt": "ok total: 8\n"},
     "lab7": {"input/one file.txt": "alpha beta\n", "input/-dash.txt": "gamma\n"},
     "lab9": {"vault/alpha.txt": "alpha\n", "vault/beta.txt": "beta\n", "vault/worker.sh": LAB9_OLD_WORKER},
     "lab10": {"backup.sh": LAB10_OLD_SCRIPT},
 }
 # Fixture files that workspaces started before the change do not have at all (names, or a function of the new files).
-NEW_FIXTURES = {"lab5": lambda files: ("threads/two_workers.c",),
+NEW_FIXTURES = {"lab3": lambda files: [name for name in files if name.startswith("notes/")],
+                "lab5": lambda files: ("threads/two_workers.c",),
                 "lab7": lambda files: [name for name in files if name.startswith("input/")],
                 "lab9": lambda files: [name for name in files if name.startswith("vault/")]}
 
@@ -1621,6 +1656,12 @@ def refresh_fixtures(target, lab):
         elif files[name] != old:
             dest.write_text(files[name], encoding="utf-8")
             print(f"{lab}: {name} was the old shared file; it is now your own version")
+    links = target / "links"
+    if lab == "lab3" and links.is_dir() and not any(links.iterdir()):  # the old unchanged report was just removed
+        for name in files:
+            if name.startswith("links/"):
+                (target / name).write_text(files[name], encoding="utf-8")
+                print(f"{lab}: added {name}")
     for name in NEW_FIXTURES.get(lab, lambda files: ())(files):
         dest = target / name
         if not dest.exists() and not dest.is_symlink():
@@ -2060,33 +2101,144 @@ def check_lab2(target, values, extra):
     return results
 
 
+def lab3_sections(text):
+    """evidence/links.txt: the lines under each `=== LABEL ===` header, as {first words of the label: lines}."""
+    sections, current = {}, None
+    for line in text.splitlines():
+        header = re.match(r"^\s*=+\s*(.*?)\s*=+\s*$", line)
+        if header:
+            label = header.group(1).upper()
+            current = next((key for key in ("BEFORE RENAME", "AFTER RENAME", "AFTER REPAIR") if label.startswith(key)), None)
+            if current:
+                sections.setdefault(current, [])
+        elif current:
+            sections[current].append(line)
+    return sections
+
+
+def lab3_evidence(target, values):
+    """Core 3: evidence/links.txt records the failure after the rename and the repaired link, with your own values.
+    Returns (failure, repair, problems)."""
+    name, tag, v1 = values["name"], values["tag"], values["v1"]
+    path = "evidence/links.txt"
+    if not read_text(target / path).strip():
+        return False, False, [f"{path} does not exist or is empty: save the labelled states with the tee commands (Core 2 and Core 3)"]
+    sections = lab3_sections(read_text(target / path))
+    problems = []
+    for key, step in (("BEFORE RENAME", "Core 2, step 1"), ("AFTER RENAME", "Core 2, step 2"), ("AFTER REPAIR", "Core 3, step 2")):
+        if key not in sections:
+            problems.append(f"{path} has no `=== {key} ... ===` section ({step})")
+    failure = repair = False
+    after = "\n".join(sections.get("AFTER RENAME", []))
+    if "AFTER RENAME" in sections:
+        if "no such file or directory" not in after.lower():
+            problems.append("the AFTER RENAME section must hold the error that cat printed: No such file or directory (Core 2, step 2)")
+        elif not re.search(rf"^\s*stored target:\s*{re.escape(name)}\.txt\s*$", after, re.M):
+            problems.append(f"the AFTER RENAME section must show `stored target: {name}.txt`, the old name that is now missing")
+        else:
+            failure = True
+    fixed = "\n".join(sections.get("AFTER REPAIR", []))
+    if "AFTER REPAIR" in sections:
+        stored = re.search(r"^\s*stored target:\s*(\S+)\s*$", fixed, re.M)
+        if not stored:
+            problems.append("the AFTER REPAIR section has no `stored target:` line (Core 3, step 2)")
+        elif posixpath.normpath(posixpath.join("links", stored.group(1))) != f"links/{name}-{tag}.txt":
+            problems.append(f"the AFTER REPAIR section shows the target {stored.group(1)}, which does not lead to {name}-{tag}.txt from links/")
+        elif f"version {v1}" not in fixed:
+            problems.append(f"the AFTER REPAIR section must show the link reading version {v1}")
+        else:
+            repair = True
+    return failure, repair, problems
+
+
+def lab3_path_error(target, values):
+    failure, repair, _ = lab3_evidence(target, values)
+    return {"error": failure, "fix": repair}
+
+
 def check_lab3(target, values, extra=None):
-    """Check real file identity and target paths, rather than trusting a transcript."""
+    """Check real file identity and stored targets on the files, not a transcript. Each result is (milestone, problems)."""
+    name, tag, v1, v2 = values["name"], values["tag"], values["v1"], values["v2"]
     links = target / "links"
-    hard, renamed, source, soft = (links / name for name in ("hard.txt", "renamed.txt", "source.txt", "soft.txt"))
+    original, hard, renamed, soft = links / f"{name}.txt", links / f"{name}-hard.txt", links / f"{name}-{tag}.txt", links / f"{name}-soft.txt"
     results = []
-    wildcard = read_text(target / "evidence/wildcards.txt")
-    expected = "<practice/report1.txt>\n<practice/report2.txt>\n" * 2 + "<practice/*.txt>\n"
-    results.append(("wildcards: saved expansion of two patterns and one quoted literal",
-                    [] if wildcard == expected else ["From the lab3 root, save the three Task 1 printf commands to evidence/wildcards.txt before creating demo links."]))
-    same = (all(p.is_file() and not p.is_symlink() for p in (hard, renamed))
-            and os.path.samefile(hard, renamed) and read_text(hard) == "version 1\n")
-    results.append(("hard link: hard.txt and renamed.txt share the original file (version 1)",
-                    [] if same else ["Keep hard.txt as a hard link to the renamed original; compare ls -li and cat."]))
-    repaired = soft.is_symlink() and renamed.is_file() and soft.resolve() == renamed.resolve()
-    results.append(("symbolic link: soft.txt resolves to renamed.txt",
-                    [] if repaired else ["Repair only soft.txt; its relative target is resolved from links/."]))
-    replaced = (source.is_file() and not source.is_symlink() and read_text(source) == "version 2\n"
-                and same and not os.path.samefile(source, hard))
-    results.append(("replacement: new source.txt is version 2, separate from the version 1 inode",
-                    [] if replaced else ["Create a new source.txt after the rename; do not write version 2 through hard.txt or renamed.txt."]))
+    # 1. wildcards: three blocks of printf output, in the order of the instruction (the order inside a block is not checked)
+    notes = sorted(p for p in lab3_notes(values))
+    visible = sorted(f"<{p}>" for p in notes if p.endswith(".txt") and not Path(p).name.startswith("."))
+    one = sorted(f"<notes/{name}{d}.txt>" for d in "12")
+    lines = [line for line in read_text(target / "evidence/wildcards.txt").splitlines() if line.strip()]
+    problems = []
+    if not lines:
+        problems.append("evidence/wildcards.txt does not exist or is empty: save the three printf commands with tee (Core 1)")
+    else:
+        parts = (("notes/*.txt", visible, lines[:3]), (f"notes/{name}?.txt", one, lines[3:5]), ("'notes/*.txt'", ["<notes/*.txt>"], lines[5:]))
+        for label, wanted, got in parts:
+            if sorted(got) != wanted:
+                problems.append(f"the lines for {label} must be {', '.join(wanted)}; {found(chr(10).join(got))}")
+        if len(lines) != 6:
+            problems.append(f"the file must hold 6 lines (3, 2 and 1 from the three commands); it holds {len(lines)}")
+    results.append(("wildcards: evidence/wildcards.txt holds your three expansions", problems[:3]))
+    # 2. hard link
+    problems = []
+    if not hard.is_file() or hard.is_symlink():
+        problems.append(f"links/{name}-hard.txt does not exist or is not a hard link: ln {name}.txt {name}-hard.txt, before the rename")
+    elif not renamed.is_file() or renamed.is_symlink():
+        problems.append(f"links/{name}-{tag}.txt does not exist: rename the original with mv")
+    elif not os.path.samefile(hard, renamed):
+        problems.append(f"{name}-hard.txt and {name}-{tag}.txt are not the same file (a copy, or a hard link made after the rename): compare ls -li")
+    elif read_text(hard) != f"version {v1}\n":
+        problems.append(f"the hard-linked file must still hold version {v1}; {found(read_text(hard))}")
+    results.append((f"hard link: {name}-hard.txt and {name}-{tag}.txt are the same file (version {v1})", problems))
+    # 3. repaired symbolic link
+    problems = []
+    if not soft.is_symlink():
+        problems.append(f"links/{name}-soft.txt is not a symbolic link: repair it with rm -- then ln -s")
+    else:
+        stored = os.readlink(soft)
+        if stored.startswith("/"):
+            problems.append(f"the stored target {stored} is an absolute path; store a relative one, read from the folder that holds the link")
+        elif not renamed.is_file():
+            problems.append(f"links/{name}-{tag}.txt does not exist")
+        elif not os.path.exists(soft):
+            problems.append(f"the link stores {stored}, and no file has that name here: it is still dangling")
+        elif not os.path.samefile(soft, renamed):
+            if original.is_file() and os.path.samefile(soft, original):
+                problems.append(f"the link stores {stored}: it reads the NEW file, not your renamed original. Point it at {name}-{tag}.txt")
+            else:
+                problems.append(f"the link stores {stored}, which does not lead to {name}-{tag}.txt")
+    results.append((f"symbolic link: {name}-soft.txt stores a relative target that reaches {name}-{tag}.txt", problems))
+    # 4. the new file with the old name
+    problems = []
+    if not original.is_file() or original.is_symlink():
+        problems.append(f"links/{name}.txt does not exist: create a NEW file under the old name (Core 2, step 3)")
+    elif read_text(original) != f"version {v2}\n":
+        problems.append(f"the new {name}.txt must hold version {v2}; {found(read_text(original))}")
+    elif hard.is_file() and os.path.samefile(original, hard):
+        problems.append(f"{name}.txt is the same file as {name}-hard.txt: create it with printf and >, after the rename")
+    replacement = read_text(target / "evidence/replacement.txt")
+    if not problems and (f"version {v1}" not in replacement or f"version {v2}" not in replacement):
+        problems.append(f"evidence/replacement.txt must show both versions, {v1} and {v2}: save the Core 2, step 3 listing")
+    results.append((f"new file: {name}.txt holds version {v2} and is separate from the version {v1} file", problems))
+    # 5. the evidence of failure and repair
+    results.append(("evidence/links.txt records the failure after the rename and the repaired link", lab3_evidence(target, values)[2]))
     if extra:
-        folder = target / extra["folder"]
-        shortcut, data = folder / "shortcut.txt", folder / extra["name"]
-        done = (data.is_file() and not data.is_symlink() and read_text(data) == extra["content"] + "\n"
-                and shortcut.is_symlink() and shortcut.resolve() == data.resolve())
-        results.append(("checkpoint: shortcut.txt resolves to the supplied data file",
-                        [] if done else ["Follow the separate checkpoint task printed by oslab checkpoint lab3; leave links/ unchanged."]))
+        box = target / extra["folder"]
+        data, moved = box / extra["data"], box / extra["moved"]
+        first, second, hard_link = box / "links/first.txt", box / "links/second.txt", box / "links/hard.txt"
+        problems = []
+        if data.exists() or data.is_symlink():
+            problems.append(f"{extra['folder']}/{extra['data']} is still there: the data file was renamed to {extra['moved']}")
+        elif not moved.is_file() or moved.is_symlink() or read_text(moved) != extra["content"] + "\n":
+            problems.append(f"{extra['folder']}/{extra['moved']} must hold {extra['content']}: follow the commands printed by oslab checkpoint lab3")
+        elif not (hard_link.is_file() and not hard_link.is_symlink() and os.path.samefile(hard_link, moved)):
+            problems.append("links/hard.txt must be a hard link made before the rename (ls -li shows the same inode as the data file)")
+        elif not first.is_symlink() or os.readlink(first).startswith("/") or first.resolve() != moved.resolve():
+            problems.append(f"links/first.txt must store a relative target that reaches {extra['moved']}: it stores {os.readlink(first) if first.is_symlink() else 'nothing (not a link)'}")
+        elif not second.is_symlink() or os.readlink(second) != "first.txt":
+            problems.append("links/second.txt must still be a symbolic link that stores first.txt: repair only first.txt")
+        elif read_text(target / "evidence/checkpoint.txt").count(extra["content"]) < 2:
+            problems.append("evidence/checkpoint.txt must show the data read through hard.txt and through second.txt: use the tee line that oslab checkpoint printed")
+        results.append(("checkpoint: first.txt is repaired, second.txt follows it, hard.txt still reads, and the output is saved", problems))
     return results
 
 
@@ -2171,7 +2323,7 @@ def check_lab4(target, values, extra):
 
 CHECKS = {"lab1": check_lab1, "lab2": check_lab2, "lab3": check_lab3, "lab4": check_lab4, "lab5": check_lab5, "lab6": check_lab6, "lab7": check_lab7, "lab9": check_lab9, "lab10": check_lab10, "lab8": check_lab8}
 # Details a check sends with its milestones, so the marking screen can give part of a row's points.
-CHECK_DETAILS = {"lab3": lambda target, values: {"lab3_checks": [not problems for _, problems in check_lab3(target, values)]},
+CHECK_DETAILS = {"lab3": lambda target, values: {"path_error": lab3_path_error(target, values)},
                  "lab2": lambda target, values: {"path_error": lab2_path_error(target, values)}}
 EVIDENCE_BUDGET = 8000  # bytes of file entries per record; oslab_teach drops records over 16 KB
 HASH_LIMIT = 5_000_000

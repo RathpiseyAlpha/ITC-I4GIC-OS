@@ -53,7 +53,7 @@ Then follow the lab's `start`, `cd`, and `pwd` steps. These functions last for t
 
 ## Lab 3 collection
 
-Lab 3 also supports `oslab predict lab3`, `check`, `checkpoint`, `debrief` and `status`. Its core uses the fixed names in the instructions; the checkpoint supplies a separate folder and file name. On the class server, answers go to the same inbox and marking dashboard as the pilot labs. Check `oslab doctor` before submitting. No separate prediction file is required. An older helper that says Lab 3 uses paper must be updated by the instructor.
+Lab 3 also supports `oslab predict lab3`, `check`, `checkpoint`, `debrief` and `status`. Its names and version numbers are your own (`oslab values lab3`); the checkpoint supplies a separate folder and new names. On the class server, answers go to the same inbox and marking dashboard as the pilot labs. Check `oslab doctor` before submitting. No separate prediction file is required. An older helper that says Lab 3 uses paper must be updated by the instructor.
 
 ## Working directory versus submission repository
 

@@ -1,42 +1,35 @@
-# Lab 3 — Wildcards and Links: short report
+# Lab 3 — Wildcards, Hard Links and Symbolic Links: individual report
 
-Copy this template to `lab3/README.md` in your personal course repository. Replace the blanks with your observations. Follow [the instructions](lab3-instruction.md).
+Copy this template to `lab3/README.md` in your own course repository. Follow [the instructions](lab3-instruction.md). Your prediction, debrief and checkpoint answers are already saved by `oslab`; do not copy them here. The marks come from those records and your evidence files; this report is your own record of the lab.
 
 - Student name/ID:
-- Linux username and environment:
-- `oslab status lab3` shows prediction, checkpoint and debrief saved: yes/no (explain anything missing).
+- Ubuntu username:
+- My values (`oslab values lab3`): name = , tag = , v1 = , v2 =
+- Files: `evidence/wildcards.txt`, `evidence/links.txt`, `evidence/replacement.txt`, `evidence/checkpoint.txt`
 
-Prediction and checkpoint answers are submitted through `oslab`; do not rewrite them here.
+## What I Saw
 
-## 1. Wildcards
+| State | What `cat` printed for the hard link | What `cat` printed for the symbolic link | What `readlink` printed |
+|---|---|---|---|
+| Before the rename | | | |
+| After the rename, before the repair | | | |
+| After a new file took the old name | | | |
+| After my repair | | | |
 
-Evidence: `evidence/wildcards.txt`
+My repair (the two commands I wrote):
 
-- Names printed by `practice/*.txt` before the demo links were created:
-- Does `practice/report?.txt` print the same names?
-- Why does the quoted `'practice/*.txt'` print a literal pattern?
+## Explanation
 
-## 2. Rename and repair
+`oslab debrief lab3` records which prediction answers you confirmed and which you corrected. Here, in 3–5 sentences for yourself: why did the symbolic link read `version <v2>` after the new file took the old name, while the hard link still read `version <v1>`? Use your own inode numbers from `evidence/replacement.txt`.
 
-Evidence: `evidence/links.txt`, with BEFORE RENAME, AFTER RENAME and AFTER REPAIR sections.
+## What My Tests Do Not Prove
 
-- After the rename, before repair: stored target of `soft.txt` = ___; missing filename = ___.
-- After repair: stored target = ___; contents read through the link = ___.
-- Why can `hard.txt` still read the original after the rename? One sentence using the inode observation:
+One or two sentences. Think about what `cat` shows and what only `ls -li` shows.
 
-## 3. New file using the old name
+## Plus / Challenge (only if you did them)
 
-Evidence: `evidence/replacement.txt`
+Your bracket-pattern answer, or your link counts.
 
-| Name | Your inode number | Contents |
-|---|---|---|
-| `source.txt` (new file) | | |
-| `hard.txt` (original file) | | |
+## AI Note (optional)
 
-Why did the new `source.txt` not change what `hard.txt` reads? One sentence:
-
-My original prediction was **confirmed / corrected** because this observation showed ___ .
-
-## Optional AI note
-
-If used: one suggestion and the command/result you used to check it. Otherwise remove this section.
+One suggestion an AI tool gave you and the test you used to check it.
