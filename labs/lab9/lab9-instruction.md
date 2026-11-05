@@ -2,14 +2,13 @@
 
 | Item | Details |
 |---|---|
-| Course | Operating Systems, Institute of Technology of Cambodia |
-| Duration | 120 minutes; installation and VM preparation happen before class |
-| Ownership | Individual work and submission; optional short peer exchange |
-| Primary environment | Shared Ubuntu server with an individual account for each student |
-| Prerequisites | Lab 8 locks, file descriptors, background jobs and exit statuses |
-| Required tools | `bash`, `flock`, `timeout`, `ps` |
-| Practice fallback | Local Linux/WSL for unprivileged tasks; disposable VM for boot/system administration |
-| Core versus extensions | Follow the core below; [optional extensions](extensions.md) retain wider original coverage |
+| Duration | 120 minutes in class. Before class: about 10 minutes for the pre-lab |
+| Work | Individual. Your two lock names and the worker who starts first are different from your neighbour's |
+| Environment | Shared Ubuntu server with an individual account for each student. Local Linux/WSL works for practice ([setup](../SETUP.md)) |
+| Tools | `bash`, `flock`, `timeout`, `sleep`, `nano`, `oslab` |
+| Lab format | Pilot: personal values, Core / Plus / Challenge, live checkpoint |
+| Builds on | Lab 8 (locks, file descriptors, background jobs and exit statuses) |
+| Lecture link | [Week 9 notes: deadlocks](../../lectures/notes/week09-deadlocks.md) |
 
 > **Scenario:** QuantumTech’s Alpha and Beta recovery vaults freeze during a synchronization drill. Model their resources with two owned lock files, observe a bounded wait cycle, and repair the acquisition order.
 
@@ -21,142 +20,154 @@ After the required core, you should be able to:
 2. Reproduce a coordinated two-worker conflict with bounded waits and interpret timeout recovery.
 3. Apply one global lock order and explain why it removes the cycle.
 
-**Extension objectives:** Inspect process wait traces and practise consent-based site-to-site synchronization only in a narrow prepared directory. These retain the original lab's wider topics; they are not required to finish the two-hour core.
+**Extension objectives:** Inspect process wait traces and practise consent-based site-to-site synchronization only in a narrow prepared directory. These retain the original lab's wider topics; they are not required to finish the two-hour core. They are in the [optional extensions](extensions.md).
 
-## Task Overview and 120-minute Timetable
+## How This Lab Works
+
+| Command | What it does |
+|---|---|
+| `oslab values lab9` | Shows **your** two lock names and which one worker A takes first |
+| `oslab predict lab9` | Saves your prediction once, before the experiment |
+| `oslab hint lab9 1` | Gives a hint (levels 1, 2, 3). Hints cost no points |
+| `oslab check lab9` | Runs your `worker.sh` in both modes and shows your milestones (it takes about 10 seconds) |
+| `oslab checkpoint lab9` | Opens when the instructor says so, near the end |
+| `oslab debrief lab9` | After the lab: you give the right answers to your prediction questions |
+
+- **Core** is for everyone. **Plus** and **Challenge** are for students who finish early. Full marks need only Core and the checkpoint.
+- AI tools are allowed in Core, Plus and Challenge. They are **not** allowed in the prediction and the checkpoint. Always test what an AI tells you.
+- In Core 2 you decide the global lock order yourself. You write the rule, and you explain why it removes the cycle.
+- Every wait has a time limit. You only ever start your own two workers, always with `timeout`.
+
+## Before the Lab
+
+Do this before class. It takes about 10 minutes.
+
+```bash
+oslab doctor
+oslab prelab lab9
+```
+
+## Timetable
 
 | Minutes | Activity |
 |---|---|
-| 0–10 | Introduction, objectives and setup |
-| 10–25 | Guided example: commands and observations |
-| 25–35 | Written prediction; optional five-minute peer comparison |
-| 35–70 | Numbered individual investigation tasks; AI optional |
-| 70–85 | Normal and edge tests; instructor feedback |
-| 85–100 | Individual changed-case checkpoint; no AI or peers |
-| 100–110 | Correction and conceptual explanation |
-| 110–120 | Cleanup and submission |
+| 0–10 | Setup |
+| 10–25 | Guided: locks and bounded waiting |
+| 25–35 | Prediction |
+| 35–55 | Core 1: reproduce the deadlock |
+| 55–70 | Core 2: repair it with a global order |
+| 70–85 | Instructor demonstration, Plus and Challenge |
+| 85–100 | Live checkpoint |
+| 100–110 | Debrief |
+| 110–120 | Submit |
 
-Original Levels 1–3 workspace/naive scripts/local deadlock form the core, followed by Levels 5–6 ordering/timeout. Partner Level 4 is optional; Level 7 cleanup stays required.
+## Setup (0–10)
 
-## Lab Setup (0–10 minutes)
-
-1. Log in to the Ubuntu server using **your own account**. All commands below run as that ordinary user in Bash. Use only your own files and processes.
-2. Check the helper. If it is unavailable, follow [the local setup guide](../SETUP.md) to define `oslab` from your cloned course repository; it uses the same fixtures.
-
-   ```bash
-   whoami
-   command -v oslab
-   oslab doctor
-   ```
-
-3. Start the lab and **enter its directory**. `oslab start` preserves existing work and does not change the current directory. If resuming, inspect existing files before running commands that write to them.
+1. Log in to the server with your own account. Start the lab and go into its folder.
 
    ```bash
    export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"
    oslab start lab9
    cd "$OSLAB_WORKSPACE/lab9"
-   pwd
    mkdir -p evidence
-   find . -maxdepth 3 -type f
+   oslab values lab9
    ```
 
-4. Compare your files with the starting tree. `.oslab-managed.json` identifies the managed workspace; leave it intact. `evidence/` was created in step 3. If `tree` is installed, `tree -a -L 3` can display the same structure.
+2. **Read your personal values.** The last command prints two lock names and the lock that worker A takes first. For example:
+
+   ```text
+   Your personal values for lab9 (your-account):
+     res1     = haze
+     res2     = ember
+     a_first  = haze
+   ```
+
+   Your own names are different. Worker B always takes them in the other order. Write them down.
+
+3. **Understand the capital words.** This instruction cannot know your names, so it writes `RES1` and `RES2` where your values belong. Never type the capital words. Type your own names.
+
+   | The instruction says | With the example values above, you type |
+   |---|---|
+   | `vault/RES1.lock` | `vault/haze.lock` |
+   | `cat vault/RES1.txt` | `cat vault/haze.txt` |
+
+4. Your folder now looks like this:
 
    ```text
    lab9/
    ├── .oslab-managed.json
    ├── vault/
-   │   ├── alpha.txt
-   │   ├── beta.txt
-   │   └── worker.sh    # editable starter skeleton
+   │   ├── RES1.txt        # data of your first resource
+   │   ├── RES2.txt        # data of your second resource
+   │   └── worker.sh       # the worker, with one TODO for you
    └── evidence/
    ```
 
-The workspace is for experiments. Your personal course Git repository holds the final submission; you will copy selected files there at the end. VM work and privileged commands are never performed on the shared server.
-
-## Level 1 — Locks and Vault Workspace: Guided Example (10–25)
-
-1. Inspect resources and create an owned coordination folder.
+5. Try the checking command once. At the start the first line passes and the others say `TRY`.
 
    ```bash
-   cat vault/alpha.txt vault/beta.txt
-   mkdir -p vault/coord
+   oslab check lab9
    ```
 
-   The text files represent data; dedicated `.lock` files represent cooperative exclusive access. A lock is not the same thing as merely creating a file named “locked”.
+## Guided — Locks and Bounded Waiting (10–25)
 
-2. Acquire and release one lock in a small subprocess.
+**Goal:** see what a lock is, and how a worker can stop waiting for one.
+
+1. The text files hold data. A **lock file** is separate: `flock` makes workers take turns on it. Creating a file called "locked" is not a lock.
+
+   ```bash
+   cat vault/RES1.txt vault/RES2.txt
+   ls vault
+   ```
+
+2. Take one lock inside a small subshell. File descriptor 8 stays open until the subshell ends, and the lock is held as long as it is open. `-w 2` means: wait at most 2 seconds.
 
    ```bash
    (
        flock -x -w 2 8 || exit 3
-       printf 'holding Alpha\n'
-   ) 8>vault/alpha.lock
+       printf 'holding RES1\n'
+   ) 8>vault/RES1.lock
    ```
 
-   Descriptor 8 stays open until the subshell ends. In a production application you would keep the protected operation inside this scope.
-
-3. Demonstrate bounded contention on that one lock.
+3. Show bounded contention on that one lock. One subshell holds it for 3 seconds. The second command waits only 1 second.
 
    ```bash
    (
        flock -x -w 2 8 || exit 3
        sleep 3
-   ) 8>vault/alpha.lock &
+   ) 8>vault/RES1.lock &
    holder=$!
    sleep 0.2
-   flock -x -w 1 vault/alpha.lock true
+   flock -x -w 1 vault/RES1.lock true
    printf 'contender status=%s\n' "$?"
    wait "$holder"
    ```
 
-   A timeout is expected if the holder acquired first. The short delay aids the demonstration but does not prove acquisition occurred; the coordinated investigation below removes that uncertainty about first holdings.
-
-   **Observe:** What is held while another worker waits? Does a timeout prevent deadlock, or provide a way to stop waiting after a conflict?
+   The status is not `0`: the wait timed out. **Observe:** what is held while another worker waits? Does a timeout *prevent* a deadlock, or only let a worker stop waiting?
 
 ## Prediction (25–35)
 
-Write: **A holds Alpha and requests Beta. B holds Beta and requests Alpha. Draw both wait edges and predict whether either can obtain its second resource before someone releases a lock.** No AI; five-minute peer comparison is optional.
+Guess first, then try. Answer alone, without AI.
 
-## Levels 2–3 — Naive Workers and Local Deadlock (35–55)
+```bash
+oslab predict lab9
+```
 
-1. Create the bounded starting worker. Every acquisition has a timeout; a readiness barrier coordinates the intentionally opposite-order demonstration.
+It asks four questions and one sentence about your own two locks. Draw the two workers and the two locks on paper first. A wrong guess costs nothing. You compare it with the real result in the debrief.
+
+## Core 1 — Reproduce the Deadlock (35–55)
+
+**Goal:** make worker A and worker B wait for each other, and read what the timeouts say.
+
+1. Read the worker. Find where it takes the first lock, where it waits for the other worker (the **barrier**), and where it asks for the second lock. The line with `sleep "${HOLD:-0}"` is a teaching delay; keep it.
 
    ```bash
-   cat > vault/worker.sh <<'SH'
-   #!/usr/bin/env bash
-   set -euo pipefail
-   [[ $# -eq 2 && "$1" =~ ^(A|B)$ && "$2" =~ ^(opposite|ordered)$ ]] || exit 2
-   role=$1
-   mode=$2
-   vault=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-   first=alpha
-   second=beta
-   # TODO: in ordered mode, every worker must use one global order.
-   if [[ "$role" = B ]]; then first=beta; second=alpha; fi
-   exec 8>"$vault/$first.lock"
-   flock -x -w 2 8 || { echo "$role first lock timeout"; exit 3; }
-   printf '%s holds %s\n' "$role" "$first"
-   if [[ "$mode" = opposite ]]; then
-       touch "$vault/coord/$role.ready"
-       other=B
-       [[ "$role" = B ]] && other=A
-       for step in {1..30}; do
-           [[ -f "$vault/coord/$other.ready" ]] && break
-           sleep 0.1
-       done
-       [[ -f "$vault/coord/$other.ready" ]] || { echo 'barrier timeout'; exit 4; }
-   fi
-   exec 9>"$vault/$second.lock"
-   printf '%s requests %s\n' "$role" "$second"
-   flock -x -w 2 9 || { echo "$role second lock timeout"; exit 5; }
-   printf '%s holds both\n' "$role"
-   SH
+   cat -n vault/worker.sh
    ```
 
-   The barrier is a teaching instrument: both workers announce their first holdings before requesting second locks. It must be skipped in the repaired ordered mode because one worker cannot acquire Alpha while another holds it.
+   The barrier makes both workers announce their first lock before they ask for the second one. It is a teaching tool. It is used only in `opposite` mode.
 
-2. Clear only the two old readiness markers, then start exactly two bounded workers.
+2. Start exactly two workers in `opposite` mode, each with `timeout 6`. Then save the statuses and logs.
 
    ```bash
    rm -f -- vault/coord/A.ready vault/coord/B.ready
@@ -166,23 +177,24 @@ Write: **A holds Alpha and requests Beta. B holds Beta and requests Alpha. Draw 
    worker_b=$!
    if wait "$worker_a"; then rc_a=0; else rc_a=$?; fi
    if wait "$worker_b"; then rc_b=0; else rc_b=$?; fi
-   printf 'A=%s B=%s\n' "$rc_a" "$rc_b"
-   cat evidence/opposite-a.txt evidence/opposite-b.txt
-   ```
-
-3. Draw the holdings/requests at the barrier. At least one worker should time out on the second lock. Once it exits and releases its first lock, the other may complete instead of also timing out. Explain that recovery event rather than claiming both must fail.
-
-   ```bash
    {
      printf 'opposite A=%s B=%s\n' "$rc_a" "$rc_b"
      cat evidence/opposite-a.txt evidence/opposite-b.txt
    } > evidence/opposite.txt
+   cat evidence/opposite.txt
    ```
 
-## Levels 5–6 — Global Ordering and Timeout Recovery (55–70)
+3. Draw what each worker holds and requests at the barrier. At least one worker ends with status `5` (the timeout of the second lock). When it exits, its first lock is released, so the other worker may finish instead of also timing out. Explain that recovery in your report. Do not claim that both workers must fail.
 
-1. Edit the TODO order rule so **ordered** mode always acquires Alpha before Beta. Opposite mode remains available to reproduce the teaching conflict. Leave the barrier restricted to opposite mode.
-2. Rerun the two workers with `ordered` instead of `opposite`. Save separate logs and both statuses. Explain why a worker waiting for Alpha cannot simultaneously hold Beta under this rule.
+**Hints:** `oslab hint lab9 1`, `2` and `3`. AI is allowed here; test every suggestion.
+
+## Core 2 — Repair It With a Global Order (55–70)
+
+**Goal:** one rule for both workers, so that no worker waits for a lock while holding the one the other needs.
+
+1. **Your decision.** Open the worker with `nano vault/worker.sh` and find the `TODO`. In `ordered` mode, both workers must take the locks in the **same** order. In `opposite` mode, worker B must still take them the other way round, so that you can reproduce the conflict. Keep the barrier only for `opposite` mode, and write your rule with the variables `$first` and `$second`, not with your lock names.
+
+2. Run the two workers in `ordered` mode and save the statuses and logs.
 
    ```bash
    timeout 6 bash vault/worker.sh A ordered > evidence/ordered-a.txt 2>&1 &
@@ -197,83 +209,125 @@ Write: **A holds Alpha and requests Beta. B holds Beta and requests Alpha. Draw 
    } > evidence/ordered.txt
    cat evidence/ordered.txt
    ```
-3. Keep the timeouts even after ordering. Ordering prevents this modeled circular wait; timeouts also bound delays from other issues. It does not ensure fairness or guarantee every larger system avoids deadlocks.
 
-**Complete when:** your logs support the wait cycle in the first case, both ordered workers finish, and the global rule is applied consistently. AI may suggest a repair; check that it changes both workers' resource policy and does not introduce a new barrier wait.
+   Both statuses should be `0`. Why can a worker that waits for the first lock not hold the second lock at the same time?
 
-**Hints:** (1) draw held/requested resources; (2) read the first-lock logs and readiness markers; (3) restrict B's reversal to the teaching opposite mode, and skip the barrier for ordered acquisition.
+3. Clean up. No worker may still run, and the locks must be free.
 
-## Tests and Feedback (70–85)
+   ```bash
+   jobs
+   flock -n vault/RES1.lock true; printf 'RES1 free: status=%s\n' "$?"
+   flock -n vault/RES2.lock true; printf 'RES2 free: status=%s\n' "$?"
+   ```
 
-Save the opposite-order traces/statuses in `evidence/opposite.txt` and ordered traces/statuses in `evidence/ordered.txt`. Repeat the opposite case only after removing the two owned readiness markers.
+   Both statuses should be `0`. The timeouts stay in the script: ordering prevents *this* circular wait, but timeouts still bound other delays. Ordering does not give fairness and does not make every larger system safe.
 
-| Case | Intended evidence |
-|---|---|
-| Opposite, two workers | Both hold distinct first locks; second-lock conflict and bounded recovery |
-| Ordered, two workers | Both complete, with sequential access through Alpha |
-| One opposite worker alone | Barrier times out within three seconds; explains missing participant |
+4. Check your work. The four Core milestones must show `PASS`.
 
-Status 124 means the external timeout fired. Do not grade an unexplained timeout as successful recovery. Completion in one uncontrolled run does not prove that opposite ordering is safe.
+   ```bash
+   oslab check lab9
+   ```
 
-**Troubleshooting:** Reusing readiness files can falsify the coordination condition. Never delete active lock files; their existence is normal. Use the captured PIDs and bounded waits instead of `pkill`. See [the deadlock visualization](../../lectures/visualizations/rag-deadlock.html) and `man flock`.
+   The check runs your `worker.sh` in a disposable folder: in `opposite` mode, in `ordered` mode, and in `ordered` mode again with two other lock names. The last test fails if your rule only works for your own lock names.
 
+## Instructor Demonstration, Plus and Challenge (70–85)
 
-## Individual Changed-case Checkpoint (85–100 minutes)
+First, watch the instructor draw the two workers and the two locks and show the circle on the board. Then, if you finish early, try these. They are not needed for full marks. Save your answers in `evidence/plus.txt`.
 
-Close AI tools and peer help. Answer the instructor's short question on paper or the existing course worksheet. Your earlier implementation need not be complete to answer it.
+**Plus**
 
-> A third worker needs only Beta. Must it also acquire Alpha to follow the global-order policy? Explain. Separately, identify whether timeout is prevention or recovery in the opposite-order example.
+- Slow the first lock down. `HOLD=1` makes each worker keep its first lock for one second before it asks for the second. Run both workers in `ordered` mode with `HOLD=1`:
 
-Give the result or diagnosis, the mechanism, and one observation that could check it. The instructor collects this answer before discussing the public key; the public question is practice, so a graded session may use a fresh private variant.
+  ```bash
+  HOLD=1 timeout 6 bash vault/worker.sh A ordered &
+  HOLD=1 timeout 6 bash vault/worker.sh B ordered &
+  wait
+  ```
 
-## Explanation and Correction (100–110 minutes)
+  Do both workers still finish? One of them waits longer. What does it wait for?
 
-Keep your original prediction visible. Under it, write **confirmed** or **corrected**, cite the relevant test, and explain the OS mechanism in 3–5 sentences. Initial prediction accuracy is lightly weighted; a reasoned attempt and evidence-based correction earn credit.
+**Challenge**
 
-Answer: (a) Which pair of edges formed the cycle? (b) Why must the teaching barrier be absent in ordered mode? (c) How can one timeout allow the other worker to finish?
+- Three workers and three locks `x`, `y`, `z`: A holds `x` and requests `y`; B holds `y` and requests `z`; C holds `z` and requests `x`. Draw the circle. Choose a global order and say which worker must change the order of its two locks.
 
-## Cleanup and Final Submission (110–120 minutes)
+## Live Checkpoint (85–100)
 
-Wait for the two captured workers; all waits are bounded. After both exit, remove only their two readiness markers. Leave lock files in place and never kill by a broad name match.
+Wait until the instructor opens it. Close AI tools. Work alone.
 
-1. Set `SUBMISSION_REPO` to the **absolute path of your existing personal course repository**. Replace the example ID/path below with your own; do not copy another student's repository.
+```bash
+oslab checkpoint lab9
+```
+
+1. Read the case with a third worker, and answer the four questions.
+2. Then do the file task that the command prints: copy **your** worker script, change only the two `res1=` and `res2=` lines to the new names, run the `ordered` mode, and save the logs in `checkpoint.txt`.
+3. Run `oslab check lab9`. A fifth milestone, `checkpoint`, must show `PASS`.
+
+## Debrief (100–110)
+
+Look at your prediction again. `oslab` saved it in a hidden folder, `.records`.
+
+```bash
+cat "$OSLAB_WORKSPACE/.records/lab9-predict.json"
+```
+
+Now give the right answer to each prediction question:
+
+```bash
+oslab debrief lab9
+```
+
+Your prediction stays saved as it was, so the comparison shows which answers you confirmed and which you corrected. Then the class discusses: your timeout rescued the opposite run. Why is "wait less" not a repair for a deadlock?
+
+## Submit (110–120)
+
+1. Copy your work to your course repository. Replace `YOUR_ID` with your own ID.
 
    ```bash
    SUBMISSION_REPO="$HOME/os-gic-YOUR_ID/os-lab-YOUR_ID"
    mkdir -p "$SUBMISSION_REPO/lab9/evidence"
-   ```
-
-2. Use [this lab's README template](README.md). Copy the listed artifacts and **two selected test records**, rather than every terminal output. Check the final tree below before submitting.
-
-   ```bash
    cp -- vault/worker.sh "$SUBMISSION_REPO/lab9/"
    cp -- evidence/opposite.txt evidence/ordered.txt "$SUBMISSION_REPO/lab9/evidence/"
    ```
+
+   If you did Plus or Challenge, copy `evidence/plus.txt` the same way.
+
+2. Fill in the [report template](README.md) as `lab9/README.md`. Your repository then has:
 
    ```text
    lab9/
    ├── README.md
    ├── worker.sh
    └── evidence/
-       ├── opposite.txt    # holdings/requests, status, recovery and wait diagram
+       ├── opposite.txt
        └── ordered.txt
    ```
 
-3. Write your own explanations. The prediction must have been captured before execution on paper or the existing course mechanism; copying it into the README afterwards is only a record, not proof of timing. The independent checkpoint is collected separately.
-4. Inspect your course repository with `git status --short`, add only your lab files, and commit/push using the normal course submission procedure. Do not include passwords, personal shell configuration, generated binaries or disk images.
+   The course website checks that these exact names are there.
+
+3. Commit and push. `git pull` comes first, in case you pushed from your own computer since.
+
+   ```bash
+   cd ~/os-gic-YOUR_ID
+   git pull
+   git add os-lab-YOUR_ID/lab9
+   git commit -m "Lab 9"
+   git push
+   ```
 
 ## Grading Criteria (10 points)
 
-| Evidence mapped to lab objectives | Points |
+| Evidence | Points |
 |---|---:|
-| Bounded conflict reproduction and consistent global ordering (objectives 1–3) | 3 |
-| Opposite/ordered and missing-participant diagnosis | 2 |
-| Explain circular wait, barrier role and timeout recovery; original prediction and evidence-based correction | 2 |
-| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
-| Concise, attributable evidence and required artifacts | 1 |
+| Worker: `oslab check lab9` passes the four Core milestones (opposite conflict, ordered mode, rule independent of names, evidence files) | 2 |
+| Tests: `opposite.txt` and `ordered.txt` show the conflict and the repair, and the README explains the recovery by timeout | 2 |
+| Prediction saved in time, and corrected with `oslab debrief lab9` | 2 |
+| Live checkpoint: the answers and your worker running with the new names | 3 |
+| Complete submission: the required files in your repository, on time | 1 |
 
-Equivalent valid commands, filenames and approaches earn credit if the evidence meets the objectives. A naming difference is penalized only when it actually breaks execution. AI is permitted during investigation and tests, optional throughout, and excluded from the initial prediction and individual checkpoint. If used, note one helpful suggestion and its verification; no paid tool, chat history or AI detector is required.
+Every row is marked from your `oslab` records and the files in your repository, so run `oslab check lab9` until it shows what you expect. Your prediction earns its first point for being made, not for being right. Plus and Challenge are not needed for full marks.
 
-## Help, References and Optional Work
+## Help and References
 
-Use the progressive hints in the task sections before requesting a full solution. See [the extension guide](extensions.md) for follow-up tasks with their own environment requirements. Existing visual guides are background references and may show the older broader sequence; this Markdown instruction defines the current required core.
+- `oslab hint lab9 1`, `2`, `3`
+- `man flock`, `man timeout`
+- Wait traces and a partner exercise between two accounts are in the [optional extensions](extensions.md). They need an instructor-prepared directory.

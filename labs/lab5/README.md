@@ -1,34 +1,38 @@
 # Lab 5 — Threads and Completion: individual report
 
-Copy this template to `lab5/README.md` in your own course repository. Follow [the instructions](lab5-instruction.md).
+Copy this template to `lab5/README.md` in your own course repository. Follow [the instructions](lab5-instruction.md). Your prediction, debrief and checkpoint answers are already saved by `oslab`; do not copy them here. The marks come from those records and your evidence files; this report is your own record of the lab.
 
 - Student name/ID:
 - Ubuntu username and environment:
-- Artifact paths (turn these into links after copying to your submission): `two_workers.c`, `evidence/normal.txt`, `evidence/changed.txt`
+- My values (`oslab values lab5`): id_a = , id_b = , steps_a = , steps_b =
+- Files: `two_workers.c`, `evidence/normal.txt`, `evidence/changed.txt`
 
-## Original Prediction
+## What I Did
 
-Copy the prediction you wrote before execution and its reason. State how/when it was captured (paper or the course worksheet).
+| Step | My line or command | What it printed |
+|---|---|---|
+| The program before I added any join | | |
+| The join of worker A and the test of its return code | | |
+| The join of worker B and the test of its return code | | |
+| The report line, and where it is in the program | | |
+| The changed case (A 0 steps, B 1 step): my prediction and the result | | |
 
-## Test Evidence
+## Explanation
 
-Link to two short records under `evidence/`. Include enough command/input/output context to interpret them.
+`oslab debrief lab5` records which prediction answers you confirmed and which you corrected. Here, in 3–5 sentences for yourself:
 
-| Test | Claim | Result that would contradict it | Observed result | What remains unproven |
-|---|---|---|---|---|
-| both workers joined | | | | |
-| changed step count or zero steps | | | | |
+- What makes it safe for main to read `a.result` after the join?
+- Why is the 20 ms delay in each step not a lock?
+- What would change if both workers updated one shared field? Use `threads/trace.csv` as your example.
 
-## Explanation and Correction
+## What My Tests Do Not Prove
 
-Explain which memory is shared, which result each worker owns, and why joining differs from locking.
+One or two sentences. A run that passes three times: what can it still hide?
 
-Keep the original prediction above and add a correction supported by one observed result.
+## Plus / Challenge (only if you did them)
+
+Your answers from `evidence/plus.txt`.
 
 ## AI Note (optional)
 
-One useful suggestion and the test you used to verify it. If you did not use AI, leave this section out.
-
-## Cleanup
-
-State which owned processes/jobs/mounts you cleaned up or why none were created. The supervised changed-case answer is collected separately; do not reconstruct it after collection.
+One suggestion an AI tool gave you and the test you used to check it.

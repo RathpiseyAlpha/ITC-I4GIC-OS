@@ -1,34 +1,44 @@
-# Lab 6 — Security, Users, Groups and Permissions: individual report
+# Lab 6 — Permissions and Access Paths: individual report
 
-Copy this template to `lab6/README.md` in your own course repository. Follow [the instructions](lab6-instruction.md).
+Copy this template to `lab6/README.md` in your own course repository. Follow [the instructions](lab6-instruction.md). Your prediction, debrief and checkpoint answers are already saved by `oslab`; do not copy them here. The marks come from those records and your evidence files; this report is your own record of the lab.
 
 - Student name/ID:
-- Ubuntu username and environment:
-- Artifact paths (turn these into links after copying to your submission): `evidence/policy.txt`, `evidence/traversal.txt`
+- Ubuntu username:
+- My values (`oslab values lab6`): notice policy = , box =
+- Files: `evidence/policy.txt`, `evidence/traversal.txt`, `evidence/checkpoint.txt` (if you saved it)
 
-## Original Prediction
+## What I Did
 
-Copy the prediction you wrote before execution and its reason. State how/when it was captured (paper or the course worksheet).
+| Path | The mode I set | The part of my policy it follows |
+|---|---|---|
+| `private/` | | |
+| `private/record.txt` | | |
+| `shared/` | | |
+| `shared/notice.txt` | | |
 
-## Test Evidence
+## What I Tested, and What I Only Reasoned
 
-Link to two short records under `evidence/`. Include enough command/input/output context to interpret them.
+| Claim | A real test (command and result) | Only reasoning (and what is missing to prove it) |
+|---|---|---|
+| I can read and append to the private record | | |
+| A folder without `x` stops me from reading a file inside it | | |
+| Another student could (or could not) read my notice | | |
 
-| Test | Claim | Result that would contradict it | Observed result | What remains unproven |
-|---|---|---|---|---|
-| owner access and least-privilege modes | | | | |
-| directory-search denial and restoration | | | | |
+## Explanation
 
-## Explanation and Correction
+`oslab debrief lab6` records which prediction answers you confirmed and which you corrected. Here, in 3–5 sentences for yourself:
 
-Explain rwx for files versus directories; distinguish measured owner access from hypothetical peer access.
+- Which bit of `demo/BOX` caused the failed read, and what did `ls` show that `cat` could not use?
+- Why does a notice with mode 644 not override a 700 parent folder?
 
-Keep the original prediction above and add a correction supported by one observed result.
+## What My Tests Do Not Prove
+
+One or two sentences. What would you need (a second account, `sudo`) to prove what a peer sees?
+
+## Plus / Challenge (only if you did them)
+
+Your answers from `evidence/plus.txt`.
 
 ## AI Note (optional)
 
-One useful suggestion and the test you used to verify it. If you did not use AI, leave this section out.
-
-## Cleanup
-
-State which owned processes/jobs/mounts you cleaned up or why none were created. The supervised changed-case answer is collected separately; do not reconstruct it after collection.
+One suggestion an AI tool gave you and the test you used to check it.

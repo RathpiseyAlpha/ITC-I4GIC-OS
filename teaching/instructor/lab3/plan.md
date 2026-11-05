@@ -6,7 +6,7 @@
 
 Students expand wildcard patterns, compare hard-link inode identity, and diagnose a symbolic link after a rename. The required experiment uses only ordinary-user files. GRUB and shared-library work remain [optional extensions](../../../labs/lab3/extensions.md).
 
-Use the [student instruction](../../../labs/lab3/lab3-instruction.md) and [short report](../../../labs/lab3/README.md). The visual guide explains the concepts but currently shows the older paper collection flow; announce that the Markdown terminal instructions govern submission.
+Use the [student instruction](../../../labs/lab3/lab3-instruction.md) and [short report](../../../labs/lab3/README.md). The visual guide (62 slides, rebuilt 2026-11-05) follows the instruction, including the terminal prediction, checkpoint and debrief; if the two differ, the Markdown instruction governs. Slides 1 to 3 are the cover and opening question, 4 to 15 the concepts, 16 to 22 the lab overview and setup, 23 to 26 the guided example, 27 and 28 the prediction, 29 to 35 Task 2, 36 to 41 the tests with Plus and Challenge, 42 to 45 the checkpoint, 46 to 52 debrief, submission, grading and mistakes, 53 to 60 GRUB and shared libraries, and 61 and 62 the takeaways.
 
 ## Before class: make collection work
 
@@ -64,6 +64,14 @@ Public model for the repair (only after inspecting the owned link): `rm -- soft.
 The CSV checkpoint automatic points are out of 2: one for the marked answers (0.5 if at least half correct), one for the working repaired link. It includes the explanation sentence for a quick human review. A practice checkpoint is flagged as practice and does not earn a class checkpoint suggestion.
 
 The first-seen record/duplicate flag supports review; this is not tamper-proof assessment. The board must be open before collection to retain first-seen evidence. If students use a practice inbox, their work does not reach you.
+
+## Pre-lab, hints, Plus and Challenge
+
+Same style as the pilot labs. None of it changes the timetable or the 10 points.
+
+- `oslab prelab lab3` asks three multiple-choice questions (who expands `*`, hard-link inode, what a symbolic link stores). Its result shows on the board's pre-lab column. Ask students to run it the evening before.
+- `oslab hint lab3 1`, `2`, `3` give the ladder: compare inodes; read the stored target; the target is resolved from the link's folder. Hint use appears on the board.
+- Plus (bracket wildcards `[12]` and `[!1]`) and Challenge (a chain of two symbolic links in `extra/`, `readlink` versus `readlink -f`) are optional. They write only to `extra/` and `evidence/plus.txt`, so `oslab check lab3` is unaffected. Key: `report[12].txt` prints `report1.txt` and `report2.txt`; `report[!1].*` prints only `report2.txt`. After renaming `end.txt`, `cat start.txt` fails because the chain ends in a missing name.
 
 ## Topic rubric (10 points)
 

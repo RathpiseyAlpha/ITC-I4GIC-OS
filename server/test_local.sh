@@ -100,6 +100,256 @@ printf 'unrelated\n' > "$OSLAB_WORKSPACE/unrelated.txt"
 "${tool[@]}" clean lab2
 test -e "$OSLAB_WORKSPACE/unrelated.txt"
 test ! -e "$OSLAB_WORKSPACE/lab2"
+# Lab 4: personal CSV, a check that runs the student's own script, a prediction key and a checkpoint with a new file.
+lab4="$OSLAB_WORKSPACE/lab4"
+status=$(value lab4 status); other=$(value lab4 other)
+test -n "$status" && test -n "$other" && test "$status" != "$other"
+if "${tool[@]}" values lab4 | grep -q '^ *_'; then echo 'a hidden value was shown' >&2; exit 1; fi
+total=$(awk -F, -v s="$status" '$1 == s { t += $2 } END { print t }' "$lab4/data/events.csv")
+test "$(cat "$lab4/data/expected.txt")" = "$status total: $total"
+grep -q "^$status-late," "$lab4/data/events.csv"
+"${tool[@]}" check lab4 | grep -q 'milestones: 0/4'
+# A workspace from before the update: the old shared file is replaced, a file the student changed is not.
+printf 'status,count\nok,3\nfail,2\nok,5\n' > "$lab4/data/events.csv"; printf 'ok total: 8\n' > "$lab4/data/expected.txt"
+"${tool[@]}" check lab4 | grep -q 'NOTE: data/events.csv is the old shared file'
+"${tool[@]}" start lab4 | grep -q 'was the old shared file'
+grep -q "^$status-late," "$lab4/data/events.csv"
+test "$(cat "$lab4/data/expected.txt")" = "$status total: $total"
+printf 'my own edit\n' > "$lab4/data/events.csv"
+"${tool[@]}" start lab4 | grep -q 'existing work preserved'
+test "$(cat "$lab4/data/events.csv")" = 'my own edit'
+printf '#!/usr/bin/env bash\necho "%s total: $(grep -c "^%s," "$1")"\n' "$status" "$status" > "$lab4/report.sh"
+out=$("${tool[@]}" check lab4 || true)
+printf '%s\n' "$out" | grep -q 'that is the number of matching rows'
+printf '%s\n' "$out" | grep -q 'milestones: 1/4'
+{ printf 'STATUS=%s\n' "$status"; cat "$script_dir/../teaching/instructor/lab4/report_solution.sh"; } > "$lab4/report.sh"
+"${tool[@]}" check lab4 | grep -q 'milestones: 4/4'
+test -z "$(ls -A "$lab4" | grep '^\.check-' || true)"
+printf 'status,count\n%s,1\n' "$status" > "$lab4/data/events.csv"
+"${tool[@]}" check lab4 | grep -q 'milestones: 4/4'
+first=$(awk -F, -v s="$status" 'NR > 1 && $1 == s { print $2; exit }' "$lab4/data/expected.txt" || true)
+printf '1\nyes\n9\nI guessed\n' | "${tool[@]}" predict lab4 | grep -q 'Saved and sent'
+"${teach[@]}" release lab4
+cpout=$(printf '1\n2\n2\nit counts rows\n' | "${tool[@]}" checkpoint lab4)
+(cd "$lab4" && eval "$(printf '%s\n' "$cpout" | sed -n -e 's/^  \(printf .*\)$/\1/p' -e 's/^  \(bash report.sh .*\)$/\1/p')")
+"${tool[@]}" check lab4 | grep -q 'milestones: 5/5'
+"${teach[@]}" export lab4 | grep -q '^student-a,'
+"${tool[@]}" hint lab4 3 | grep -q 'exactly your status'
+# Lab 5: a program with personal numbers, a check that builds and runs it, and a checkpoint copy with new step counts.
+lab5="$OSLAB_WORKSPACE/lab5"
+ida=$(value lab5 id_a); idb=$(value lab5 id_b); sa=$(value lab5 steps_a); sb=$(value lab5 steps_b)
+test -n "$ida" && test -n "$sb"
+grep -q "struct job a = {$ida, $sa, 0}, b = {$idb, $sb, 0};" "$lab5/threads/two_workers.c"
+# A workspace from before the update has no two_workers.c: start adds it, and check names numbers that are not yours.
+rm -- "$lab5/threads/two_workers.c"
+"${tool[@]}" start lab5 | grep -q 'added threads/two_workers.c'
+grep -q "struct job a = {$ida, $sa, 0}, b = {$idb, $sb, 0};" "$lab5/threads/two_workers.c"
+cp -- "$lab5/threads/two_workers.c" "$tmp/two_workers.keep"
+sed -i 's/struct job a = {[0-9]*, [0-9]*, 0}, b = {[0-9]*, [0-9]*, 0};/struct job a = {2, 3, 0}, b = {3, 4, 0};/' "$lab5/threads/two_workers.c"
+"${tool[@]}" check lab5 | grep -q 'NOTE: your program has the numbers a = {2, 3} and b = {3, 4}'
+cp -- "$tmp/two_workers.keep" "$lab5/threads/two_workers.c"
+"${tool[@]}" check lab5 | grep -q 'milestones: 1/4'
+python3 - "$lab5/threads/two_workers.c" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+text = text.replace("/* TODO: join both workers and check each return code. */",
+                    "rc = pthread_join(ta, NULL); if (rc) return 1;\n    rc = pthread_join(tb, NULL); if (rc) return 1;")
+text = text.replace("/* TODO: after both joins, print a.result and b.result. */",
+                    'printf("A result=%d B result=%d\\n", a.result, b.result);')
+open(path, "w").write(text)
+PY
+"${tool[@]}" check lab5 | grep -q 'milestones: 4/4'
+test -z "$(ls -A "$lab5" | grep '^\.check-' || true)"
+printf 'yes\n%s\n%s\nI guessed\n' 1 2 | "${tool[@]}" predict lab5 | grep -q 'Saved and sent'
+printf 'no\n%s\n%s\n' "$((ida * sa))" "$((idb * sb))" | "${tool[@]}" debrief lab5 | grep -q 'Saved and sent'
+"${teach[@]}" release lab5
+cpout=$(printf 'no\n0\n3\nmain does not know if B finished\n' | "${tool[@]}" checkpoint lab5)
+word=$(printf '%s\n' "$cpout" | sed -n 's/^  cp threads\/two_workers.c threads\/\(.*\)\.c$/\1/p')
+csa=$(printf '%s\n' "$cpout" | sed -n 's/.*worker A \([0-9]*\) steps and worker B \([0-9]*\) steps.*/\1/p')
+csb=$(printf '%s\n' "$cpout" | sed -n 's/.*worker A \([0-9]*\) steps and worker B \([0-9]*\) steps.*/\2/p')
+test -n "$word" && test -n "$csa" && test -n "$csb"
+cp -- "$lab5/threads/two_workers.c" "$lab5/threads/$word.c"
+sed -i "s/struct job a = {$ida, $sa, 0}, b = {$idb, $sb, 0};/struct job a = {$ida, $csa, 0}, b = {$idb, $csb, 0};/" "$lab5/threads/$word.c"
+(cd "$lab5" && gcc -Wall -Wextra -pthread "threads/$word.c" -o "threads/$word" && timeout 5 "threads/$word" > checkpoint.txt)
+"${tool[@]}" check lab5 | grep -q 'milestones: 5/5'
+"${teach[@]}" export lab5 | grep -q '^student-a,'
+"${tool[@]}" hint lab5 2 | grep -q 'its own pthread_join'
+# Lab 6: policy sentences become modes; the check reads modes, survives an unreadable folder, and marks the checkpoint folder.
+lab6="$OSLAB_WORKSPACE/lab6"
+policy_modes() {  # prints "file_mode dir_mode group_list" for a policy sentence
+  case "$1" in
+    "The owner may change the file."*) echo "640 750 y" ;;
+    "Everyone may read the file"*) echo "644 711 n" ;;
+    "The owner and the owner's group"*) echo "660 770 y" ;;
+    "Only the owner may use"*) echo "600 700 n" ;;
+    *) echo "unknown policy: $1" >&2; return 1 ;;
+  esac
+}
+notice=$(value lab6 notice); box=$(value lab6 box)
+read -r fm dm gl <<< "$(policy_modes "$notice")"
+case "$box" in sealed-*) ;; *) echo 'bad box name' >&2; exit 1 ;; esac
+if "${tool[@]}" values lab6 | grep -q '^ *_'; then echo 'a hidden value was shown' >&2; exit 1; fi
+"${tool[@]}" check lab6 | grep -q 'milestones: 0/4'
+chmod 700 "$lab6/private"; chmod 600 "$lab6/private/record.txt"
+chmod "$dm" "$lab6/shared"; chmod "$fm" "$lab6/shared/notice.txt"
+mkdir -p "$lab6/evidence"
+(cd "$lab6" && stat -c '%A %a %U:%G %n' private private/record.txt shared shared/notice.txt > evidence/policy.txt \
+  && printf 'owner update\n' >> private/record.txt \
+  && mkdir -p "demo/$box" && printf 'inside\n' > "demo/$box/item.txt" && chmod 600 "demo/$box")
+# While the demo folder has no search permission the check must still run (and not crash on it).
+"${tool[@]}" check lab6 | grep -q 'milestones: 3/4'
+(cd "$lab6" && { ls "demo/$box" | tee evidence/traversal.txt; cat "demo/$box/item.txt" 2>&1 | tee -a evidence/traversal.txt || true
+  chmod 700 "demo/$box"; cat "demo/$box/item.txt" | tee -a evidence/traversal.txt; })
+"${tool[@]}" check lab6 | grep -q 'milestones: 4/4'
+# A wrong mode is named with the mode it has and the mode it needs.
+chmod 644 "$lab6/private/record.txt"
+"${tool[@]}" check lab6 | grep -q 'private/record.txt has mode 644 (-rw-r--r--) but a private record needs 600'
+chmod 600 "$lab6/private/record.txt"
+printf 'n\ny\n600\ny\nguess\n' | "${tool[@]}" predict lab6 | grep -q 'Saved and sent'
+printf 'y\nn\n640\n%s\n' "$gl" | "${tool[@]}" debrief lab6 | grep -q 'Saved and sent'
+"${teach[@]}" release lab6
+cpout=$(printf '640\n750\ny\nit needs x\n' | "${tool[@]}" checkpoint lab6)
+cpsentence=$(printf '%s\n' "$cpout" | sed -n 's/^    \(.*\)$/\1/p' | head -1)
+read -r cfm cdm cgl <<< "$(policy_modes "$cpsentence")"
+folder=$(printf '%s\n' "$cpout" | sed -n 's/^  mkdir \(.*\)$/\1/p')
+test -n "$folder"
+(cd "$lab6" && mkdir "$folder" && printf 'checkpoint text\n' > "$folder/data.txt" && chmod "$cfm" "$folder/data.txt" && chmod "$cdm" "$folder" \
+  && stat -c '%A %a %n' "$folder" "$folder/data.txt" > checkpoint.txt)
+"${tool[@]}" check lab6 | grep -q 'milestones: 5/5'
+"${teach[@]}" export lab6 | grep -q '^student-a,'
+"${tool[@]}" hint lab6 2 | grep -q 'Add read=4'
+# Lab 7: personal awkward names, a check that runs the student's own script, and the ways a script can go wrong.
+lab7="$OSLAB_WORKSPACE/lab7"
+f1=$(value lab7 file1); f2=$(value lab7 file2)
+test -f "$lab7/input/$f1" && test -f "$lab7/input/$f2"
+case "$f1" in *" "*.txt) ;; *) echo 'file1 has no space' >&2; exit 1 ;; esac
+case "$f2" in -*.txt) ;; *) echo 'file2 has no leading dash' >&2; exit 1 ;; esac
+if "${tool[@]}" values lab7 | grep -q '^ *_'; then echo 'a hidden value was shown' >&2; exit 1; fi
+test ! -e "$lab7/input/one file.txt"
+"${tool[@]}" check lab7 | grep -q 'milestones: 0/4'
+model="$script_dir/../teaching/instructor/lab7/count_words_solution.sh"
+cp -- "$model" "$lab7/count_words.sh"; chmod 644 "$lab7/count_words.sh"
+out=$("${tool[@]}" check lab7 || true)
+printf '%s\n' "$out" | grep -q 'not executable by its owner'
+chmod u+x "$lab7/count_words.sh"
+"${tool[@]}" check lab7 | grep -q 'milestones: 4/4'
+test -z "$(ls -A "$lab7" | grep '^\.check-' || true)"
+printf '%s\n' '#!/usr/bin/env bash' 'for f in $@; do echo "$f: $(wc -w < "$f") words"; done' > "$lab7/count_words.sh"; chmod u+x "$lab7/count_words.sh"
+"${tool[@]}" check lab7 | grep -q 'TRY : two files at once'
+printf '%s\n' '#!/usr/bin/env bash' 'for f in "$@"; do echo "$f: $(wc -w "$f" | cut -d" " -f1) words"; done' > "$lab7/count_words.sh"
+"${tool[@]}" check lab7 | grep -q 'TRY : run inside input/'
+printf '%s\n' '#!/usr/bin/env bash' '[[ $# -gt 0 ]] || { echo usage >&2; exit 2; }' \
+  'for f in "$@"; do if [[ -f "$f" ]]; then echo "$f: $(wc -w -- "$f" | cut -d" " -f1) words"; else echo "no $f" >&2; fi; done' > "$lab7/count_words.sh"
+"${tool[@]}" check lab7 | grep -q 'TRY : no argument: usage on stderr'
+cp -- "$model" "$lab7/count_words.sh"; chmod u+x "$lab7/count_words.sh"
+pieces=$(printf '%s' "${f1%.txt}" | awk '{ print NF }')
+printf '%s\nn\nn\nI guessed\n' "$pieces" | "${tool[@]}" predict lab7 | grep -q 'Saved and sent'
+printf '%s\nn\nn\n' "$pieces" | "${tool[@]}" debrief lab7 | grep -q 'Saved and sent'
+"${teach[@]}" release lab7
+cpout=$(printf '2\n3\nn\nquotes keep the name together\n' | "${tool[@]}" checkpoint lab7)
+(cd "$lab7" && eval "$(printf '%s\n' "$cpout" | sed -n -e 's/^  \(printf .*\)$/\1/p' -e 's/^  \(bash count_words.sh .*\)$/\1/p')")
+"${tool[@]}" check lab7 | grep -q 'milestones: 5/5'
+"${teach[@]}" export lab7 | grep -q '^student-a,'
+"${tool[@]}" hint lab7 2 | grep -q 'Quote every expansion'
+# Lab 9: personal lock names; the check starts the student's own two workers; a stale one-line worker is replaced.
+lab9="$OSLAB_WORKSPACE/lab9"
+r1=$(value lab9 res1); r2=$(value lab9 res2); af=$(value lab9 a_first)
+test -n "$r1" && test -n "$r2" && test "$r1" != "$r2"
+test -f "$lab9/vault/$r1.txt" && test -f "$lab9/vault/$r2.txt" && grep -q "^res1=$r1$" "$lab9/vault/worker.sh"
+test ! -e "$lab9/vault/alpha.txt"
+"${tool[@]}" check lab9 | grep -q 'milestones: 1/4'
+# A workspace from before the update: the one-line worker and the two old data files are replaced.
+printf '#!/usr/bin/env bash\nset -euo pipefail\n# TODO: acquire two owned lock files with flock -w 2; log each acquisition.\n' > "$lab9/vault/worker.sh"
+printf 'alpha\n' > "$lab9/vault/alpha.txt"; printf 'beta\n' > "$lab9/vault/beta.txt"
+"${tool[@]}" start lab9 | grep -q 'worker.sh was the old shared file'
+grep -q "^res1=$r1$" "$lab9/vault/worker.sh"
+test ! -e "$lab9/vault/alpha.txt" && test ! -e "$lab9/vault/beta.txt"
+sed -i 's/if \[\[ "\$role" = B \]\]; then tmp/if [[ "$role" = B \&\& "$mode" = opposite ]]; then tmp/' "$lab9/vault/worker.sh"
+mkdir -p "$lab9/evidence"
+printf 'opposite A=5 B=0\nB holds both\nA second lock timeout\n' > "$lab9/evidence/opposite.txt"
+printf 'ordered A=0 B=0\nA holds both\nB holds both\n' > "$lab9/evidence/ordered.txt"
+"${tool[@]}" check lab9 | grep -q 'milestones: 4/4'
+test -z "$(ls -A "$lab9" | grep '^\.check-' || true)"
+printf 'n\n2\nn\nn\nthe timeout does not change the circle\n' | "${tool[@]}" predict lab9 | grep -q 'Saved and sent'
+printf 'n\n2\nn\nn\n' | "${tool[@]}" debrief lab9 | grep -q 'Saved and sent'
+"${teach[@]}" release lab9
+cpout=$(printf 'y\nC\n0\nany total order works\n' | "${tool[@]}" checkpoint lab9)
+cx=$(printf '%s\n' "$cpout" | sed -n 's/^    A holds \([a-z]*\) and requests .*$/\1/p')
+cy=$(printf '%s\n' "$cpout" | sed -n 's/^    A holds [a-z]* and requests \([a-z]*\)$/\1/p')
+test -n "$cx" && test -n "$cy"
+(cd "$lab9" && cp vault/worker.sh vault/third.sh && sed -i "s/^res1=.*/res1=$cx/; s/^res2=.*/res2=$cy/" vault/third.sh \
+  && { timeout 6 bash vault/third.sh A ordered > evidence/cp-a.txt 2>&1 & timeout 6 bash vault/third.sh B ordered > evidence/cp-b.txt 2>&1 & wait; } \
+  && cat evidence/cp-a.txt evidence/cp-b.txt > checkpoint.txt)
+"${tool[@]}" check lab9 | grep -q 'milestones: 5/5'
+"${teach[@]}" export lab9 | grep -q '^student-a,'
+"${tool[@]}" hint lab9 3 | grep -q 'opposite'
+# Lab 10: personal archive name and number, a check that runs the student's own backup.sh in a disposable folder.
+lab10="$OSLAB_WORKSPACE/lab10"
+keep=$(value lab10 keep); nm=$(value lab10 name)
+test -n "$keep" && test -n "$nm"
+grep -q "^keep=$keep$" "$lab10/backup.sh" && grep -q "^name=$nm$" "$lab10/backup.sh"
+"${tool[@]}" check lab10 | grep -q 'milestones: 2/4'
+# A workspace from before the update holds the one-line starter script: it is replaced, not kept.
+printf '#!/usr/bin/env bash\nset -euo pipefail\n# TODO: archive project with absolute paths, verify it, retain newest three owned archives.\n' > "$lab10/backup.sh"
+"${tool[@]}" start lab10 | grep -q 'backup.sh was the old shared file'
+grep -q "^keep=$keep$" "$lab10/backup.sh"
+cat > "$tmp/retain.txt" <<'RETAIN'
+shopt -s nullglob
+owned=()
+for path in "$work"/backups/"$name"-*.tar.gz; do
+    base=${path##*/}
+    if [[ -f "$path" && ! -L "$path" && "$base" =~ ^$name-[0-9]{8}T[0-9]{15}-[0-9]+\.tar\.gz$ ]]; then owned+=("$path"); fi
+done
+if (( ${#owned[@]} > keep )); then
+    mapfile -t ordered < <(printf '%s\n' "${owned[@]}" | LC_ALL=C sort -r)
+    for path in "${ordered[@]:$keep}"; do rm -- "$path"; done
+fi
+RETAIN
+cp -- "$lab10/backup.sh" "$tmp/backup.skeleton"
+splice_retention() {  # $1 = file with the retention lines, $2 = script to write
+  awk -v snippet="$1" '/# TODO: retain only/ { while ((getline line < snippet) > 0) print line; next } { print }' "$tmp/backup.skeleton" > "$2"
+}
+# Wrong 1: a loose pattern also counts the look-alike file.
+cat > "$tmp/loose.txt" <<'LOOSE'
+shopt -s nullglob
+owned=()
+for path in "$work"/backups/"$name"-*.tar.gz; do
+    if [[ -f "$path" ]]; then owned+=("$path"); fi
+done
+if (( ${#owned[@]} > keep )); then
+    mapfile -t ordered < <(printf '%s\n' "${owned[@]}" | LC_ALL=C sort -r)
+    for path in "${ordered[@]:$keep}"; do rm -- "$path"; done
+fi
+LOOSE
+splice_retention "$tmp/loose.txt" "$lab10/backup.sh"
+out=$("${tool[@]}" check lab10 || true)
+printf '%s\n' "$out" | grep -q 'TRY : retention'
+printf '%s\n' "$out" | grep -q 'does your pattern also match'
+# Wrong 2: nothing is deleted. The test of files that are not yours must not pass for free.
+cp -- "$tmp/backup.skeleton" "$lab10/backup.sh"
+out=$("${tool[@]}" check lab10 || true)
+printf '%s\n' "$out" | grep -q 'TRY : files that are not yours stay'
+# The model retention.
+splice_retention "$tmp/retain.txt" "$lab10/backup.sh"
+"${tool[@]}" check lab10 | grep -q 'milestones: 4/4'
+test -z "$(ls -A "$lab10" | grep '^\.check-' || true)"
+printf 'n\n%s\nnewest\nn\nthe names have a time stamp\n' "$((keep))" | "${tool[@]}" predict lab10 | grep -q 'Saved and sent'
+printf 'n\n%s\nnewest\nn\n' "$((keep))" | "${tool[@]}" debrief lab10 | grep -q 'Saved and sent'
+"${teach[@]}" release lab10
+cpout=$(printf '2\noldest\nn\nkeep is a variable\n' | "${tool[@]}" checkpoint lab10)
+ckeep=$(printf '%s\n' "$cpout" | sed -n 's/.*to  keep=\([0-9]*\)$/\1/p')
+truns=$(printf '%s\n' "$cpout" | sed -n 's/.*seq 1 \([0-9]*\)).*/\1/p')
+test -n "$ckeep" && test -n "$truns" && test "$ckeep" != "$keep"
+(cd "$lab10" && cp backup.sh backup-cp.sh && sed -i "s/^keep=.*/keep=$ckeep/" backup-cp.sh \
+  && for i in $(seq 1 "$truns"); do bash backup-cp.sh > /dev/null; done && ls backups > checkpoint.txt)
+"${tool[@]}" check lab10 | grep -q 'milestones: 5/5'
+# Wrong 3: the old number is written into the logic of the copy; the checkpoint milestone must now fail.
+sed -i "s/\${ordered\[@\]:\$keep}/\${ordered[@]:$keep}/; s/> keep ))/> $keep ))/" "$lab10/backup-cp.sh"
+out=$("${tool[@]}" check lab10 || true)
+printf '%s\n' "$out" | grep -q 'TRY : checkpoint'
+"${teach[@]}" export lab10 | grep -q '^student-a,'
+"${tool[@]}" hint lab10 2 | grep -q 'time stamp'
 ln -s source.txt "$OSLAB_WORKSPACE/lab3/links/good.txt"
 ln -s missing.txt "$OSLAB_WORKSPACE/lab3/links/dangling.txt"
 "${tool[@]}" start lab3

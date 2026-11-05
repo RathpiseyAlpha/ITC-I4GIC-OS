@@ -1,34 +1,42 @@
 # Lab 4 — Redirection, Pipelines and Data Analysis: individual report
 
-Copy this template to `lab4/README.md` in your own course repository. Follow [the instructions](lab4-instruction.md).
+Copy this template to `lab4/README.md` in your own course repository. Follow [the instructions](lab4-instruction.md). Your prediction, debrief and checkpoint answers are already saved by `oslab`; do not copy them here. The marks come from those records and your evidence files; this report is your own record of the lab.
 
 - Student name/ID:
-- Ubuntu username and environment:
-- Artifact paths (turn these into links after copying to your submission): `report.sh`, `evidence/normal.txt`, `evidence/edge.txt`
+- Ubuntu username:
+- My values (`oslab values lab4`): status = , other =
+- Files: `report.sh`, `evidence/normal.txt`, `evidence/edge.txt`
 
-## Original Prediction
+## What I Did
 
-Copy the prediction you wrote before execution and its reason. State how/when it was captured (paper or the course worksheet).
+| Step | My command or line | What it printed |
+|---|---|---|
+| The pipeline that selects my status | | |
+| The pipeline with `cut` added | | |
+| The line of `report.sh` that adds the numbers | | |
+| The line of `report.sh` that prints the error message to stderr | | |
 
-## Test Evidence
+## What My Tests Show
 
-Link to two short records under `evidence/`. Include enough command/input/output context to interpret them.
-
-| Test | Claim | Result that would contradict it | Observed result | What remains unproven |
+| Test | Claim | A result that would contradict it | What I saw | What remains unproven |
 |---|---|---|---|---|
-| all selected counts summed | | | | |
-| no matches, extra records and missing input | | | | |
+| my own events.csv (normal.txt) | | | | |
+| no matching row | | | | |
+| extra record and look-alike | | | | |
+| missing input file | | | | |
 
-## Explanation and Correction
+## Explanation
 
-Explain filter/extract/aggregate stages, stdout versus stderr, and the parser assumptions.
+`oslab debrief lab4` records which prediction answers you confirmed and which you corrected. Here, in 3–5 sentences for yourself: why is the number from `wc -l` a different quantity from the total? Which stream carried the message about the missing file, and how do you know?
 
-Keep the original prediction above and add a correction supported by one observed result.
+## What My Tests Do Not Prove
+
+One or two sentences. Name one kind of CSV your script cannot read correctly.
+
+## Plus / Challenge (only if you did them)
+
+Your answers from `evidence/plus.txt`.
 
 ## AI Note (optional)
 
-One useful suggestion and the test you used to verify it. If you did not use AI, leave this section out.
-
-## Cleanup
-
-State which owned processes/jobs/mounts you cleaned up or why none were created. The supervised changed-case answer is collected separately; do not reconstruct it after collection.
+One suggestion an AI tool gave you and the test you used to check it.

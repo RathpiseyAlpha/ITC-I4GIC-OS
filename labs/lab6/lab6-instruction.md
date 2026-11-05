@@ -2,14 +2,12 @@
 
 | Item | Details |
 |---|---|
-| Course | Operating Systems, Institute of Technology of Cambodia |
-| Duration | 120 minutes; installation and VM preparation happen before class |
-| Ownership | Individual work and submission; optional short peer exchange |
-| Primary environment | Shared Ubuntu server with an individual account for each student |
-| Prerequisites | File/directory paths; ordinary owner permissions; no administrator access |
-| Required tools | `id`, `stat`, `chmod`, `ls`; `namei` recommended, ACL tools optional |
-| Practice fallback | Local Linux/WSL for unprivileged tasks; disposable VM for boot/system administration |
-| Core versus extensions | Follow the core below; [optional extensions](extensions.md) retain wider original coverage |
+| Duration | 120 minutes in class. Before class: about 10 minutes for the pre-lab |
+| Work | Individual. Your notice policy and your demo folder name are different from your neighbour's |
+| Environment | Shared Ubuntu server with an individual account for each student. Local Linux/WSL works for practice ([setup](../SETUP.md)) |
+| Tools | `id`, `stat`, `chmod`, `ls`, `namei`, `oslab`. No administrator access |
+| Lab format | Pilot: personal values, Core / Plus / Challenge, live checkpoint |
+| Lecture link | [Week 12 notes: file systems](../../lectures/notes/week12-file-systems.md) |
 
 > **Scenario:** TechCorp needs a private record and a notice that staff can eventually read. Configure your owned copy first and justify the full access path before an administrator prepares any multi-user exercise.
 
@@ -21,46 +19,90 @@ After the required core, you should be able to:
 2. Set least-privilege modes on owned files/directories and explain directory traversal.
 3. Diagnose an access failure using path/mode evidence, distinguishing observed access from a hypothetical peer decision.
 
-**Extension objectives:** Inspect accounts/groups, ACLs and special bits; use narrowly prepared identities or disposable VM accounts for actual cross-user experiments. These retain the original lab's wider topics; they are not required to finish the two-hour core.
+**Extension objectives:** Inspect accounts/groups, ACLs and special bits; use narrowly prepared identities or disposable VM accounts for actual cross-user experiments. These retain the original lab's wider topics; they are not required to finish the two-hour core. They are in the [optional extensions](extensions.md).
 
-## Task Overview and 120-minute Timetable
+## How This Lab Works
+
+| Command | What it does |
+|---|---|
+| `oslab values lab6` | Shows **your** notice policy (a sentence) and the name of your demo folder |
+| `oslab predict lab6` | Saves your prediction once, before the experiment |
+| `oslab hint lab6 1` | Gives a hint (levels 1, 2, 3). Hints cost no points |
+| `oslab check lab6` | Reads the modes of your files and shows your milestones |
+| `oslab checkpoint lab6` | Opens when the instructor says so, near the end |
+| `oslab debrief lab6` | After the lab: you give the right answers to your prediction questions |
+
+- **Core** is for everyone. **Plus** and **Challenge** are for students who finish early. Full marks need only Core and the checkpoint.
+- AI tools are allowed in Core, Plus and Challenge. They are **not** allowed in the prediction and the checkpoint. Always test what an AI tells you.
+- In Core 1 nobody gives you the modes. You turn your policy sentence into numbers yourself.
+- You only change your own files. You never use `sudo`, never change your home folder, and never try to read a neighbour's files.
+
+## Before the Lab
+
+Do this before class. It takes about 10 minutes.
+
+```bash
+oslab doctor
+oslab prelab lab6
+```
+
+## Mode Bits First
+
+Every file and folder has an **owner**, a **group**, and a **mode**: three triples of permissions, for the owner, for the group, and for everybody else (*others*).
+
+| Letter | Number | On a file | On a folder |
+|---|---|---|---|
+| `r` | 4 | read the content | list the names inside |
+| `w` | 2 | change the content | create, rename or delete names inside |
+| `x` | 1 | run it as a program | **enter it** (search): reach the files inside by name |
+
+Add the numbers of each triple. So `rw-r-----` is 4+2=**6**, 4, 0, and the octal mode is `640`. Symbolic notation writes the same thing in letters: `chmod u=rw,g=r,o= file` gives `640`.
+
+The system checks **every folder on the path**, one after the other. A file with mode `644` inside a folder that you may not enter cannot be read by you.
+
+## Timetable
 
 | Minutes | Activity |
 |---|---|
-| 0–10 | Introduction, objectives and setup |
-| 10–25 | Guided example: commands and observations |
-| 25–35 | Written prediction; optional five-minute peer comparison |
-| 35–70 | Numbered individual investigation tasks; AI optional |
-| 70–85 | Normal and edge tests; instructor feedback |
-| 85–100 | Individual changed-case checkpoint; no AI or peers |
-| 100–110 | Correction and conceptual explanation |
-| 110–120 | Cleanup and submission |
+| 0–10 | Setup |
+| 10–25 | Guided: permission basics |
+| 25–35 | Prediction |
+| 35–55 | Core 1: set the modes |
+| 55–70 | Core 2: prove it |
+| 70–85 | Instructor demonstration, Plus and Challenge |
+| 85–100 | Live checkpoint |
+| 100–110 | Debrief |
+| 110–120 | Submit |
 
-Original Task 3 file/directory permissions is the required investigation. Tasks 1–2 account/group administration and Tasks 4–5 special bits/ACLs are optional with prepared permissions.
+## Setup (0–10)
 
-## Lab Setup (0–10 minutes)
-
-1. Log in to the Ubuntu server using **your own account**. All commands below run as that ordinary user in Bash. Use only your own files and processes.
-2. Check the helper. If it is unavailable, follow [the local setup guide](../SETUP.md) to define `oslab` from your cloned course repository; it uses the same fixtures.
-
-   ```bash
-   whoami
-   command -v oslab
-   oslab doctor
-   ```
-
-3. Start the lab and **enter its directory**. `oslab start` preserves existing work and does not change the current directory. If resuming, inspect existing files before running commands that write to them.
+1. Log in to the server with your own account. Start the lab and go into its folder.
 
    ```bash
    export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"
    oslab start lab6
    cd "$OSLAB_WORKSPACE/lab6"
-   pwd
    mkdir -p evidence
-   find . -maxdepth 3 -type f
+   oslab values lab6
    ```
 
-4. Compare your files with the starting tree. `.oslab-managed.json` identifies the managed workspace; leave it intact. `evidence/` was created in step 3. If `tree` is installed, `tree -a -L 3` can display the same structure.
+2. **Read your personal values.** The last command prints your notice policy and a name. For example:
+
+   ```text
+   Your personal values for lab6 (your-account):
+     notice   = The owner may change the file. The owner's group may read it and list the folder. Others have no access.
+     box      = sealed-maple
+   ```
+
+   Your own policy and name are different. Write them down.
+
+3. **Understand the capital word.** This instruction cannot know your name, so it writes `BOX` where your `box` value belongs. Never type `BOX`. Type your own value in its place.
+
+   | The instruction says | With the example value above, you type |
+   |---|---|
+   | `mkdir -p demo/BOX` | `mkdir -p demo/sealed-maple` |
+
+4. Your folder now looks like this:
 
    ```text
    lab6/
@@ -72,11 +114,17 @@ Original Task 3 file/directory permissions is the required investigation. Tasks 
    └── evidence/
    ```
 
-The workspace is for experiments. Your personal course Git repository holds the final submission; you will copy selected files there at the end. VM work and privileged commands are never performed on the shared server.
+5. Try the checking command once. At the start every line says `TRY`.
 
-## Task 3 — Permission Basics: Guided Example (10–25)
+   ```bash
+   oslab check lab6
+   ```
 
-1. Identify your credentials without changing any account.
+## Guided — Permission Basics (10–25)
+
+**Goal:** read modes, and change them on a demo file that is not part of your answer.
+
+1. Show who you are, and the modes of your folders and files.
 
    ```bash
    id
@@ -84,9 +132,9 @@ The workspace is for experiments. Your personal course Git repository holds the 
    stat -c '%A %a %U:%G %n' private/record.txt shared/notice.txt
    ```
 
-   Mode triples apply to owner, owning group and others. Each triple adds read=4, write=2 and execute/search=1. A directory's execute bit means search/traversal, not running a program.
+   `%A` is the mode in letters, `%a` in octal, `%U:%G` the owner and the group, `%n` the name.
 
-2. Use a separate demo file to compare octal and symbolic modes.
+2. Compare octal and symbolic notation on a separate demo file.
 
    ```bash
    mkdir -p demo
@@ -97,29 +145,52 @@ The workspace is for experiments. Your personal course Git repository holds the 
    stat -c '%A %a %n' demo/note.txt
    ```
 
-   Expected modes are 600 (`rw-------`) and 640 (`rw-r-----`). The latter grants the file's owning group read permission; it does not make every directory on the path searchable.
+   The two modes are `600` (`rw-------`) and `640` (`rw-r-----`). The second gives the owning group read permission. It does not make any folder on the path enterable.
 
-3. Inspect path components.
+3. Look at every folder on a path.
 
    ```bash
    namei -l "$PWD/demo/note.txt"
    ```
 
-   If `namei` is unavailable, list each parent with `ls -ld`. **Observe:** Does mode 644 on a file inside a 700 directory imply other users can reach that file?
+   If `namei` is missing, list each parent with `ls -ld`. **Observe:** does mode `644` on a file inside a `700` folder mean that other users can reach the file?
 
 ## Prediction (25–35)
 
-Write: **A directory is mode 600 and contains a mode-600 file owned by you. Can you list the directory's names? Can you open the file through that directory? Explain the directory bits.** No AI for this prediction; the optional comparison is bounded to five minutes.
+Guess first, then try. Answer alone, without AI.
 
-## Task 3 — Private Record and Public-Notice Policy (35–70)
+```bash
+oslab predict lab6
+```
 
-1. Write a small policy before issuing `chmod`: owner can read/write the private record; nobody else should read it. The notice is read-only for nonowners when placed in an administrator-prepared searchable location.
-2. Choose modes for `private/`, `private/record.txt`, `shared/`, and `shared/notice.txt`. Apply them only to these owned paths. Save the resulting `stat` output in `evidence/policy.txt`.
+It asks four questions and one sentence, about a folder with mode 600 and about your own notice policy. A wrong guess costs nothing. You compare it with the real result in the debrief.
+
+## Core 1 — Set the Modes (35–55)
+
+**Goal:** turn two policies into modes, apply them to your own files, and save the result.
+
+1. **Policy for the private record** (the same for everybody): only you may read and change `private/record.txt`, and nobody else may even enter `private/`.
+2. **Policy for the notice** (your own sentence from `oslab values lab6`): it applies to `shared/notice.txt` and to the folder `shared/`.
+3. **Your decision.** Write the four `chmod` commands yourself: one for `private/`, one for `private/record.txt`, one for `shared/`, one for `shared/notice.txt`. Work out each mode from the table in [Mode Bits First](#mode-bits-first): which digits do you need for the owner, the group and the others? Does the folder need the `x` bit for the people who may read the file inside it?
+4. Save the result. Run this **after** your last `chmod`.
 
    ```bash
    stat -c '%A %a %U:%G %n' private private/record.txt shared shared/notice.txt | tee evidence/policy.txt
    ```
-3. Read/write the private record as its owner and inspect whether its execute bit is absent. Do not try to execute a data file to test read permission.
+
+5. Check your work. The first two Core milestones must show `PASS`.
+
+   ```bash
+   oslab check lab6
+   ```
+
+**Hints:** `oslab hint lab6 1`, `2` and `3`. AI is allowed here; test every suggestion with `stat`.
+
+## Core 2 — Prove It (55–70)
+
+**Goal:** show that the modes work, and show a failure that you can explain.
+
+1. Use the private record as its owner. Append a line and check that the file is not executable. Do not try to run a data file to test read permission.
 
    ```bash
    cat private/record.txt
@@ -127,68 +198,91 @@ Write: **A directory is mode 600 and contains a mode-600 file owned by you. Can 
    if test -x private/record.txt; then printf 'unexpected execute bit\n'; else printf 'not executable\n'; fi
    ```
 
-4. Test directory read versus traversal using the separate demo, then restore access immediately.
+2. Test a folder without search permission, on a demo folder. The failing `cat` is **intended**. Restore the folder right after.
 
    ```bash
-   mkdir -p demo/sealed
-   printf 'inside\n' > demo/sealed/item.txt
-   chmod 600 demo/sealed
-   ls demo/sealed | tee evidence/traversal.txt
-   cat demo/sealed/item.txt 2>&1 | tee -a evidence/traversal.txt
-   chmod 700 demo/sealed
-   cat demo/sealed/item.txt | tee -a evidence/traversal.txt
+   mkdir -p demo/BOX
+   printf 'inside\n' > demo/BOX/item.txt
+   chmod 600 demo/BOX
+   ls demo/BOX | tee evidence/traversal.txt
+   cat demo/BOX/item.txt 2>&1 | tee -a evidence/traversal.txt
+   chmod 700 demo/BOX
+   cat demo/BOX/item.txt | tee -a evidence/traversal.txt
    ```
 
-   The failing `cat` is intentional. Some `ls` variants also try to read metadata and can issue errors; compare a plain listing of names with actual access. Record the failure and repair in `evidence/traversal.txt`.
-5. Explain a peer's hypothetical access to the notice by inspecting **every** parent, including the private `oslab-work` directory. A notice mode alone cannot make the private workspace a public location. Do not widen your home/workspace permissions to manufacture a peer test.
+   `ls` shows the name because the folder has `r`. `cat` fails because the folder has no `x`. `2>&1` saves the error message in the file too. Which bit of `demo/BOX` caused the failure?
 
-**Complete when:** the modes match your stated policy, the traversal failure is explained/repaired, and peer reasoning accounts for the whole path. Actual multi-user behavior requires the instructor-prepared extension; it is not claimed from an owner-only test.
+3. Check your work. All four Core milestones must show `PASS`.
 
-**Hints:** (1) separate file permissions from directory search; (2) use `stat`/`namei`; (3) restore search permission on the demo directory before retrying the file read.
+   ```bash
+   oslab check lab6
+   ```
 
-## Tests and Feedback (70–85)
+4. **A hypothetical peer.** Could another student read `shared/notice.txt` under your policy? Look at **every** parent of the file, including your workspace folder `oslab-work` and your home folder. Do **not** change them to try it out.
 
-| Case | Evidence | Limit |
-|---|---|---|
-| Owner normal access | Read/append private record and inspect modes | Does not simulate another user |
-| Directory-search failure | Before/failed/restored read under demo/sealed | Shows traversal, not all possible ACL/capability effects |
-| Hypothetical peer access | Full path mode explanation | Needs a prepared second account for empirical confirmation |
+   ```bash
+   namei -l "$PWD/shared/notice.txt"
+   ```
 
-Default ACLs can affect new-file permissions; use `getfacl` if available and report unexpected ACLs. Reinspect final modes after your tests.
+   Write down for your report: the notice's own mode is not enough. Which parent decides? What was a real test above, and what is only your reasoning?
 
-**Troubleshooting:** Run `whoami`/`id` and confirm ownership first. A normal user cannot `chown` a file to arbitrary accounts. Never edit sudoers or create accounts for this core. See [the Lab 6 guide](guides/slides.html), `man chmod`, and `man path_resolution`.
+## Instructor Demonstration, Plus and Challenge (70–85)
 
+First, watch the instructor show two accounts on a prepared machine: a file with mode 644 inside a folder with mode 711, then 700. Then, if you finish early, try these. They are not needed for full marks. Save your answers in `evidence/plus.txt`.
 
-## Individual Changed-case Checkpoint (85–100 minutes)
+**Plus**
 
-Close AI tools and peer help. Answer the instructor's short question on paper or the existing course worksheet. Your earlier implementation need not be complete to answer it.
+- Write the **symbolic** `chmod` command that gives `shared/notice.txt` the same mode as your numbers (for example `u=rw,g=r,o=` for `640`). Run it. Check with `stat -c '%A %a %n' shared/notice.txt` that nothing changed.
 
-> A prepared shared directory is 711 and its file is 600, owned by another student. You know the filename. Explain whether you can traverse the directory, list names, and read the file.
+**Challenge**
 
-Give the result or diagnosis, the mechanism, and one observation that could check it. The instructor collects this answer before discussing the public key; the public question is practice, so a graded session may use a fresh private variant.
+- `umask` shows which bits a new file does **not** get. With `umask` = `0022`, a new file is created with mode `644`, and a new folder with `755`. Predict the mode of a file you create after `umask 077`, then test it in a subshell so that your session keeps its umask:
 
-## Explanation and Correction (100–110 minutes)
+  ```bash
+  ( umask 077; touch demo/umask-test.txt; stat -c '%A %a %n' demo/umask-test.txt )
+  ```
 
-Keep your original prediction visible. Under it, write **confirmed** or **corrected**, cite the relevant test, and explain the OS mechanism in 3–5 sentences. Initial prediction accuracy is lightly weighted; a reasoned attempt and evidence-based correction earn credit.
+## Live Checkpoint (85–100)
 
-Answer: (a) Which directory bit caused the failed file read? (b) Why does a 644 notice not override a 700 parent? (c) Which observations were actual tests and which were hypothetical?
+Wait until the instructor opens it. Close AI tools. Work alone.
 
-## Cleanup and Final Submission (110–120 minutes)
+```bash
+oslab checkpoint lab6
+```
 
-Restore the demo directory to 700 and keep private files at your stated policy. No new accounts/groups or jobs were created. Do not change home access or another student’s files.
+1. Read the new policy. Answer the four questions: two octal modes, one yes/no and one sentence.
+2. Then do the file task that the command prints: make the new folder and `data.txt`, set **your** two modes, and save the `stat` output in `checkpoint.txt`.
+3. Run `oslab check lab6`. A fifth milestone, `checkpoint`, must show `PASS`.
 
-1. Set `SUBMISSION_REPO` to the **absolute path of your existing personal course repository**. Replace the example ID/path below with your own; do not copy another student's repository.
+## Debrief (100–110)
+
+Look at your prediction again. `oslab` saved it in a hidden folder, `.records`.
+
+```bash
+cat "$OSLAB_WORKSPACE/.records/lab6-predict.json"
+```
+
+Now give the right answer to each prediction question:
+
+```bash
+oslab debrief lab6
+```
+
+Your prediction stays saved as it was, so the comparison shows which answers you confirmed and which you corrected. Then the class discusses: a file is readable by its mode, but you still got `Permission denied`. Where do you look?
+
+## Submit (110–120)
+
+1. Copy your work to your course repository. Replace `YOUR_ID` with your own ID.
 
    ```bash
    SUBMISSION_REPO="$HOME/os-gic-YOUR_ID/os-lab-YOUR_ID"
    mkdir -p "$SUBMISSION_REPO/lab6/evidence"
-   ```
-
-2. Use [this lab's README template](README.md). Copy the listed artifacts and **two selected test records**, rather than every terminal output. Check the final tree below before submitting.
-
-   ```bash
    cp -- evidence/policy.txt evidence/traversal.txt "$SUBMISSION_REPO/lab6/evidence/"
    ```
+
+   If you did Plus or Challenge, copy `evidence/plus.txt` the same way.
+
+2. Fill in the [report template](README.md) as `lab6/README.md`. Your repository then has:
 
    ```text
    lab6/
@@ -198,21 +292,33 @@ Restore the demo directory to 700 and keep private files at your stated policy. 
        └── traversal.txt
    ```
 
-3. Write your own explanations. The prediction must have been captured before execution on paper or the existing course mechanism; copying it into the README afterwards is only a record, not proof of timing. The independent checkpoint is collected separately.
-4. Inspect your course repository with `git status --short`, add only your lab files, and commit/push using the normal course submission procedure. Do not include passwords, personal shell configuration, generated binaries or disk images.
+   The course website checks that these exact names are there.
+
+3. Commit and push. `git pull` comes first, in case you pushed from your own computer since.
+
+   ```bash
+   cd ~/os-gic-YOUR_ID
+   git pull
+   git add os-lab-YOUR_ID/lab6
+   git commit -m "Lab 6"
+   git push
+   ```
 
 ## Grading Criteria (10 points)
 
-| Evidence mapped to lab objectives | Points |
+| Evidence | Points |
 |---|---:|
-| Modes match the owned-file policy and full-path reasoning (objectives 1–3) | 3 |
-| Owner-access and directory-search failure/repair tests | 2 |
-| Explain rwx/octal interpretation and the limits of peer-access claims; original prediction and evidence-based correction | 2 |
-| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
-| Concise, attributable evidence and required artifacts | 1 |
+| Modes: `oslab check lab6` passes the four Core milestones (private, your notice policy, the traversal test, `policy.txt`) | 2 |
+| Tests: `policy.txt` and `traversal.txt` show the modes and the failure, and the README separates what you tested from what you reasoned | 2 |
+| Prediction saved in time, and corrected with `oslab debrief lab6` | 2 |
+| Live checkpoint: the answers and the new folder with the right modes | 3 |
+| Complete submission: the required files in your repository, on time | 1 |
 
-Equivalent valid commands, filenames and approaches earn credit if the evidence meets the objectives. A naming difference is penalized only when it actually breaks execution. AI is permitted during investigation and tests, optional throughout, and excluded from the initial prediction and individual checkpoint. If used, note one helpful suggestion and its verification; no paid tool, chat history or AI detector is required.
+Every row is marked from your `oslab` records and the files in your repository, so run `oslab check lab6` until it shows what you expect. Your prediction earns its first point for being made, not for being right. Plus and Challenge are not needed for full marks.
 
-## Help, References and Optional Work
+## Help and References
 
-Use the progressive hints in the task sections before requesting a full solution. See [the extension guide](extensions.md) for follow-up tasks with their own environment requirements. Existing visual guides are background references and may show the older broader sequence; this Markdown instruction defines the current required core.
+- `oslab hint lab6 1`, `2`, `3`
+- `man chmod`, `man stat`, `man namei`, `man path_resolution`
+- A normal user cannot `chown` a file to another account. Never edit sudoers and never create accounts for this lab.
+- Accounts, groups, ACLs and special bits are in the [optional extensions](extensions.md). Peer experiments need an instructor-prepared account.

@@ -1,7 +1,10 @@
-"""Lab 3 guide, Wildcards, Links, GRUB and Shared Libraries. Single source of truth for this deck.
+"""Lab 3 guide, Wildcards, Hard Links and Symbolic Links. Single source of truth for this deck.
 
 Run `python gen.py` to rewrite project/deck.json and project/slides/*.html.
 Never edit the generated slides by hand.
+
+Revised 2026-11-05 to the instruction of that date: the prediction, the checkpoint and the debrief are oslab commands
+(not paper), three evidence files are submitted, the rubric is new, and Plus and Challenge are optional tasks.
 
 A guide for the lab session, built like the Lab 1 and Lab 2 guides with the shared look in labkit.py
 (Ubuntu fonts, a wider canvas, dark terminal windows, folder trees drawn like `tree`).
@@ -34,14 +37,14 @@ S = d.S
 CW, HALF = labkit.CW, labkit.HALF
 
 # ---- opening --------------------------------------------------------------
-labcoverart.cover(d, "lab-03", "Wildcards, Links, GRUB and Shared Libraries",
+labcoverart.cover(d, "lab-03", "Wildcards, Hard Links and Symbolic Links",
                   "Lab 3 guide: select files with patterns, then see what a rename does to a hard link and to a symbolic link.", size=88)
 
 d.slide("objectives", "Learning objectives",
         lambda t: row(
-            lst(t, ["Select files with a wildcard and explain shell expansion versus a literal name.",
-                    "Create and inspect hard links and symbolic links, using inode and target-path evidence.",
-                    "Predict and diagnose what renaming or replacing a link target does."], ordered=True, size=36, flex=3),
+            lst(t, ["Explain which filenames a Bash wildcard selects, and what quoting changes.",
+                    "Use inode numbers to tell a hard link from a separate copy.",
+                    "Explain and repair a symbolic link after its target is renamed."], ordered=True, size=36, flex=3),
             card(t, "Lab 3", "First the concepts, with examples. Then the lab on the server. GRUB and shared libraries are optional extensions, so they come at the end.", label="THIS LAB", flex=2),
             gap=48, align="stretch"))
 
@@ -329,50 +332,53 @@ d.slide("scenario", "The scenario",
                       tree(t, "lab3", START_TREE, cmd="tree -a", title="student@server: ~/oslab-work/lab3", size=30),
                       gap=56, align="center"))
 
-d.slide("time", "Inside the 120 minutes",
-        lambda t: row(tbl(t, ["Minutes", "What happens"],
-                          [["0 to 10", "Introduction, objectives and setup"],
-                           ["10 to 25", "Guided example: commands and observations"],
-                           ["25 to 35", "Written prediction"],
-                           ["35 to 70", "Individual investigation, Task 2"]],
-                          [1, 3], width=HALF),
-                      tbl(t, ["Minutes", "What happens"],
-                          [["70 to 85", "Normal and edge tests, feedback"],
-                           ["85 to 100", "Individual changed-case checkpoint"],
-                           ["100 to 110", "Correction and explanation"],
-                           ["110 to 120", "Cleanup and submission"]],
-                          [1, 3], width=HALF),
-                      gap=32),
-        gap=36)
+labkit.timetable(d, [["0 to 10", "Introduction, objectives and setup"],
+                     ["10 to 25", "Guided example: commands and observations"],
+                     ["25 to 35", "Prediction, saved with oslab predict"],
+                     ["35 to 70", "Rename, repair, and create a new file with the old name"]],
+                 [["70 to 85", "Check the results and fix incomplete work"],
+                  ["85 to 100", "Individual changed-case checkpoint, no AI or peers"],
+                  ["100 to 110", "Compare prediction with results, and explain"],
+                  ["110 to 120", "Submit the short report and evidence"]])
+
+d.slide("helper", "Six helper commands, and why you use them",
+        lambda t: tbl(t, ["Command", "What it does"],
+                      [[mono("oslab prelab lab3"), "Three short questions before class. A wrong answer costs nothing"],
+                       [mono("oslab predict lab3"), "Saves your prediction once, before the experiment"],
+                       [mono("oslab hint lab3 1"), "A hint. Use level 1, then 2, then 3. Hints cost no points"],
+                       [mono("oslab check lab3"), "Checks your files and shows what is still missing"],
+                       [mono("oslab checkpoint lab3"), "A short test near the end. It opens when the instructor says so"],
+                       [mono("oslab debrief lab3"), "After the experiment: you give the right answers to your prediction questions"]],
+                      [5, 11]),
+        note="They are the same helper commands as in Labs 1 and 2. Before class, run oslab doctor and oslab prelab lab3. It takes about ten minutes.")
 
 d.slide("rules", "How you work",
-        lambda t: row(rule(t, "Your own account", "Log in with your own account. Use only your own files and processes. Privileged and boot work is never done on the shared server.", title_size=36),
-                      rule(t, "AI tools", "Optional in the investigation and the tests. Not allowed in the prediction and the individual checkpoint.", title_size=36),
-                      rule(t, "Evidence", "Keep what you observe in the evidence folder. Short, attributable evidence earns more than long output.", title_size=36)),
-        note="Initial prediction accuracy is lightly weighted. A reasoned attempt and an evidence-based correction earn credit.")
+        lambda t: row(rule(t, "Core, Plus, Challenge", "Tasks 1 and 2 are the core, for everyone. Plus and Challenge are optional, for students who finish early. Full marks need only the core and the checkpoint.", title_size=36),
+                      rule(t, "AI tools", "Allowed in the tasks, Plus and Challenge, so test what an AI tells you. Not allowed in the prediction and the checkpoint.", title_size=36),
+                      rule(t, "Your own account", "Use only your own files and processes. No task in the core needs sudo, and privileged or boot work is never done on the shared server.", title_size=36)),
+        note="Your first prediction is not marked for being right. A reasoned attempt and an evidence-based correction earn credit.")
 
 d.slide("start", "Setup: start the lab",
-        lambda t: row(term(t, ["whoami",
-                               "command -v oslab",
+        lambda t: row(term(t, ['export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"',
                                "oslab doctor",
-                               'export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"',
                                "oslab start lab3",
                                'cd "$OSLAB_WORKSPACE/lab3"',
                                "pwd",
                                "mkdir -p evidence",
                                "find . -maxdepth 3 -type f"], title="student@server: ~", size=26),
-                      col(lst(t, ["whoami shows your account. command -v oslab and oslab doctor check the helper.",
-                                  "If the helper is missing, follow the local setup guide in the course repository.",
-                                  "oslab start lab3 makes the lab folder. It keeps your work if you start again, and it does not change your current folder, so cd into it yourself.",
-                                  "If you are resuming, look at the existing files before you run a command that writes to them."], size=30),
+                      col(lst(t, ["oslab doctor must say class inbox: connected, so that your instructor receives your answers.",
+                                  "If it says practice mode, tell the instructor before the prediction. Your answers stay on your machine.",
+                                  "oslab start lab3 makes the lab folder and keeps your work if you start again. You cd into it yourself.",
+                                  "If you are resuming, look at the existing files before you run a command that creates or renames them."], size=30),
                           gap=20),
-                      gap=48, align="center"))
+                      gap=48, align="center"),
+        note="If oslab is missing, follow the setup guide in the course repository. Do not reset the lab just to fix one link.")
 
 d.slide("start-tree", "Compare with the starting tree",
-        lambda t: row(tree(t, "lab3", [("links", [("source.txt", None), ("target-name.txt", None)]), ("evidence", [])], cmd="tree -a -L 3", title="student@server: ~/oslab-work/lab3", size=30),
-                      col(para(t, "The helper also writes a hidden file, .oslab-managed.json. It marks the folder as managed. Leave it as it is.", size=32),
-                          para(t, "evidence/ was made by the mkdir -p in step 3.", size=32),
-                          para(t, "The workspace is for experiments. Your personal course repository holds the final submission.", size=32),
+        lambda t: row(tree(t, "lab3", START_TREE, cmd="tree -a -L 3", title="student@server: ~/oslab-work/lab3", size=30),
+                      col(para(t, "links/source.txt contains version 1. target-name.txt is a spare file that the core does not use.", size=32),
+                          para(t, "The helper writes a hidden file, .oslab-managed.json. It marks the folder as yours. Leave it as it is.", size=32),
+                          para(t, "evidence/ was made by mkdir -p. The workspace is for experiments. Your personal course repository holds the final submission.", size=32),
                           gap=24),
                       gap=48, align="center"))
 
@@ -392,13 +398,15 @@ d.slide("g-files", "Step 1: three clearly different names",
                       gap=48, align="center"))
 
 d.slide("g-expand", "Step 2: how the shell expands a pattern",
-        lambda t: row(term(t, ["printf '<%s>\\n' practice/*.txt",
-                               "printf '<%s>\\n' practice/report?.txt",
-                               "printf '<%s>\\n' 'practice/*.txt'"], size=28),
-                      col(para(t, "The first two commands name the two text files. The quotes around the whole pattern in the third leave a literal *.", size=32),
-                          para(t, "Brace expansion such as {1,2} generates words. It is not a test against file names.", size=32),
-                          card(t, "Observe", "Which pattern did not match report.log? Why does report?.txt need exactly one character after report?", label="TRY", pad=32, title_size=32),
-                          gap=24),
+        lambda t: row(term(t, ["{",
+                               "  printf '<%s>\\n' practice/*.txt",
+                               "  printf '<%s>\\n' practice/report?.txt",
+                               "  printf '<%s>\\n' 'practice/*.txt'",
+                               "} | tee evidence/wildcards.txt"], size=28),
+                      col(para(t, "Run this before you make the demo links in step 3. The braces group the three commands, and tee shows their output and saves it.", size=30),
+                          para(t, "* matches any run of characters, ? exactly one. Quotes around the whole pattern leave a literal *.", size=30),
+                          card(t, "Record in your report", "Which two names does the first command print? Does the second print the same names? Why does the third print a * and not file names?", label="REPORT", pad=32, title_size=32),
+                          gap=22),
                       gap=48, align="center"))
 
 d.slide("g-links", "Step 3: your first two links",
@@ -408,7 +416,7 @@ d.slide("g-links", "Step 3: your first two links",
                                "readlink practice/soft-demo.txt"], size=26),
                       col(para(t, "A hard link names the same inode, on one filesystem. A symbolic link stores a path. ls -l shows the stored target.", size=32),
                           para(t, "readlink prints the path stored in a symbolic link.", size=32),
-                          card(t, "Observe", "Which inode numbers match? Why is report1.txt, not practice/report1.txt, the right target here?", label="TRY", pad=32, title_size=32),
+                          card(t, "Check together", "Compare the inode numbers of report1.txt and hard-demo.txt, then the symbolic link's. Why is report1.txt, not practice/report1.txt, the right target here?", label="TRY", pad=32, title_size=32),
                           gap=24),
                       gap=48, align="center"))
 
@@ -416,13 +424,15 @@ d.slide("g-links", "Step 3: your first two links",
 d.opener("predict-open", "PREDICT", "Guess first, then try", "Before you rename the investigation source. Ten minutes.")
 
 d.slide("predict", "The prediction",
-        lambda t: row(col(card(t, "Write this down first", "After source.txt becomes renamed.txt, will a hard link still read the old bytes? Will a symbolic link storing source.txt still work? Explain each mechanism.",
+        lambda t: row(col(card(t, "You predict this sequence", "In links/, source.txt holds version 1. You make hard.txt with ln and soft.txt with ln -s. You rename source.txt to renamed.txt. Later you create a new source.txt that holds version 2.",
                                label="PREDICTION", pad=40, title_size=36),
+                          term(t, ["oslab predict lab3", "oslab status lab3"], size=28),
                           gap=24, flex=3),
-                      col(card(t, "The rules", "Alone, and without AI. On paper or in the course worksheet, before you run mv. You may compare with a neighbour for five minutes, but keep your own answer.", label="HOW", pad=32, title_size=32),
+                      col(card(t, "The rules", "Alone, and without AI, before Task 2. Your first prediction is saved and sent to the instructor. A wrong guess costs nothing.", label="HOW", pad=32, title_size=32),
+                          para(t, "The helper asks whether each link works after the rename, which version the hard link reads after the new file, and one sentence of reasoning.", size=30),
                           gap=24, flex=2),
                       gap=48, align="stretch"),
-        note="A wrong prediction costs nothing. It is marked for being made and for the evidence-based correction afterwards.")
+        note="Do not create or upload a separate prediction file. oslab status lab3 confirms that it was saved.")
 
 # ---- task 2 -----------------------------------------------------------------
 d.opener("t2-open", "TASK 2", "Hard links and symbolic links", "Thirty-five minutes, from minute 35 to 70. Work alone.")
@@ -432,57 +442,77 @@ d.slide("t2-one", "Step 1: two references to the source",
                                "cat source.txt",
                                "ln source.txt hard.txt",
                                "ln -s source.txt soft.txt",
-                               "ls -li source.txt hard.txt soft.txt | tee ../evidence/links.txt"], size=26, title="student@server: ~/oslab-work/lab3/links"),
-                      col(para(t, "| tee sends the output to the screen and into evidence/links.txt at the same time. Your first record is the before-state.", size=32),
-                          card(t, "If you are resuming", "A destination that already exists must be inspected, not overwritten. Do not run ln again and again: ln refuses with File exists.", label="CAREFUL", pad=32, title_size=32),
-                          gap=24),
+                               "{",
+                               "  printf '\\n=== BEFORE RENAME ===\\n'",
+                               "  ls -li source.txt hard.txt soft.txt",
+                               "  printf 'hard.txt: '; cat hard.txt",
+                               "  printf 'soft.txt: '; cat soft.txt",
+                               "  printf 'stored target: '; readlink soft.txt",
+                               "} | tee ../evidence/links.txt"], size=24, title="student@server: ~/oslab-work/lab3/links"),
+                      col(para(t, "tee starts evidence/links.txt. Later commands append to it with tee -a. The labelled line marks the state.", size=30),
+                          para(t, "Check: all three names read version 1, and source.txt and hard.txt have equal inode numbers.", size=30),
+                          card(t, "If ln says File exists", "Look at the existing entry first. Do not overwrite work blindly.", label="CAREFUL", pad=32, title_size=32),
+                          gap=22),
                       gap=48, align="center"))
 
 d.slide("t2-two", "Step 2: rename the original, then look",
         lambda t: row(term(t, ["mv -- source.txt renamed.txt",
-                               "cat hard.txt",
-                               "readlink soft.txt",
-                               "cat soft.txt 2>&1 | tee -a ../evidence/links.txt"], size=26, title="student@server: ~/oslab-work/lab3/links"),
-                      col(para(t, "mv renames the directory entry. -- means no more options follow.", size=32),
-                          para(t, "2&gt;&amp;1 sends the error message to the same place as normal output, so tee can record it. -a appends instead of replacing.", size=32),
-                          card(t, "A deliberate failure", "The last command fails on purpose. Write down what the error means before you repair anything.", label="THINK", pad=32, title_size=32),
-                          gap=24),
+                               "{",
+                               "  printf '\\n=== AFTER RENAME, BEFORE REPAIR ===\\n'",
+                               "  ls -li renamed.txt hard.txt soft.txt",
+                               "  printf 'hard.txt: '; cat hard.txt",
+                               "  printf 'stored target: '; readlink soft.txt",
+                               "  printf 'soft.txt: '; cat soft.txt",
+                               "} 2>&1 | tee -a ../evidence/links.txt"], size=24, title="student@server: ~/oslab-work/lab3/links"),
+                      col(para(t, "mv renames the directory entry. -- means no more options follow. 2&gt;&amp;1 puts the error message into the saved evidence.", size=30),
+                          card(t, "The error is expected", "cat soft.txt fails on purpose. The link still exists, but the path it stores names no file: a dangling symbolic link.", label="THINK", pad=32, title_size=32),
+                          card(t, "Record in your report", "What does readlink soft.txt print now, and which file name is missing? Answer for this state, before any repair.", label="REPORT", pad=32, title_size=32),
+                          gap=22),
                       gap=48, align="center"))
 
 d.slide("t2-three", "Step 3: repair only the symbolic link",
         lambda t: row(col(h3(t, "What to do"),
                           lst(t, ["Look at the old link first: readlink soft.txt.",
-                                  "Remove only that owned symbolic-link entry.",
-                                  "Create it again with ln -s, and choose a relative target yourself.",
-                                  "Do not replace hard.txt. It never broke."], ordered=True, size=32),
+                                  "Remove only that owned entry, then create the link again with a relative target.",
+                                  "Do not delete or recreate hard.txt. Do not rename renamed.txt back.",
+                                  "Run cat soft.txt. It must print version 1."], ordered=True, size=32),
                           gap=20, flex=3),
-                      col(card(t, "You write the target", "Nobody gives you the command here. Ask: from the folder links/, what is the name of the file now?", label="YOUR TURN", pad=32, title_size=32),
+                      col(card(t, "You write the target", "Nobody gives you the path. Replace TARGET with the path from the link's folder, links/, to the renamed file. In the guided part the link practice/soft-demo.txt stored report1.txt.", label="YOUR TURN", pad=32, title_size=32),
+                          term(t, ["rm -- soft.txt", "ln -s TARGET soft.txt", "cat soft.txt"], size=28),
                           gap=24, flex=2),
                       gap=48, align="stretch"))
 
-d.slide("t2-four", "Step 4: inode identity after the repair",
+d.slide("t2-four", "Step 4: save the repaired state",
         lambda t: row(term(t, ["{",
+                               "  printf '\\n=== AFTER REPAIR ===\\n'",
                                "  ls -li renamed.txt hard.txt soft.txt",
-                               "  readlink soft.txt",
-                               "  cat hard.txt soft.txt",
-                               "} | tee -a ../evidence/links.txt"], size=28, title="student@server: ~/oslab-work/lab3/links"),
-                      col(para(t, "The braces group four commands, so one tee records all of their output.", size=32),
-                          card(t, "Observe", "Which inode numbers match now? Which name did you create again, and which one did not change?", label="TRY", pad=32, title_size=32),
+                               "  printf 'stored target: '; readlink soft.txt",
+                               "  printf 'hard.txt: '; cat hard.txt",
+                               "  printf 'soft.txt: '; cat soft.txt",
+                               "} | tee -a ../evidence/links.txt"], size=24, title="student@server: ~/oslab-work/lab3/links"),
+                      col(para(t, "The braces group the commands, so one tee records all of their output. -a appends to the same file.", size=32),
+                          card(t, "Check", "renamed.txt and hard.txt still share an inode. The repaired symbolic link reads version 1 through its stored path.", label="TRY", pad=32, title_size=32),
                           gap=24),
                       gap=48, align="center"))
 
-d.slide("t2-five", "Step 5: a changed case, a new source.txt",
+d.slide("t2-five", "Step 5: a different file with the old name",
         lambda t: row(term(t, ["printf 'version 2\\n' > source.txt",
-                               "{ ls -li source.txt hard.txt; cat source.txt hard.txt; } | tee ../evidence/replacement.txt"], size=26, title="student@server: ~/oslab-work/lab3/links"),
-                      col(para(t, "Create a new source.txt that contains version 2. Before you run the check, predict: will hard.txt read version 1 or version 2?", size=32),
-                          para(t, "Then explain why reusing a file name does not reuse the old inode.", size=32),
-                          gap=24),
+                               "{",
+                               "  printf '\\n=== NEW FILE USING THE OLD NAME ===\\n'",
+                               "  ls -li source.txt renamed.txt hard.txt soft.txt",
+                               "  printf 'source.txt: '; cat source.txt",
+                               "  printf 'hard.txt: '; cat hard.txt",
+                               "  printf 'soft.txt: '; cat soft.txt",
+                               "} | tee ../evidence/replacement.txt"], size=24, title="student@server: ~/oslab-work/lab3/links"),
+                      col(para(t, "Only renamed.txt, hard.txt and the repaired soft.txt refer to the original report now. This is a new file under the old name.", size=30),
+                          card(t, "Record in your report", "The inode numbers of the new source.txt and of hard.txt, and the version each prints. Why does a new file under the old name not change what hard.txt refers to?", label="REPORT", pad=32, title_size=32),
+                          gap=22),
                       gap=48, align="center"))
 
 d.slide("t2-done", "Complete when, and hints",
         lambda t: row(card(t, "Complete when", "The hard link survives the rename. The repaired symbolic link resolves correctly. Your changed-name test tells a file name from an inode.",
                            label="DONE", pad=40, title_size=36, flex=1),
-                      col(h3(t, "Hints, one at a time"),
+                      col(h3(t, "Hints: oslab hint lab3 1, 2, 3"),
                           lst(t, ["A hard link is another directory entry.",
                                   "Compare ls -li with readlink.",
                                   "Resolve the symbolic target from links/, not from the folder where you are standing."], ordered=True, size=32),
@@ -492,13 +522,21 @@ d.slide("t2-done", "Complete when, and hints",
 # ---- tests ---------------------------------------------------------------------
 d.opener("test-open", "TESTS AND FEEDBACK", "Check your work", "Fifteen minutes, from minute 70 to 85.")
 
-d.slide("tests", "Three cases, three records",
-        lambda t: tbl(t, ["Case", "Evidence", "What it tests"],
-                      [["Normal", "All references read version 1 before the rename", "Building the links and the correct target path"],
-                       ["Failure and repair", "The symbolic read fails after the rename and works after the repair", "Path indirection and diagnosis"],
-                       ["Changed name", "The new source reads version 2, the hard link keeps version 1", "File name replacement versus inode identity"]],
-                      [3, 8, 6]),
-        note="Save the before, renamed and repaired observations in evidence/links.txt, and the recreated-name result as evidence/replacement.txt. Go back to the workspace root first.")
+d.slide("tests", "Check your work",
+        lambda t: row(term(t, ['cd "$OSLAB_WORKSPACE/lab3"', "oslab check lab3"], size=28),
+                      col(para(t, "Before the checkpoint it checks four milestones: the wildcard output, the hard-link identity, the repaired symbolic target, and the new source's own inode and content.", size=32),
+                          para(t, "Read each TRY line, fix that item, and run the check again. The result goes to the instructor, but it does not award your whole grade.", size=32),
+                          gap=24),
+                      gap=48, align="center"))
+
+d.slide("tests-expected", "What your evidence should show",
+        lambda t: tbl(t, ["State in your evidence", "Expected result"],
+                      [["Before rename", "Both links read version 1. Source and hard link share an inode"],
+                       ["After rename, before repair", "The hard link reads version 1. The symbolic link is dangling"],
+                       ["After repair", "The symbolic link resolves to renamed.txt and reads version 1"],
+                       ["After creating a new source", "The new source reads version 2. Both links still read version 1"]],
+                      [5, 9]),
+        note="The checker reads your current files. The labelled sections in evidence/links.txt show the earlier failure and repair, and your teacher reviews those. Keep links inside the lab folder.")
 
 d.slide("tests-helper", "Links and the helper",
         lambda t: row(rule(t, "Internal links are fine", "The helper accepts symbolic links that stay inside the managed folder.", title_size=36),
@@ -506,63 +544,94 @@ d.slide("tests-helper", "Links and the helper",
                       rule(t, "oslab clean lab3", "Removes only the managed folder. Internal links go as entries, and external links are refused.", title_size=36)),
         note="File exists means: look at the destination first. A dangling link can exist even when its target does not. Hard links cannot normally cross filesystems.")
 
+# ---- plus and challenge ---------------------------------------------------------------------------------------------
+d.slide("plus", "Plus: one more wildcard (optional)",
+        lambda t: row(term(t, ['cd "$OSLAB_WORKSPACE/lab3"',
+                               "printf '<%s>\\n' practice/report[12].txt",
+                               "printf '<%s>\\n' practice/report[!1].*",
+                               "printf 'Plus: my answer is ...\\n' > evidence/plus.txt"], size=24),
+                      col(para(t, "[12] matches one character, 1 or 2. [!1] means any one character except 1.", size=30),
+                          para(t, "Write down which names you expect from each command before you run it. Then add one sentence about any difference.", size=30),
+                          card(t, "Hint", "The second pattern needs one character, then a dot, then anything.", label="PLUS", pad=32, title_size=32),
+                          gap=22),
+                      gap=48, align="center"),
+        note="Only when the core is finished and oslab check lab3 shows no TRY line. Not needed for full marks.")
+
+d.slide("challenge", "Challenge: a chain of links (optional)",
+        lambda t: row(term(t, ["mkdir -p extra",
+                               "cd extra",
+                               "printf 'chain end\\n' > end.txt",
+                               "ln -s end.txt middle.txt",
+                               "ln -s middle.txt start.txt",
+                               "readlink start.txt",
+                               "readlink -f start.txt",
+                               "cat start.txt",
+                               "cd .."], size=24),
+                      col(para(t, "readlink prints one step. readlink -f follows the whole chain to the end.", size=30),
+                          card(t, "Predict first", "What happens to cat start.txt if you rename end.txt? Test it inside extra/ only, then add your answer to evidence/plus.txt.", label="CHALLENGE", pad=32, title_size=32),
+                          gap=22),
+                      gap=48, align="center"),
+        note="Your core files stay as the checker expects them: Plus and Challenge use extra/ and evidence/plus.txt.")
+
 # ---- checkpoint ----------------------------------------------------------------
 d.opener("cp-open", "INDIVIDUAL CHECKPOINT", "Show what you can do alone", "Fifteen minutes, from minute 85 to 100. No AI, no neighbours.")
 
 d.slide("cp-why", "Why there is a checkpoint",
         lambda t: row(rule(t, "It checks you, not the tools", "Everything before it may use AI and help. The checkpoint shows what you understood without them.", title_size=36),
-                      rule(t, "A short question on paper", "You answer one question on paper or on the course worksheet. Your earlier work does not need to be finished.", title_size=36),
-                      rule(t, "Practice question", "The question on the next slide is public practice. A graded session may use a fresh private variant.", title_size=36)))
+                      rule(t, "A short test in the terminal", "oslab checkpoint lab3 opens when the instructor says so. Your earlier work does not need to be finished.", title_size=36),
+                      rule(t, "Your own case", "The helper gives you your own names. The first answer in class is kept. In local practice it opens at once, and the teacher does not receive it.", title_size=36)))
 
-d.slide("cp-question", "The question",
-        lambda t: row(col(card(t, "Resolve the path", "A symbolic link inside lab3/links/ stores ../source.txt. Only lab3/links/source.txt exists. Resolve the stored path and explain why the link fails. Give a suitable target for the existing file.",
-                               label="PRACTICE QUESTION", pad=40, title_size=36),
+d.slide("cp-steps", "What happens, step by step",
+        lambda t: flow(t, [("1. The instructor opens it", "Close your AI tools"), ("2. oslab checkpoint lab3", "Two short answers, one explanation"),
+                           ("3. Follow the printed task", "A small file task with your names"), ("4. oslab check lab3", "A fifth milestone checks it")], 400, hot=1),
+        lambda t: row(rule(t, "While you work", "Use your terminal and what you learned. No AI tools, no neighbours.", title_size=36),
+                      rule(t, "Your Task 2 files", "Do not change them. The checkpoint describes a separate folder.", title_size=36),
+                      rule(t, "When you finish", "oslab check lab3 shows whether the fifth milestone passes. You can fix and check again.", title_size=36)),
+        gap=56)
+
+d.slide("cp-question", "A practice example",
+        lambda t: row(col(card(t, "Resolve the path", "A folder lab3/checkpoint-maple/ contains note.txt. A link shortcut.txt in that same folder stores ../note.txt, but lab3/note.txt does not exist. Does the link work? What relative target should it store instead? Which folder is the starting point for resolving the stored path?",
+                               label="PRACTICE", pad=40, title_size=36),
                           gap=24, flex=3),
-                      col(lst(t, ["The result or diagnosis.", "The mechanism.", "One observation that could check it."], ordered=True, size=32),
-                          h3(t, "What to give"),
+                      col(h3(t, "What to give"),
+                          lst(t, ["Whether the link works.", "The target it should store.", "The folder the stored path starts from."], ordered=True, size=32),
                           gap=20, flex=2),
                       gap=48, align="stretch"),
-        note="The instructor collects your answer before discussing the public key.")
+        note="The public example is practice. The helper supplies the names for your own case.")
 
 # ---- explanation, submission -----------------------------------------------------
 d.opener("end-open", "CORRECTION AND SUBMISSION", "Look back, then hand in", "Ten minutes of correction, ten to clean up and submit.")
 
-d.slide("explain", "Correct your prediction",
-        lambda t: row(lst(t, ["Keep your original prediction in view. Under it, write confirmed or corrected.",
-                              "Cite the test that shows it.",
-                              "Explain the OS mechanism in three to five sentences."], ordered=True, size=34, flex=3),
-                      card(t, "Three questions", "(a) Which file change broke the symbolic reference? (b) Why did the hard link survive? (c) What happens if the new file name holds different bytes?", label="ANSWER", pad=40, title_size=36, flex=2),
-                      gap=48, align="stretch"))
+d.slide("explain", "Debrief: correct your prediction",
+        lambda t: row(col(term(t, ["oslab debrief lab3"], size=28),
+                          lst(t, ["It asks the prediction questions again, after the experiment.",
+                                  "Your original prediction stays unchanged. Your corrected answers go to the instructor.",
+                                  "In README.md end with confirmed or corrected, and one sentence linking your prediction to an observed result."], ordered=True, size=30),
+                          gap=24, flex=3),
+                      card(t, "Your report answers", "(a) Task 1: which names each pattern prints, and why the quoted one prints a *. (b) After the rename: what readlink prints and which name is missing. (c) The inode numbers and versions of source.txt and hard.txt, and why the new file does not change hard.txt.",
+                           label="REPORT", pad=36, title_size=36, flex=2),
+                      gap=48, align="stretch"),
+        note="Use your actual file names, inode numbers and version text. No general essay is needed.")
 
-d.slide("submit-one", "Submit 1: your repository and the copy",
-        lambda t: row(term(t, ['SUBMISSION_REPO="$HOME/os-gic-YOUR_ID/os-lab-YOUR_ID"',
-                               'mkdir -p "$SUBMISSION_REPO/lab3/evidence"',
-                               'cd "$OSLAB_WORKSPACE/lab3"',
-                               'cp -- evidence/links.txt evidence/replacement.txt "$SUBMISSION_REPO/lab3/evidence/"'], title="student@server: ~", size=24),
-                      col(para(t, "Replace YOUR_ID with your own ID. The orange text is the part you change. Use the absolute path of your existing course repository, never a neighbour's.", size=30),
-                          para(t, "Example: with the ID 0123, the first line becomes SUBMISSION_REPO=\"$HOME/os-gic-0123/os-lab-0123\", and echo \"$SUBMISSION_REPO\" prints /home/student/os-gic-0123/os-lab-0123.", size=28),
-                          para(t, "Copy the listed artifacts and two selected test records, not every terminal output.", size=30),
-                          gap=22),
-                      gap=48, align="center"))
+d.slide("submit-routes", "Two places your work goes",
+        lambda t: tbl(t, ["What", "Where it goes", "How"],
+                      [["Prediction, check results, checkpoint answers and debrief", "The instructor's class inbox", "Sent by the oslab commands. Confirm with oslab status lab3"],
+                       ["The short report and three text evidence files", "lab3/ in your personal course Git repository", "Copy the files, then commit and push"]],
+                      [6, 5, 6]),
+        note="Your oslab records are already collected. Do not copy private record folders, and do not submit screenshots of every command.")
 
-d.slide("submit-two", "Submit 2: the final tree and Git",
-        lambda t: row(tree(t, "lab3", [("README.md", None), ("evidence", [("links.txt", None), ("replacement.txt", None)])], cmd="tree", title="student@server: ~/os-gic-YOUR_ID/os-lab-YOUR_ID", size=30),
-                      col(lst(t, ["Write README.md from the lab's template, in your own words.",
-                                  "The prediction must have been written before you ran anything. Copying it into the README only records it.",
-                                  "git status --short, then add only your lab files, then commit and push.",
-                                  "No passwords, personal shell files, generated binaries or disk images."], ordered=True, size=30),
-                          gap=20),
-                      gap=48, align="center"))
+labkit.submission(d, 3, ['cp -- evidence/wildcards.txt evidence/links.txt "$SUBMISSION_REPO/lab3/evidence/"',
+                         'cp -- evidence/replacement.txt "$SUBMISSION_REPO/lab3/evidence/"',
+                         "oslab status lab3"],
+                  [("README.md", None), ("evidence", [("wildcards.txt", None), ("links.txt", None), ("replacement.txt", None)])],
+                  note="Copy the three evidence files. oslab status lab3 shows what the class inbox already has. Keep the practice workspace until grading is done.")
 
-d.slide("grading", "How it is marked: 10 points",
-        lambda t: tbl(t, ["Evidence for the lab objectives", "Points"],
-                      [["Correct wildcard explanation, and working hard and symbolic links", "3"],
-                       ["Rename failure, repair and recreated-name evidence", "2"],
-                       ["Inode identity and relative target resolution; original prediction and evidence-based correction", "2"],
-                       ["Individual checkpoint: result or diagnosis, and mechanism", "2"],
-                       ["Concise, attributable evidence and the required artifacts", "1"]],
-                      [10, 1]),
-        note="Other valid commands and names earn credit. A naming difference costs points only when it breaks the result. If you use AI, note one useful suggestion and how you verified it.")
+labkit.grading(d, [["Wildcard result, hard-link identity and repaired symbolic target: 1 point each", "3"],
+                   ["Labelled rename, failure and repair evidence, and the recreated-name comparison: 1 point each", "2"],
+                   ["Original prediction saved, then a debrief with an evidence-based correction: 1 point each", "2"],
+                   ["Individual checkpoint: path answers and a working repaired link: 1 point each", "2"],
+                   ["Complete short report and the three evidence files submitted", "1"]],
+               note="A helper PASS alone does not prove your understanding: the teacher reads your short explanations and the labelled failure and repair record. A wrong first prediction is not penalized. Equivalent valid target paths earn credit. If you use AI, add one sentence naming a suggestion and how you checked it.")
 
 d.slide("mistakes", "Common mistakes",
         lambda t: tbl(t, ["Mistake", "What you see", "Fix"],
@@ -570,7 +639,8 @@ d.slide("mistakes", "Common mistakes",
                        ["Target written from where you stand", "A dangling link", "Write it as if you stood next to the link"],
                        ["Replacing hard.txt to fix the link", "The experiment loses its point", "Repair only soft.txt"],
                        ["A bare pattern with rm", "More files removed than expected", "Run ls with the same pattern first"],
-                       ["Brackets used like braces", "A name that does not exist", "[ ] match files, { } write words"]],
+                       ["Brackets used like braces", "A name that does not exist", "[ ] match files, { } write words"],
+                       ["Predicting after the rename", "No prediction saved in time", "Run oslab predict lab3 before Task 2"]],
                       [6, 5, 6]),
         gap=36)
 
@@ -675,9 +745,9 @@ SECTIONS = {
     "s2": {"description": "Concepts first: wildcards, quoting, inodes, hard and symbolic links and how a relative target is read.", "start": "bg-open"},
     "s3": {"description": "How the lab works: the scenario, the timetable, the rules, setup and the starting tree.", "start": "lab-open"},
     "s4": {"description": "Guided example: wildcards and the first links, then the prediction.", "start": "g-open"},
-    "s5": {"description": "Task 2: hard links and symbolic links, then the tests.", "start": "t2-open"},
-    "s6": {"description": "The individual checkpoint: why, and the practice question.", "start": "cp-open"},
-    "s7": {"description": "Correction, submission, grading, common mistakes.", "start": "end-open"},
+    "s5": {"description": "Task 2: hard links and symbolic links, the tests, and the optional Plus and Challenge.", "start": "t2-open"},
+    "s6": {"description": "The individual checkpoint: why, the steps with oslab, and a practice example.", "start": "cp-open"},
+    "s7": {"description": "Debrief, the two submission routes, grading, common mistakes.", "start": "end-open"},
     "s8": {"description": "Beyond the core: GRUB and shared libraries, then takeaways and the next lab.", "start": "ext-open"},
 }
 

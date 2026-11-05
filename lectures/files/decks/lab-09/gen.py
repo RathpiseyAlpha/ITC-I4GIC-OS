@@ -3,6 +3,9 @@
 Run `python gen.py` to rewrite project/deck.json and project/slides/*.html.
 Never edit the generated slides by hand.
 
+Revised 2026-11-05 to the pilot-format instruction: two personal lock names and the lock worker A takes first (RES1
+and RES2), Core 1 and Core 2, Plus and Challenge, a live checkpoint, oslab predict and oslab debrief. Modelled on the Lab 8 guide.
+
 A guide for the lab session, built like the Lab 3 to Lab 7 guides with the shared look and the shared standard
 slides in labkit.py. The concepts section is new: resources and holdings, the four conditions of a deadlock,
 a wait cycle drawn as edges, prevention by lock order versus recovery by timeout. The lab part follows
@@ -90,72 +93,139 @@ d.slide("prev-rec", "Two ways to deal with a deadlock",
 # ---- the lab ----------------------------------------------------------------
 d.opener("lab-open", "LAB 9", "The vault that freezes", "QuantumTech's Alpha and Beta recovery vaults freeze during a drill. Model them, watch the wait, and repair the order.")
 
-START_TREE = [("vault", [("alpha.txt", None), ("beta.txt", None), ("worker.sh", None)]), ("evidence", [])]
+START_TREE = [("vault", [("haze.txt", None), ("ember.txt", None), ("worker.sh", None)]), ("evidence", [])]
 
 labkit.scenario(d, 9, "QuantumTech's recovery vaults", "Alpha and Beta freeze during a synchronization drill. Model them with two lock files you own, observe a bounded wait cycle, and repair the acquisition order.",
-                "Every wait has a time limit. Nothing runs for ever, and you never delete a lock file while a worker uses it.", START_TREE)
-labkit.timetable(d, [["0 to 10", "Introduction, objectives and setup"],
-                     ["10 to 25", "Level 1, guided: locks and the vault"],
-                     ["25 to 35", "Written prediction"],
-                     ["35 to 55", "Levels 2 and 3: naive workers, local deadlock"]],
-                 [["55 to 70", "Levels 5 and 6: global order, timeout recovery"],
-                  ["70 to 85", "Tests and feedback"],
-                  ["85 to 100", "Individual changed-case checkpoint"],
-                  ["100 to 120", "Correction, cleanup and submission"]])
-labkit.rules(d, safety="Use the saved PIDs and bounded waits. Never use pkill.")
-labkit.setup_slides(d, 9, START_TREE,
-                    ["vault/alpha.txt and beta.txt hold the data of the two vaults.",
-                     "vault/worker.sh is an editable starter skeleton.",
-                     "The helper also writes a hidden file, .oslab-managed.json. Leave it as it is."])
+                "Your two lock names and the worker who starts first are your own. This guide shows example values.", START_TREE)
+labkit.timetable(d, [["0 to 10", "Setup"],
+                     ["10 to 25", "Guided: locks and bounded waiting"],
+                     ["25 to 35", "Prediction"],
+                     ["35 to 55", "Core 1: reproduce the deadlock"],
+                     ["55 to 70", "Core 2: repair it with a global order"]],
+                 [["70 to 85", "Instructor demonstration, Plus and Challenge"],
+                  ["85 to 100", "Live checkpoint"],
+                  ["100 to 110", "Debrief"],
+                  ["110 to 120", "Submit"]])
+
+d.slide("helper", "Six helper commands, and why you use them",
+        lambda t: tbl(t, ["Command", "What it does"],
+                      [[mono("oslab values lab9"), "Shows your two lock names and which one worker A takes first"],
+                       [mono("oslab predict lab9"), "Saves your prediction once, before the experiment"],
+                       [mono("oslab hint lab9 1"), "A hint, levels 1 to 3. Hints cost no points"],
+                       [mono("oslab check lab9"), "Runs your worker.sh in both modes and shows your milestones. It takes about 10 seconds"],
+                       [mono("oslab checkpoint lab9"), "Opens when the instructor says so, near the end"],
+                       [mono("oslab debrief lab9"), "After the lab: you give the right answers to your prediction questions"]],
+                      [5, 11]),
+        note="Before the lab, run oslab doctor and oslab prelab lab9. It takes about ten minutes.")
+
+d.slide("rules", "How you work",
+        lambda t: row(rule(t, "Core, Plus, Challenge", "Core is for everyone. Plus and Challenge are for students who finish early. Full marks need only Core and the checkpoint.", title_size=36),
+                      rule(t, "AI tools", "Allowed in Core, Plus and Challenge, so test every suggestion. Not allowed in the prediction and the checkpoint.", title_size=36),
+                      rule(t, "Every wait has a limit", "You only ever start your own two workers, always with timeout. Use the saved PIDs, and never use pkill.", title_size=36)),
+        note="In Core 2 you decide the global lock order yourself. You write the rule, and you explain why it removes the cycle.")
+
+d.slide("start", "Setup: start the lab",
+        lambda t: row(term(t, ['export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"',
+                               "oslab start lab9",
+                               'cd "$OSLAB_WORKSPACE/lab9"',
+                               "mkdir -p evidence",
+                               "oslab values lab9"], title="student@server: ~", size=26),
+                      col(lst(t, ["The first line sets OSLAB_WORKSPACE to ~/oslab-work, unless it is already set. Type it as it is.",
+                                  "oslab start lab9 makes the lab folder.",
+                                  "cd takes you into it, and mkdir -p makes the evidence folder.",
+                                  "oslab values lab9 prints your own lock names."], size=30),
+                          gap=20),
+                      gap=48, align="center"))
+
+d.slide("values", "Your values: two lock names and a start",
+        lambda t: row(col(h3(t, "The last command prints them"),
+                          term(t, ["oslab values lab9",
+                                   ("out", "Your personal values for lab9 (your-account):"),
+                                   ("out", "  res1     = haze"),
+                                   ("out", "  res2     = ember"),
+                                   ("out", "  a_first  = haze")], title="example: your values will be different", size=26),
+                          gap=20, flex=None),
+                      col(h3(t, "What they mean"),
+                          lst(t, ["res1 and res2 are the names of your two locks.",
+                                  "a_first is the lock that worker A takes first. Worker B always takes them in the other order.",
+                                  "Your own names are different. Write them down."], size=30),
+                          gap=20, flex=None),
+                      gap=48, align="flex-start"))
+
+d.slide("capital", "The capital words are placeholders",
+        lambda t: tbl(t, ["The instruction says", "With the example values, you type"],
+                      [[mono("vault/RES1.lock"), mono("vault/haze.lock")],
+                       [mono("cat vault/RES1.txt"), mono("cat vault/haze.txt")]],
+                      [1, 1]),
+        note="The instruction cannot know your names, so it writes RES1 and RES2 where your values belong. Never type the capital words. Type your own names.")
+
+d.slide("start-tree", "Your folder",
+        lambda t: row(tree(t, "lab9", START_TREE, cmd="tree -a -L 3", title="student@server: ~/oslab-work/lab9", size=30),
+                      col(para(t, "vault/ holds the data of your two resources, named with your own lock names, and worker.sh, with one TODO for you.", size=32),
+                          para(t, "oslab check lab9 starts with the first line passing and the others saying TRY. The hidden .oslab-managed.json is the helper's. Leave it.", size=32),
+                          gap=24),
+                      gap=48, align="center"))
 
 # ---- guided -------------------------------------------------------------------
-d.opener("g-open", "GUIDED", "Locks and the vault", "Level 1, with the instructor: fifteen minutes.")
+d.opener("g-open", "GUIDED", "Locks and bounded waiting", "Ten to twenty-five minutes, with the instructor. See what a lock is, and how a worker can stop waiting for one.")
 
-d.slide("g-lock", "Step 1 and 2: look, then take one lock",
-        lambda t: row(term(t, ["cat vault/alpha.txt vault/beta.txt",
-                               "mkdir -p vault/coord",
+d.slide("g-lock", "Steps 1 and 2: look, then take one lock",
+        lambda t: row(term(t, ["cat vault/haze.txt vault/ember.txt",
+                               "ls vault",
                                "(",
                                "    flock -x -w 2 8 || exit 3",
-                               "    printf 'holding Alpha\\n'",
-                               ") 8>vault/alpha.lock"], size=26),
-                      col(para(t, "The text files are data. The .lock files stand for exclusive access.", size=32),
-                          para(t, "Descriptor 8 is open until the group ends. A real program would keep the protected work inside this group.", size=32),
-                          gap=24),
+                               "    printf 'holding haze\\n'",
+                               ") 8>vault/haze.lock"], title="example names: use your own", size=26),
+                      col(para(t, "The text files hold data. A lock file is separate: flock makes workers take turns on it. Creating a file called locked is not a lock.", size=30),
+                          para(t, "File descriptor 8 stays open until the subshell ends, and the lock is held as long as it is open. -w 2 means wait at most 2 seconds.", size=30),
+                          gap=22),
                       gap=48, align="center"))
 
 d.slide("g-contend", "Step 3: one lock, two workers",
         lambda t: row(term(t, ["(",
                                "    flock -x -w 2 8 || exit 3",
                                "    sleep 3",
-                               ") 8>vault/alpha.lock &",
+                               ") 8>vault/haze.lock &",
                                "holder=$!",
                                "sleep 0.2",
-                               "flock -x -w 1 vault/alpha.lock true",
+                               "flock -x -w 1 vault/haze.lock true",
                                "printf 'contender status=%s\\n' \"$?\"",
-                               'wait "$holder"'], size=24),
-                      col(para(t, "The first worker holds Alpha for three seconds. The second asks for it and gives up after one.", size=30),
-                          para(t, "Expect a timeout if the holder got the lock first. The short sleep helps but does not prove it.", size=30),
+                               'wait "$holder"'], title="example name: use your own", size=24),
+                      col(para(t, "One subshell holds the lock for 3 seconds. The second command waits only 1 second, so its status is not 0: the wait timed out.", size=30),
                           card(t, "Observe", "What is held while another worker waits? Does a timeout prevent a deadlock, or only let a worker stop waiting?", label="THINK", pad=32, title_size=32),
                           gap=22),
                       gap=48, align="center"))
 
-labkit.predict(d, "A holds Alpha and requests Beta. B holds Beta and requests Alpha. Draw both wait edges, and predict whether either can get its second resource before someone releases a lock.")
+# ---- prediction ---------------------------------------------------------------
+d.opener("predict-open", "PREDICT", "Guess first, then try", "Before you start any worker. Ten minutes.")
 
-# ---- levels 2 and 3 ---------------------------------------------------------------
-d.opener("l2-open", "LEVELS 2 AND 3", "Naive workers and a local deadlock", "Twenty minutes, from minute 35 to 55. Work alone.")
+d.slide("predict", "The prediction",
+        lambda t: row(col(term(t, ["oslab predict lab9"]),
+                          para(t, "It asks four questions and one sentence about your own two locks. Draw the two workers and the two locks on paper first. Answer alone, without AI.", size=32),
+                          gap=24, flex=3),
+                      col(card(t, "The rules", "The first answer is the one that counts. A wrong guess costs nothing. You compare it with the real result in the debrief.", label="PREDICTION", pad=32, title_size=32),
+                          gap=24, flex=2),
+                      gap=48, align="stretch"))
+
+# ---- core 1 ---------------------------------------------------------------------
+d.opener("c1-open", "CORE 1", "Reproduce the deadlock", "Twenty minutes, from minute 35 to 55. Make worker A and worker B wait for each other, and read what the timeouts say.")
 
 W1 = ["#!/usr/bin/env bash",
       "set -euo pipefail",
-      '[[ $# -eq 2 && "$1" =~ ^(A|B)$ && "$2" =~ ^(opposite|ordered)$ ]] || exit 2',
+      "# (the check of the two arguments is left out here)",
       "role=$1", "mode=$2",
       'vault=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)',
-      "first=alpha", "second=beta",
+      "res1=haze", "res2=ember",
+      'mkdir -p "$vault/coord"',
+      "# Worker A takes haze first and ember second. Worker B the other way.",
+      'first=$res1; second=$res2',
       "# TODO: in ordered mode, every worker must use one global order.",
-      'if [[ "$role" = B ]]; then first=beta; second=alpha; fi',
-      'exec 8>"$vault/$first.lock"',
+      'if [[ "$role" = B ]]; then tmp=$first; first=$second; second=$tmp; fi']
+W2 = ['exec 8>"$vault/$first.lock"',
       'flock -x -w 2 8 || { echo "$role first lock timeout"; exit 3; }',
-      "printf '%s holds %s\\n' \"$role\" \"$first\""]
-W2 = ['if [[ "$mode" = opposite ]]; then',
+      "printf '%s holds %s\\n' \"$role\" \"$first\"",
+      'sleep "${HOLD:-0}"   # teaching delay; keep this line',
+      'if [[ "$mode" = opposite ]]; then',
       '    touch "$vault/coord/$role.ready"',
       "    other=B",
       '    [[ "$role" = B ]] && other=A',
@@ -170,31 +240,29 @@ W3 = ['exec 9>"$vault/$second.lock"',
       'flock -x -w 2 9 || { echo "$role second lock timeout"; exit 5; }',
       "printf '%s holds both\\n' \"$role\""]
 
-d.slide("l2-code1", "Step 1: the starting worker, part 1",
-        lambda t: row(listing(t, W1, title="vault/worker.sh (1 of 3)", size=24, hot=(8,), lh=1.15),
-                      col(para(t, "Save the whole script as vault/worker.sh with the three parts on this and the next two slides. B reverses the order by default: that is the TODO you will fix.", size=28),
-                          para(t, "set -euo pipefail: stop on an error (-e), on an unset variable (-u), and when any command in a pipeline fails (pipefail).", size=28),
-                          para(t, "The vault= line finds the script's own folder: BASH_SOURCE[0] is its path, dirname drops the file name, pwd -P prints the real folder.", size=28),
-                          para(t, "Each flock waits two seconds. Each failure exits with its own status: 3, 4 or 5.", size=28),
+d.slide("c1-code1", "Step 1: read the worker, part 1",
+        lambda t: row(listing(t, W1, title="vault/worker.sh (1 of 3)", size=24, hot=(11, 12), lh=1.15),
+                      col(para(t, "Read it with cat -n vault/worker.sh. The values are an example: yours hold your own names, and your own first lock for A.", size=28),
+                          para(t, "set -euo pipefail stops on an error, on an unset variable, and when any command in a pipeline fails.", size=28),
+                          para(t, "The vault= line finds the script's own folder. B reverses the order by default: the TODO is yours to fix in Core 2.", size=28),
                           gap=18, flex=None),
                       gap=40, align="center"))
 
-d.slide("l2-code2", "Step 1: the barrier, part 2",
-        lambda t: row(listing(t, W2, title="vault/worker.sh (2 of 3)", size=24, lh=1.15),
-                      col(para(t, "The barrier is a teaching instrument. Each worker says it is ready, then waits for the other to say so.", size=30),
-                          para(t, "It makes sure both workers hold their first lock before either asks for its second.", size=30),
-                          para(t, "In ordered mode it is skipped: one worker cannot take Alpha while the other holds it.", size=30),
+d.slide("c1-code2", "Step 1: the first lock and the barrier, part 2",
+        lambda t: row(listing(t, W2, title="vault/worker.sh (2 of 3)", size=24, lh=1.1),
+                      col(para(t, "Each worker takes its first lock on descriptor 8, waiting two seconds at most. The sleep line is a teaching delay: keep it.", size=28),
+                          para(t, "The barrier makes both workers announce their first lock before either asks for the second. It is used only in opposite mode.", size=28),
                           gap=22, flex=None),
                       gap=40, align="center"))
 
-d.slide("l2-code3", "Step 1: the second lock, part 3",
+d.slide("c1-code3", "Step 1: the second lock, part 3",
         lambda t: row(listing(t, W3, title="vault/worker.sh (3 of 3)", size=24, lh=1.15),
                       col(para(t, "After the barrier, each worker asks for its second lock, on descriptor 9, and reports what it holds.", size=30),
                           card(t, "Why exec 8> and exec 9>?", "exec with only a redirection opens the file for the rest of the script, so the lock lasts until the script ends.", label="SYNTAX", pad=32, title_size=32),
                           gap=22, flex=None),
                       gap=40, align="center"))
 
-d.slide("l2-run", "Step 2: two workers, opposite order",
+d.slide("c1-run", "Step 2: two workers, opposite order",
         lambda t: row(term(t, ["rm -f -- vault/coord/A.ready vault/coord/B.ready",
                                "timeout 6 bash vault/worker.sh A opposite > evidence/opposite-a.txt 2>&1 &",
                                "worker_a=$!",
@@ -202,41 +270,42 @@ d.slide("l2-run", "Step 2: two workers, opposite order",
                                "worker_b=$!",
                                'if wait "$worker_a"; then rc_a=0; else rc_a=$?; fi',
                                'if wait "$worker_b"; then rc_b=0; else rc_b=$?; fi',
-                               "printf 'A=%s B=%s\\n' \"$rc_a\" \"$rc_b\"",
-                               "cat evidence/opposite-a.txt evidence/opposite-b.txt"], size=24),
-                      col(para(t, "Clear only the two old ready markers, then start exactly two workers. timeout 6 stops a worker that waits too long.", size=30),
+                               "{",
+                               "  printf 'opposite A=%s B=%s\\n' \"$rc_a\" \"$rc_b\"",
+                               "  cat evidence/opposite-a.txt evidence/opposite-b.txt",
+                               "} > evidence/opposite.txt",
+                               "cat evidence/opposite.txt"], size=24),
+                      col(para(t, "Clear only the two old ready markers, then start exactly two workers, each with timeout 6.", size=30),
                           para(t, "The if wait ... construct keeps the status even when it is not zero. A status of 124 means timeout itself stopped the worker.", size=30),
                           gap=22),
                       gap=48, align="center"))
 
-d.slide("l2-draw", "Step 3: draw it, and explain the recovery",
+d.slide("c1-draw", "Step 3: draw it, and explain the recovery",
         lambda t: row(col(h3(t, "What to do"),
-                          lst(t, ["Draw the holdings and requests at the barrier.",
-                                  "At least one worker should time out on the second lock.",
-                                  "Once it exits, it releases its first lock. The other worker may then finish instead of timing out too.",
-                                  "Explain that recovery. Do not claim that both must fail."], ordered=True, size=30),
+                          lst(t, ["Draw what each worker holds and requests at the barrier.",
+                                  "At least one worker ends with status 5, the timeout of the second lock.",
+                                  "When it exits, its first lock is released, so the other worker may finish instead of timing out too.",
+                                  "Explain that recovery in your report. Do not claim that both workers must fail."], ordered=True, size=30),
                           gap=20, flex=3),
-                      col(term(t, ["{",
-                                   "  printf 'opposite A=%s B=%s\\n' \"$rc_a\" \"$rc_b\"",
-                                   "  cat evidence/opposite-a.txt evidence/opposite-b.txt",
-                                   "} > evidence/opposite.txt"], size=24),
-                          gap=24, flex=3),
-                      gap=48, align="stretch"))
-
-# ---- levels 5 and 6 ---------------------------------------------------------------
-d.opener("l5-open", "LEVELS 5 AND 6", "Global order and timeout recovery", "Fifteen minutes, from minute 55 to 70.")
-
-d.slide("l5-fix", "Step 1: one order for everyone",
-        lambda t: row(col(h3(t, "Edit the TODO"),
-                          lst(t, ["In ordered mode, every worker takes Alpha first, then Beta.",
-                                  "Opposite mode stays as it is, so you can reproduce the conflict.",
-                                  "Leave the barrier in opposite mode only."], size=32),
-                          gap=20, flex=3),
-                      col(card(t, "You write it", "Nobody gives you the lines. Ask: which line decides first and second, and for which workers?", label="YOUR TURN", pad=32, title_size=32),
+                      col(card(t, "Hints", "oslab hint lab9 1, then 2, then 3. AI is allowed here: test every suggestion.", label="STUCK?", pad=32, title_size=32),
                           gap=24, flex=2),
                       gap=48, align="stretch"))
 
-d.slide("l5-run", "Step 2: run the ordered case",
+# ---- core 2 ---------------------------------------------------------------------
+d.opener("c2-open", "CORE 2", "Repair it with a global order", "Fifteen minutes, from minute 55 to 70. One rule for both workers, so that no worker waits for a lock while holding the one the other needs.")
+
+d.slide("c2-fix", "Step 1: one order for everyone",
+        lambda t: row(col(h3(t, "Edit the TODO"),
+                          lst(t, ["Open the worker with nano vault/worker.sh and find the TODO.",
+                                  "In ordered mode, both workers must take the locks in the same order.",
+                                  "In opposite mode, worker B must still take them the other way round.",
+                                  "Keep the barrier only for opposite mode. Write your rule with $first and $second, not with your lock names."], size=30),
+                          gap=20, flex=3),
+                      col(card(t, "You write it", "Nobody gives you the lines. Ask: which line decides first and second, and for which workers and modes?", label="YOUR TURN", pad=32, title_size=32),
+                          gap=24, flex=2),
+                      gap=48, align="stretch"))
+
+d.slide("c2-run", "Step 2: run the ordered case",
         lambda t: row(term(t, ["timeout 6 bash vault/worker.sh A ordered > evidence/ordered-a.txt 2>&1 &",
                                "worker_a=$!",
                                "timeout 6 bash vault/worker.sh B ordered > evidence/ordered-b.txt 2>&1 &",
@@ -246,53 +315,124 @@ d.slide("l5-run", "Step 2: run the ordered case",
                                "{",
                                "  printf 'ordered A=%s B=%s\\n' \"$rc_a\" \"$rc_b\"",
                                "  cat evidence/ordered-a.txt evidence/ordered-b.txt",
-                               "} > evidence/ordered.txt"], size=24),
-                      col(para(t, "Save separate logs and both statuses. Explain why a worker that waits for Alpha cannot also hold Beta.", size=30),
-                          para(t, "Keep the timeouts. Ordering prevents this circle. Timeouts also bound waits from other causes. Neither gives fairness, and neither promises that a larger system is free of deadlock.", size=30),
+                               "} > evidence/ordered.txt",
+                               "cat evidence/ordered.txt"], size=24),
+                      col(para(t, "Both statuses should be 0.", size=30),
+                          card(t, "Think", "Why can a worker that waits for the first lock not hold the second lock at the same time?", label="WHY", pad=32, title_size=32),
                           gap=22),
                       gap=48, align="center"))
 
-d.slide("l5-done", "Complete when, and hints",
-        lambda t: row(card(t, "Complete when", "Your logs show the wait cycle in the first case. Both ordered workers finish. The global rule is applied the same way everywhere.", label="DONE", pad=40, title_size=36, flex=1),
-                      col(h3(t, "Hints, one at a time"),
-                          lst(t, ["Draw held and requested resources.", "Read the first-lock logs and the ready markers.",
-                                  "Reverse B only in the teaching opposite mode, and skip the barrier in ordered mode."], ordered=True, size=30),
-                          para(t, "If AI suggests a repair, check that it changes both workers' policy and adds no new barrier wait.", size=28),
-                          gap=20, flex=1),
-                      gap=48, align="stretch"))
+d.slide("c2-clean", "Step 3: clean up",
+        lambda t: row(term(t, ["jobs",
+                               "flock -n vault/haze.lock true; printf 'haze free: status=%s\\n' \"$?\"",
+                               "flock -n vault/ember.lock true; printf 'ember free: status=%s\\n' \"$?\""], title="example names: use your own", size=24),
+                      col(para(t, "No worker may still run, and both locks must be free. Both statuses should be 0.", size=30),
+                          para(t, "The timeouts stay in the script. Ordering prevents this circular wait, but timeouts still bound other delays. Ordering does not give fairness, and does not make every larger system safe.", size=30),
+                          gap=22),
+                      gap=48, align="center"))
 
-# ---- tests ---------------------------------------------------------------------
-d.opener("test-open", "TESTS AND FEEDBACK", "Three cases, and what each proves", "Fifteen minutes, from minute 70 to 85.")
+d.slide("c2-check", "Step 4: check your work",
+        lambda t: row(term(t, ["oslab check lab9"], size=28),
+                      col(para(t, "The four Core milestones must show PASS: the opposite conflict, ordered mode, a rule that does not depend on names, and the evidence files.", size=30),
+                          card(t, "What the check does", "It runs your worker.sh in a disposable folder: in opposite mode, in ordered mode, and in ordered mode again with two other lock names. The last test fails if your rule only works for your own names.", label="CHECK", pad=32, title_size=32),
+                          gap=22),
+                      gap=48, align="center"))
 
-d.slide("tests-table", "The three cases",
-        lambda t: tbl(t, ["Case", "Intended evidence"],
+d.slide("c2-table", "The three runs",
+        lambda t: tbl(t, ["Run", "Intended evidence"],
                       [["Opposite, two workers", "Both hold distinct first locks. The second lock conflicts, and a timeout recovers"],
-                       ["Ordered, two workers", "Both complete, one after the other, through Alpha"],
-                       ["One opposite worker alone", "The barrier times out within three seconds, which explains the missing participant"]],
-                      [4, 11]),
-        note="Status 124 means the outer timeout fired. Do not call an unexplained timeout a recovery. One lucky run does not prove that opposite order is safe. Repeat the opposite case only after you delete the two ready markers.")
+                       ["Ordered, two workers", "Both complete, one after the other, through the first lock of the order"],
+                       ["Ordered, two other lock names", "The rule still works, so it is written with $first and $second"]],
+                      [5, 11]),
+        note="Status 124 means the outer timeout fired. Do not call an unexplained timeout a recovery. Repeat the opposite case only after you delete the two ready markers.")
 
-d.slide("tests-trouble", "If something does not work",
+d.slide("c2-trouble", "If something does not work",
         lambda t: row(rule(t, "Old ready markers", "Reusing them makes the barrier pass when it should not. Clear only A.ready and B.ready.", title_size=36),
                       rule(t, "Lock files stay", "Never delete an active lock file. Its existence is normal.", title_size=36),
-                      rule(t, "No pkill", "Use the saved PIDs and the bounded waits. See man flock and the deadlock visualization.", title_size=36)))
+                      rule(t, "No pkill", "Use the saved PIDs and the bounded waits. See man flock and man timeout.", title_size=36)))
 
-# ---- checkpoint, correction, submission -------------------------------------------
-labkit.checkpoint(d, "A third worker needs only Beta. Must it also take Alpha to follow the global-order policy? Explain. Separately, say whether the timeout is prevention or recovery in the opposite-order example.")
-labkit.correction(d, "(a) Which pair of edges formed the cycle? (b) Why must the teaching barrier be absent in ordered mode? (c) How can one timeout let the other worker finish?")
+# ---- demonstration, plus and challenge ----------------------------------------------------
+d.slide("plus", "Plus: slow the first lock down",
+        lambda t: row(term(t, ["HOLD=1 timeout 6 bash vault/worker.sh A ordered &",
+                               "HOLD=1 timeout 6 bash vault/worker.sh B ordered &",
+                               "wait"], size=24),
+                      col(para(t, "HOLD=1 makes each worker keep its first lock for one second before it asks for the second. Run both workers in ordered mode with it.", size=30),
+                          card(t, "Answer in evidence/plus.txt", "Do both workers still finish? One of them waits longer. What does it wait for?", label="PLUS", pad=32, title_size=32),
+                          gap=22),
+                      gap=48, align="center"),
+        note="First watch the instructor draw the two workers and the two locks and show the circle on the board. Plus and Challenge are not needed for full marks.")
+
+d.slide("challenge", "Challenge: three workers, three locks",
+        lambda t: row(card(t, "The circle", "Three locks x, y and z. A holds x and requests y. B holds y and requests z. C holds z and requests x.", label="CHALLENGE", pad=40, title_size=36),
+                      card(t, "Answer in evidence/plus.txt", "Draw the circle. Choose a global order, and say which worker must change the order of its two locks.", label="YOUR TURN", pad=40, title_size=36),
+                      gap=32, align="stretch"))
+
+# ---- live checkpoint ------------------------------------------------------------------------
+d.opener("cp-open", "LIVE CHECKPOINT", "Show what you can do alone", "Fifteen minutes near the end of the lab. Worth 3 of the 10 points.")
+
+d.slide("cp-why", "Why is there a checkpoint?",
+        lambda t: grid(card(t, "It shows what you can do alone", "For most of the lab you may use hints and AI tools. The checkpoint is the one moment without them.", icon_name="CheckCircle", pad=28, title_size=32),
+                       card(t, "The names are new", "The case uses new lock names, made for you at that moment. An answer copied from a neighbour does not fit.", icon_name="Key", pad=28, title_size=32),
+                       card(t, "The instructor sees who needs help", "Your answers arrive at once, so a common mistake can be explained before the next lab.", icon_name="Users", pad=28, title_size=32),
+                       card(t, "It is fair", "Everyone gets the same kind of task, with their own names.", icon_name="ThumbsUp", pad=28, title_size=32),
+                       cols=2),
+        gap=36)
+
+d.slide("cp-steps", "What happens, step by step",
+        lambda t: flow(t, [("1. The instructor opens it", "Close your AI tools"), ("2. oslab checkpoint lab9", "Read the case, answer four questions"),
+                           ("3. The file task", "Copy your worker, new names"), ("4. oslab check lab9", "A fifth milestone must pass")], 400, hot=1),
+        lambda t: row(rule(t, "Before it opens", "The command says that the checkpoint is not open yet. Wait for the instructor.", title_size=36),
+                      rule(t, "While you work", "Use your terminal and what you learned in this lab. No AI tools, and no help from a neighbour.", title_size=36),
+                      rule(t, "When you finish", "oslab check lab9 shows whether the fifth milestone, checkpoint, passes. You can fix your copy and check again.", title_size=36)),
+        gap=56)
+
+d.slide("cp-marks", "What the checkpoint asks",
+        lambda t: tbl(t, ["Part", "What you do"],
+                      [["Four questions", "Read the case with a third worker, made for you at this moment. Answer them in the terminal."],
+                       ["The file task", "Copy your worker script, change only the two res1= and res2= lines to the new names, run the ordered mode, and save the logs in checkpoint.txt."],
+                       ["The check", "Run oslab check lab9. The fifth milestone, checkpoint, must show PASS."]],
+                      [4, 13]),
+        note="This is why Core 2 asked for a rule written with $first and $second, not with your own lock names.")
+
+# ---- debrief and submit ---------------------------------------------------------------------
+d.opener("end-open", "DEBRIEF AND SUBMIT", "Look back, then hand in", "Ten minutes of debrief, ten to submit.")
+
+d.slide("debrief", "Debrief: look at your prediction again",
+        lambda t: row(term(t, ['cat "$OSLAB_WORKSPACE/.records/lab9-predict.json"',
+                               "oslab debrief lab9"], size=24, title="student@server: ~/oslab-work/lab9"),
+                      col(para(t, "oslab saved your prediction in a hidden folder, .records. It stays as it was, so the comparison shows which answers you confirmed and which you corrected.", size=30),
+                          card(t, "Class discussion", "Your timeout rescued the opposite run. Why is wait less not a repair for a deadlock?", label="DISCUSS", pad=32, title_size=32),
+                          gap=22),
+                      gap=48, align="center"))
+
 labkit.submission(d, 9, ['cp -- vault/worker.sh "$SUBMISSION_REPO/lab9/"',
                          'cp -- evidence/opposite.txt evidence/ordered.txt "$SUBMISSION_REPO/lab9/evidence/"'],
                   [("README.md", None), ("worker.sh", None), ("evidence", [("opposite.txt", None), ("ordered.txt", None)])],
-                  note="opposite.txt should hold the holdings and requests, the statuses, the recovery and your wait diagram. Cleanup is part of the lab: leave no worker running.")
-labkit.grading(d, [["A bounded conflict reproduced, and one consistent global order", "3"],
-                   ["The opposite and ordered runs, and the missing-participant diagnosis", "2"],
-                   ["Circular wait, the barrier and timeout recovery explained; original prediction and correction", "2"],
-                   ["Individual checkpoint: result or diagnosis, and mechanism", "2"],
-                   ["Concise, attributable evidence and the required artifacts", "1"]])
+                  note="If you did Plus or Challenge, copy evidence/plus.txt the same way. The course website checks that these exact names are there. Leave no worker running.")
+
+d.slide("submit-git", "Submit 3: commit and push",
+        lambda t: row(term(t, ["cd ~/os-gic-YOUR_ID",
+                               "git pull",
+                               "git add os-lab-YOUR_ID/lab9",
+                               'git commit -m "Lab 9"',
+                               "git push"], title="student@server: ~", size=26),
+                      col(para(t, "git pull comes first, in case you pushed from your own computer since.", size=32),
+                          para(t, "Replace YOUR_ID with your own ID, as before.", size=32),
+                          gap=24),
+                      gap=48, align="center"))
+
+labkit.grading(d, [["Worker: oslab check lab9 passes the four Core milestones (opposite conflict, ordered mode, rule independent of names, evidence files)", "2"],
+                   ["Tests: opposite.txt and ordered.txt show the conflict and the repair, and the README explains the recovery by timeout", "2"],
+                   ["Prediction saved in time, and corrected with oslab debrief lab9", "2"],
+                   ["Live checkpoint: the answers and your worker running with the new names", "3"],
+                   ["Complete submission: the required files in your repository, on time", "1"]],
+               note="Every row is marked from your oslab records and the files in your repository, so run oslab check lab9 until it shows what you expect. Your prediction earns its first point for being made, not for being right. Plus and Challenge are not needed for full marks.")
+
 labkit.mistakes(d, [["Claiming both workers must time out", "One finishes after the other gives up", "Explain the recovery event"],
                     ["The barrier left in ordered mode", "A worker waits for a partner that cannot arrive", "Skip the barrier when ordered"],
                     ["Removing the timeouts after ordering", "A future wait with no limit", "Keep every flock bounded"],
-                    ["Reusing the ready markers", "A false coordination condition", "rm only A.ready and B.ready first"]])
+                    ["Reusing the ready markers", "A false coordination condition", "rm only A.ready and B.ready first"],
+                    ["A rule written with your own lock names", "The last check, with other names, fails", "Write it with $first and $second"]])
 
 # ---- beyond the core --------------------------------------------------------------
 d.opener("ext-open", "BEYOND THE CORE", "Wait traces and site-to-site sync", "Optional extensions. They stay bounded, and they use only a narrow folder the instructor prepared.")
@@ -327,9 +467,9 @@ SECTIONS = {
     "s2": {"description": "Concepts first: the four conditions, holdings and requests as edges, bounded locks, prevention and recovery.", "start": "bg-open"},
     "s3": {"description": "How the lab works: the scenario, the timetable, the rules, setup and the starting tree.", "start": "lab-open"},
     "s4": {"description": "Guided: locks and the vault, then the prediction.", "start": "g-open"},
-    "s5": {"description": "Levels 2 and 3: naive workers and a local deadlock. Levels 5 and 6: global order, then the tests.", "start": "l2-open"},
-    "s6": {"description": "The individual checkpoint: why, and the practice question.", "start": "cp-open"},
-    "s7": {"description": "Correction, submission, grading, common mistakes.", "start": "end-open"},
+    "s5": {"description": "Core 1 and Core 2: reproduce the deadlock and repair it with a global order, then Plus and Challenge.", "start": "c1-open"},
+    "s6": {"description": "The live checkpoint: why, the steps with oslab, and what it asks.", "start": "cp-open"},
+    "s7": {"description": "Debrief, submission, grading, common mistakes.", "start": "end-open"},
     "s8": {"description": "Beyond the core: wait traces and site-to-site sync, then takeaways and the next lab.", "start": "ext-open"},
 }
 

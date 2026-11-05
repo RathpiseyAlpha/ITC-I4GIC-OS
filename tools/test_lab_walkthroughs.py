@@ -13,7 +13,7 @@ import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PILOTS = (1, 2, 8)  # labs whose fences use personal values and Core sections
+PILOTS = (1, 2, 4, 5, 6, 7, 8, 9, 10)  # labs whose fences use personal values and Core sections
 if os.geteuid() == 0:
     raise SystemExit('Run as an ordinary user: root bypasses the permission-denial case.')
 
@@ -68,6 +68,16 @@ with tempfile.TemporaryDirectory(prefix='oslab-walkthrough-') as temp:
         code = code.replace('~/oslab-work', '"$OSLAB_WORKSPACE"')
         if n == 1:  # Lab 1 shows placeholders instead of shell variables
             code = code.replace('FILE1', values[1]['file1']).replace('FILE2', values[1]['file2'])
+        if n == 4:  # Lab 4 shows capital placeholders too
+            code = code.replace('STATUS', values[4]['status']).replace('OTHER', values[4]['other'])
+        if n == 6:  # Lab 6 shows BOX for the personal demo folder
+            code = code.replace('BOX', values[6]['box'])
+        if n == 9:  # Lab 9 shows RES1 and RES2 for the personal lock names
+            code = code.replace('RES1', values[9]['res1']).replace('RES2', values[9]['res2'])
+        if n == 10:  # Lab 10 shows NAME and KEEP for the personal archive name and count
+            code = code.replace('NAME', values[10]['name']).replace('KEEP', str(values[10]['keep']))
+        if n == 7:  # Lab 7 shows FILE1 and FILE2 for the personal file names
+            code = code.replace('FILE1', values[7]['file1']).replace('FILE2', values[7]['file2'])
         return code
 
     def section(n, *starts, **override):
@@ -143,57 +153,133 @@ test -f "$OSLAB_WORKSPACE/lab2/TechCorp/$third/found.txt"
     assert all(label in trace for label in ('BEFORE RENAME', 'AFTER RENAME, BEFORE REPAIR', 'AFTER REPAIR'))
     assert 'No such file or directory' in trace
 
-    report = shlex.quote(str(ROOT/'teaching/instructor/lab4/report_solution.sh'))
-    shell(f'''set -e
-test "$(bash {report} data/events.csv)" = 'ok total: 8'
-printf 'fail,2\n' > data/no-ok.csv
-test "$(bash {report} data/no-ok.csv)" = 'ok total: 0'
-printf 'ok,3\nok,5\nok,7\nnot-ok,99\n' > data/changed.csv
-test "$(bash {report} data/changed.csv)" = 'ok total: 15'
-if bash {report} data/missing.csv; then exit 1; fi
-''', base/'lab4', env, 'Lab4 report edges')
+    # Lab 4: the student's own report.sh is the public model with the personal status word in front of it.
+    status4 = values[4]['status']
+    solution4 = (ROOT/'teaching/instructor/lab4/report_solution.sh').read_text()
+    (base/'lab4/report.sh').write_text(f'STATUS={shlex.quote(status4)}\n' + solution4)
 
-    core = [code for section, code in routes[5] if section.startswith('## Task 2')]
-    shell(core[0], base/'lab5', env, 'Lab5 unfinished starter')
+    def fences4(*starts):
+        return [personal(4, code) for name, code in routes[4] if name.startswith(tuple(f'## {s}' for s in starts))]
+    # The error-message fence of Core 1 exits 1 on purpose when run without an argument; it is a pattern, not a step.
+    core1 = [code for code in fences4('Core 1') if 'exit 1' not in code]
+    shell(prefix + section(4, 'Setup') + ''.join(core1) + ''.join(fences4('Core 2')) + ''.join(fences4('Instructor')),
+          base/'lab4', env, 'Lab4 core, Plus and Challenge as written')
+    out = shell(prefix + 'oslab check lab4\n', home, env, 'Lab4 check')
+    assert 'milestones: 4/4' in out, out
+    edge = (base/'lab4/evidence/edge.txt').read_text()
+    assert f'{status4} total: 0' in edge and 'missing-input status=' in edge and 'missing-input status=0' not in edge, edge
+    assert (base/'lab4/evidence/normal.txt').read_text() == (base/'lab4/data/expected.txt').read_text()
+    # Every wrong way the objectives warn about must fail a milestone.
+    wrong = {'rows': f'echo "{status4} total: $(grep -c "^{status4}," "$1")"\n',
+             'prefix': f'awk -F, -v s="{status4}" \'$1 ~ "^"s {{ t += $2 }} END {{ print s " total: " t+0 }}\' "$1"\n',
+             'first': f'grep "^{status4}," "$1" | head -n 1 | cut -d, -f2 | sed "s/^/{status4} total: /"\n'}
+    for label, body in wrong.items():
+        (base/'lab4/report.sh').write_text('#!/usr/bin/env bash\n' + body)
+        result = subprocess.run(['bash', '-c', prefix + 'oslab check lab4\n'], cwd=home, env=env, capture_output=True, text=True)
+        assert 'milestones: 4/4' not in result.stdout, (label, result.stdout)
+    (base/'lab4/report.sh').write_text(f'STATUS={shlex.quote(status4)}\n' + solution4)
+
+    # Lab 5: the program arrives with two gaps; the model fills them as a student would, then breaks them in turn.
+    def fences5(*starts):
+        return [personal(5, code) for name, code in routes[5] if name.startswith(tuple(f'## {s}' for s in starts))]
+    core1 = fences5('Core 1')
+    assert len(core1) == 3, len(core1)
+    shell(prefix + section(5, 'Setup') + core1[0] + core1[1], base/'lab5', env, 'Lab5 unfinished program')
     source = base/'lab5/threads/two_workers.c'
-    content = source.read_text().replace('/* TODO: join both workers and check each return code. */',
-        'rc = pthread_join(ta, NULL); if (rc) return 1;\n'
-        'rc = pthread_join(tb, NULL); if (rc) return 1;').replace(
-        '/* TODO: after both joins, print a.result and b.result. */',
-        'printf("A result=%d B result=%d\\n", a.result, b.result);')
-    source.write_text(content)
-    out = shell('set -e\ngcc -Wall -Wextra -Werror -pthread threads/two_workers.c -o threads/two_workers\ntimeout 5 threads/two_workers\n', base/'lab5', env, 'Lab5 repaired')
-    assert 'A result=6 B result=12' in out
-    source.write_text(content.replace('b = {3, 4, 0}', 'b = {3, 2, 0}'))
-    out = shell('set -e\ngcc -Wall -Wextra -Werror -pthread threads/two_workers.c -o threads/two_workers\ntimeout 5 threads/two_workers\n', base/'lab5', env, 'Lab5 changed')
-    assert 'A result=6 B result=6' in out
-    source.write_text(content.replace('b = {3, 4, 0}', 'b = {3, 0, 0}'))
-    out = shell('set -e\ngcc -Wall -Wextra -Werror -pthread threads/two_workers.c -o threads/two_workers\ntimeout 5 threads/two_workers\n', base/'lab5', env, 'Lab5 zero')
-    assert 'A result=6 B result=0' in out
+    unfinished = source.read_text()
+    join_todo = '/* TODO: join both workers and check each return code. */'
+    print_todo = '/* TODO: after both joins, print a.result and b.result. */'
+    joins = 'rc = pthread_join(ta, NULL); if (rc) return 1;\n    rc = pthread_join(tb, NULL); if (rc) return 1;'
+    report = 'printf("A result=%d B result=%d\\n", a.result, b.result);'
+    assert join_todo in unfinished and print_todo in unfinished
+    model5 = unfinished.replace(join_todo, joins).replace(print_todo, report)
+    source.write_text(model5)
+    shell(prefix + core1[2], base/'lab5', env, 'Lab5 finished program')
+    core2 = fences5('Core 2')
+    assert len(core2) == 4, len(core2)
+    shell(prefix + core2[0], base/'lab5', env, 'Lab5 normal run')
+    shell('cp -- threads/two_workers.c threads/changed.c\n', base/'lab5', env, 'Lab5 copy')
+    changed = base/'lab5/threads/changed.c'
+    job = re.search(r'struct job a = \{(\d+), (\d+), 0\}, b = \{(\d+), (\d+), 0\};', changed.read_text())
+    assert job, 'job line changed'
+    changed.write_text(changed.read_text().replace(job.group(0), f'struct job a = {{{job.group(1)}, 0, 0}}, b = {{{job.group(3)}, 1, 0}};'))
+    shell(prefix + core2[2], base/'lab5', env, 'Lab5 changed run')
+    assert (base/'lab5/evidence/changed.txt').read_text().startswith('worker ' + values[5]['id_b'] + ' finished') or 'exit=0' in (base/'lab5/evidence/changed.txt').read_text()
+    out = shell(prefix + core2[3], base/'lab5', env, 'Lab5 check')
+    assert 'milestones: 4/4' in out, out
+    ra5, rb5 = (int(values[5][k]) * int(values[5][s]) for k, s in (('id_a', 'steps_a'), ('id_b', 'steps_b')))
+    assert f'A result={ra5} B result={rb5}' in (base/'lab5/evidence/normal.txt').read_text()
+    # Each way of getting the joins wrong must fail a milestone.
+    broken5 = {'one join': (model5.replace('rc = pthread_join(tb, NULL); if (rc) return 1;', ''), 'TRY : the return code'),
+               'unchecked joins': (model5.replace('rc = pthread_join(ta, NULL); if (rc) return 1;', 'pthread_join(ta, NULL);')
+                                   .replace('rc = pthread_join(tb, NULL); if (rc) return 1;', 'pthread_join(tb, NULL);'), 'TRY : the return code'),
+               'report before the joins': (unfinished.replace(join_todo, report).replace(print_todo, joins), 'TRY : both workers')}
+    for label, (text5, expected) in broken5.items():
+        source.write_text(text5)
+        result = subprocess.run(['bash', '-c', prefix + 'oslab check lab5\n'], cwd=base/'lab5', env=env, capture_output=True, text=True)
+        assert 'milestones: 4/4' not in result.stdout and expected in result.stdout, (label, result.stdout)
+    source.write_text(model5)
     model = shlex.quote(str(ROOT/'teaching/instructor/lab5/two_workers_solution.c'))
     out = shell(f'set -e\ngcc -Wall -Wextra -Werror -pthread {model} -o threads/model\ntimeout 5 threads/model\n', base/'lab5', env, 'Lab5 public model')
-    assert 'A result=6' in out and 'B result=12' in out
+    assert 'A result=6 B result=12' in out
 
-    shell('''set -e
-chmod 700 private; chmod 600 private/record.txt
-chmod 755 shared; chmod 644 shared/notice.txt
-mkdir -p demo/sealed; printf 'inside\n' > demo/sealed/item.txt
-chmod 600 demo/sealed
-ls demo/sealed
-if cat demo/sealed/item.txt; then exit 1; fi
-chmod 700 demo/sealed
-cat demo/sealed/item.txt
-''', base/'lab6', env, 'Lab6 traversal denial')
+    # Lab 6: the student turns a policy sentence into modes; the model does it from the sentence, then breaks it in turn.
+    notice6, box6 = values[6]['notice'], values[6]['box']
+    modes6 = (('The owner may change the file.', '640', '750'), ('Everyone may read the file', '644', '711'),
+              ("The owner and the owner's group", '660', '770'))
+    fm6, dm6 = next((f, d) for start, f, d in modes6 if notice6.startswith(start))
 
-    count = shlex.quote(str(ROOT/'teaching/instructor/lab7/count_words_solution.sh'))
-    out = shell(f'''set -e
-bash {count} 'input/one file.txt' input/-dash.txt
-if bash {count}; then exit 1; fi
-if bash {count} input/missing.txt 'input/one file.txt'; then exit 1; fi
-cd input
-bash {count} -dash.txt
-''', base/'lab7', env, 'Lab7 boundaries/errors')
-    assert 'one file.txt: 2 words' in out and '-dash.txt: 1 words' in out
+    def fences6(*starts):
+        return [personal(6, code) for name, code in routes[6] if name.startswith(tuple(f'## {s}' for s in starts))]
+    core1, core2, extras = fences6('Core 1'), fences6('Core 2'), fences6('Instructor')
+    assert len(core1) == 2 and len(core2) == 4 and len(extras) == 1, (len(core1), len(core2), len(extras))
+    chmods6 = f'chmod 700 private\nchmod 600 private/record.txt\nchmod {dm6} shared\nchmod {fm6} shared/notice.txt\n'
+    out = shell(prefix + section(6, 'Setup') + chmods6 + core1[0] + core1[1] + core2[0] + core2[1] + core2[2], base/'lab6', env, 'Lab6 core as written')
+    assert 'milestones: 4/4' in out, out
+    trace6 = (base/'lab6/evidence/traversal.txt').read_text()
+    assert 'Permission denied' in trace6 and 'inside' in trace6, trace6
+    assert oct((base/'lab6/demo'/box6).stat().st_mode & 0o777) == '0o700'
+    shell(prefix + core2[3], base/'lab6', env, 'Lab6 namei')
+    out = shell(extras[0], base/'lab6', env, 'Lab6 challenge')
+    assert ' 600 ' in out, out
+    # A wrong mode must fail its milestone and say which mode is needed.
+    for rel, mode, expected in (('private', '755', 'TRY : private/ is 700'), ('shared/notice.txt', '666', 'TRY : shared/ and shared/notice.txt follow')):
+        shell(f'chmod {mode} {rel}\n', base/'lab6', env, 'Lab6 wrong mode')
+        result = subprocess.run(['bash', '-c', prefix + 'oslab check lab6\n'], cwd=base/'lab6', env=env, capture_output=True, text=True)
+        assert 'milestones: 4/4' not in result.stdout and expected in result.stdout, result.stdout
+        shell(chmods6, base/'lab6', env, 'Lab6 restore modes')
+    # The traversal evidence must be real: an evidence file without the failed read does not pass.
+    keep6 = (base/'lab6/evidence/traversal.txt').read_text()
+    (base/'lab6/evidence/traversal.txt').write_text('inside\n')
+    result = subprocess.run(['bash', '-c', prefix + 'oslab check lab6\n'], cwd=base/'lab6', env=env, capture_output=True, text=True)
+    assert 'milestones: 3/4' in result.stdout and 'Permission denied' in result.stdout, result.stdout
+    (base/'lab6/evidence/traversal.txt').write_text(keep6)
+    # The folder left at 600 must not crash the helper.
+    shell(f'chmod 600 demo/{box6}\n', base/'lab6', env, 'Lab6 seal')
+    out = shell(prefix + 'oslab check lab6\n', home, env, 'Lab6 check with a sealed folder')
+    assert 'milestones: 3/4' in out, out
+    shell(f'chmod 700 demo/{box6}\n', base/'lab6', env, 'Lab6 unseal')
+
+    # Lab 7: the student writes count_words.sh; the model is the public script, and the fences run as written.
+    name1, name2 = values[7]['file1'], values[7]['file2']
+
+    def fences7(*starts):
+        return [personal(7, code) for name, code in routes[7] if name.startswith(tuple(f'## {s}' for s in starts))]
+    core1, core2, extras = fences7('Core 1'), fences7('Core 2'), fences7('Instructor')
+    assert len(core1) == 3 and len(core2) == 4 and len(extras) == 1, (len(core1), len(core2), len(extras))
+    (base/'lab7/count_words.sh').write_text((ROOT/'teaching/instructor/lab7/count_words_solution.sh').read_text())
+    out = shell(prefix + section(7, 'Setup') + ''.join(core1) + ''.join(core2), base/'lab7', env, 'Lab7 core as written')
+    assert 'milestones: 4/4' in out, out
+    assert f'{name1}' in (base/'lab7/evidence/normal.txt').read_text() and f'{name2}' in (base/'lab7/evidence/normal.txt').read_text()
+    edge7 = (base/'lab7/evidence/edge.txt').read_text()
+    assert 'status=1' in edge7 and name1 in edge7, edge7
+    assert name2 in (base/'lab7/evidence/dash.txt').read_text()
+    shell(prefix + extras[0], base/'lab7', env, 'Lab7 challenge')
+    # A name that is a folder is not a regular file; the model rejects it and ends with a status other than 0.
+    shell('mkdir -p input/folder\nif bash count_words.sh input/folder; then exit 1; fi\nrmdir input/folder\n', base/'lab7', env, 'Lab7 plus')
+    # The placeholder typed literally must not pass as a student's own file name.
+    result = subprocess.run(['bash', '-c', 'bash count_words.sh "input/FILE1"; echo "status=$?"'], cwd=base/'lab7', env=env, capture_output=True, text=True)
+    assert 'status=1' in result.stdout and 'FILE1' in result.stderr, (result.stdout, result.stderr)
 
     stock, buyer_a, buyer_b = (int(values[8][key]) for key in ('stock', 'buyer_a', 'buyer_b'))
     setup8 = prefix+section(8, 'Setup')
@@ -227,40 +313,46 @@ if timeout 8 bash store/buy.sh 1; then exit 1; else test "$?" -eq 3; fi
 wait "$holder"
 ''', home, env, 'Lab8 validation/lock bound')
 
-    opposite = '\n'.join(code for section, code in routes[9] if section.startswith('## Levels 2'))
-    shell(opposite, base/'lab9', env, 'Lab9 student opposite')
-    assert 'second lock timeout' in (base/'lab9/evidence/opposite.txt').read_text()
-    worker = base/'lab9/vault/worker.sh'
-    worker.write_text(worker.read_text().replace('if [[ "$role" = B ]]', 'if [[ "$mode" = opposite && "$role" = B ]]', 1))
-    ordered = '\n'.join(code for section, code in routes[9] if section.startswith('## Levels 5'))
-    shell(ordered, base/'lab9', env, 'Lab9 student ordered')
-    output = (base/'lab9/evidence/ordered.txt').read_text()
-    assert 'A=0 B=0' in output and output.count('holds both') == 2
-    shell('rm -f -- vault/coord/A.ready vault/coord/B.ready\nif timeout 6 bash vault/worker.sh A opposite; then exit 1; else test "$?" -eq 4; fi\n', base/'lab9', env, 'Lab9 missing peer')
+    # Lab 9: the worker arrives with one TODO; the model repairs it, then a name-dependent rule must fail milestone 3.
+    res1, a_first = values[9]['res1'], values[9]['a_first']
 
-    starter = [code for section, code in routes[10] if section.startswith('## Level 2')][0]
-    shell(starter, base/'lab10', env, 'Lab10 starter')
-    (base/'lab10/backup.sh').write_text((ROOT/'teaching/instructor/lab10/backup_solution.sh').read_text())
-    backup = shlex.quote(str(base/'lab10/backup.sh'))
-    shell(f'''set -e
-printf 'preserve\n' > backups/keep-me.txt
-printf 'foreign archive name\n' > backups/backup-unrelated.tar.gz
-for i in 1 2 3 4; do bash backup.sh; done
-cd "$HOME"
-env -i HOME="$HOME" PATH=/usr/bin:/bin /bin/bash {backup}
-''', base/'lab10', env, 'Lab10 retention/environment')
-    archives = [p for p in (base/'lab10/backups').glob('backup-*') if p.name != 'backup-unrelated.tar.gz']
-    assert len(archives) == 3
-    assert (base/'lab10/backups/keep-me.txt').read_text() == 'preserve\n'
-    assert (base/'lab10/backups/backup-unrelated.tar.gz').is_file()
-    shell('''set -e
-archive=$(find backups -maxdepth 1 -type f -name 'backup-[0-9]*.tar.gz' | sort | tail -n 1)
-mkdir restore-test
-tar -tzf "$archive"
-tar -xzf "$archive" -C restore-test
-cmp -- project/report.txt restore-test/project/report.txt
-cmp -- project/config.ini restore-test/project/config.ini
-''', base/'lab10', env, 'Lab10 restore')
+    def fences9(*starts):
+        return [personal(9, code) for name, code in routes[9] if name.startswith(tuple(f'## {s}' for s in starts))]
+    core1, core2, extras = fences9('Core 1'), fences9('Core 2'), fences9('Instructor')
+    assert len(core1) == 2 and len(core2) == 3 and len(extras) == 1, (len(core1), len(core2), len(extras))
+    shell(prefix + section(9, 'Setup') + core1[0] + core1[1], base/'lab9', env, 'Lab9 opposite as written')
+    opposite9 = (base/'lab9/evidence/opposite.txt').read_text()
+    assert 'second lock timeout' in opposite9 and opposite9.startswith('opposite A='), opposite9
+    worker = base/'lab9/vault/worker.sh'
+    swap = 'if [[ "$role" = B ]]; then tmp=$first; first=$second; second=$tmp; fi'
+    original9 = worker.read_text()
+    assert swap in original9, 'the TODO line of the worker changed'
+    # A rule that works only for the student's own names: B swaps in ordered mode too, unless the first lock has that name.
+    worker.write_text(original9.replace(swap, f'if [[ "$role" = B && ( "$mode" = opposite || "$first" != "{a_first}" ) ]]; then tmp=$first; first=$second; second=$tmp; fi'))
+    result = subprocess.run(['bash', '-c', prefix + 'oslab check lab9\n'], cwd=base/'lab9', env=env, capture_output=True, text=True)
+    assert 'PASS: ordered mode' in result.stdout and 'TRY : your ordering rule does not depend on the names' in result.stdout, result.stdout
+    worker.write_text(original9.replace(swap, 'if [[ "$role" = B && "$mode" = opposite ]]; then tmp=$first; first=$second; second=$tmp; fi'))
+    out = shell(prefix + core2[0] + core2[1] + core2[2], base/'lab9', env, 'Lab9 core 2 as written')
+    assert 'milestones: 4/4' in out, out
+    output9 = (base/'lab9/evidence/ordered.txt').read_text()
+    assert 'A=0 B=0' in output9 and output9.count('holds both') == 2, output9
+    shell(prefix + extras[0], base/'lab9', env, 'Lab9 plus')
+    shell(f'rm -f -- vault/coord/A.ready vault/coord/B.ready\nif timeout 6 bash vault/worker.sh A opposite; then exit 1; else test "$?" -eq 4; fi\n', base/'lab9', env, 'Lab9 missing peer')
+
+    # Lab 10: the student writes the retention; the model is the public script with this account's own keep= and name=.
+    name10, keep10 = values[10]['name'], int(values[10]['keep'])
+    model = (ROOT/'teaching/instructor/lab10/backup_solution.sh').read_text()
+    model = re.sub(r'^keep=.*$', f'keep={keep10}', model, flags=re.M)
+    model = re.sub(r'^name=.*$', f'name={name10}', model, flags=re.M)
+    (base/'lab10/backup.sh').write_text(model)
+    core10 = [personal(10, code) for name, code in routes[10] if name.startswith('## Core 1') or name.startswith('## Core 2')]
+    out = shell(prefix + '\n'.join(core10), base/'lab10', env, 'Lab10 core as written')
+    archives = [p for p in (base/'lab10/backups').glob(f'{name10}-[0-9]*.tar.gz') if p.name != f'{name10}-notes.tar.gz']
+    assert len(archives) == keep10, archives
+    assert (base/'lab10/backups/keep-me.txt').read_text() == 'unrelated; preserve me\n'
+    assert (base/'lab10/backups'/f'{name10}-notes.tar.gz').is_file()
+    out = shell(prefix + 'oslab check lab10\n', base/'lab10', env, 'Lab10 check')
+    assert 'milestones: 4/4' in out or 'PASS' in out, out
 
     imageblocks = [code for section, code in routes[11] if section.startswith('## Level 2')]
     formatblocks = [code for section, code in routes[11] if section.startswith('## Level 3')]

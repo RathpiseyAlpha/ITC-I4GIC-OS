@@ -14,6 +14,7 @@ import pwd
 import re
 import secrets
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -71,18 +72,14 @@ FIXTURES = {
                        f"incoming/{v['file2']}": f"amount,{v['amount2']}\n",
                        "reports/README.txt": "Move the two incoming files here; keep their names.\n"},
     "lab3": {"links/source.txt": "version 1\n", "links/target-name.txt": "A symlink target for diagnosis.\n"},
-    "lab4": {"data/events.csv": "status,count\nok,3\nfail,2\nok,5\n", "data/expected.txt": "ok total: 8\n"},
-    "lab5": {"threads/trace.csv": "thread,step\nA,read\nB,read\nA,write\nB,write\n",
-             "threads/starter.c": "#include <pthread.h>\n#include <stdio.h>\nstatic void *worker(void *arg) { puts((const char *)arg); return NULL; }\nint main(void) { pthread_t a, b;\n  if (pthread_create(&a, NULL, worker, \"A\") || pthread_create(&b, NULL, worker, \"B\")) return 1;\n  /* TODO: join both workers before reading results. */\n  return 0;\n}\n"},
-    "lab6": {"private/record.txt": "student-owned record\n", "shared/notice.txt": "Read-only public notice\n"},
-    "lab7": {"input/one file.txt": "alpha beta\n", "input/-dash.txt": "gamma\n",
-             "count_words.sh": "#!/usr/bin/env bash\nset -u\n# TODO: loop over quoted arguments, reject missing files, and count words.\n"},
+    "lab4": lambda v: lab4_fixture(v),
+    "lab5": lambda v: lab5_fixture(v),
+    "lab6": lambda v: lab6_fixture(v),
+    "lab7": lambda v: lab7_fixture(v),
     "lab8": lambda v: {"store/stock.txt": f"{v['stock']}\n", "store/sales.log": "", "store/buy.sh": BUY_SH,
                        **{f"store/ai-answers/{name}.sh": text for name, text in AI_ANSWERS.items()}},
-    "lab9": {"vault/alpha.txt": "alpha\n", "vault/beta.txt": "beta\n",
-             "vault/worker.sh": "#!/usr/bin/env bash\nset -euo pipefail\n# TODO: acquire two owned lock files with flock -w 2; log each acquisition.\n"},
-    "lab10": {"project/report.txt": "report v1\n", "project/config.ini": "mode=practice\n",
-              "backup.sh": "#!/usr/bin/env bash\nset -euo pipefail\n# TODO: archive project with absolute paths, verify it, retain newest three owned archives.\n"},
+    "lab9": lambda v: lab9_fixture(v),
+    "lab10": lambda v: lab10_fixture(v),
     "lab11": {"images/README.txt": "Create regular image files here. Never use a device path.\n"},
 }
 
@@ -96,6 +93,27 @@ HINTS = {
     "lab2": ("Draw the folders on paper. Mark where you are (`pwd`) and where the file must go.",
              "Each `..` goes up one folder. From `incoming/`, one `..` brings you to the lab folder. Which folders are next to `incoming` there?",
              "From one department folder, go up once to TechCorp, then down into the other department: `../DEPARTMENT/'file name'`."),
+    "lab3": ("Which commands did you run, and in which folder? Check with `pwd`. Then run `ls -li` and compare the inode numbers in the first column.",
+             "A hard link shares the inode of the original, so it still works after the rename. A symbolic link stores a name; run `readlink soft.txt` and ask: does a file with that name exist now?",
+             "A relative target is read from the folder that holds the link. To point `soft.txt` at `renamed.txt`, which sits in the same folder, the stored target is only the file name. Remove the old link with `rm -- soft.txt`, then `ln -s` again."),
+    "lab4": ("Run each stage of the pipeline alone and read what it prints. Which stage still shows the word `STATUS` or rows you do not want?",
+             "The total is a sum, not a count of lines. `wc -l` counts rows. Which command can add the numbers in column 2? Try `awk -F, '{ total += $2 } END { print total+0 }'` on the selected rows only.",
+             "Select the rows whose FIRST field is exactly your status: `$1 == \"STATUS\"` in awk, or `grep '^STATUS,'` (the comma stops a look-alike such as `STATUS-late`). Print the label and the total once, in `END`. For a missing file, print the message with `>&2` and `exit 1`."),
+    "lab5": ("Read main from top to bottom. A thread starts at pthread_create, but main keeps going. Which line makes main wait for worker A, and which for worker B? Run `oslab check lab5` and read the TRY line.",
+             "Each worker you created needs its own pthread_join, with the thread variable of THAT worker (ta, then tb). Put the joins before the line that prints the results, and test the return code: `rc = pthread_join(ta, NULL); if (rc) return 1;`",
+             "After both joins, print the report line: `printf(\"A result=%d B result=%d\\n\", a.result, b.result);`. The worker prints `worker N finished` before it returns, so both of those lines come before your report line."),
+    "lab6": ("Write your policy in plain words first: who may read, who may change, who may list the folder? Then run `stat -c '%A %a %n' private shared` and compare with `oslab check lab6`.",
+             "Each octal digit is one group: owner, group, others. Add read=4, write=2, execute/search=1. Example: rw-r----- is 4+2=6, 4, 0, so 640. A folder needs the x bit for anyone who must enter it.",
+             "File and folder are two separate chmod commands: `chmod 640 shared/notice.txt` and `chmod 750 shared`. Do the file first. If a read fails with Permission denied, look at every folder on the path with `namei -l`, not only at the file."),
+    "lab7": ("Print what your script really receives: run `bash show_args.sh` with your file names in single quotes and look at the angle brackets. Which name is cut into pieces?",
+             "Quote every expansion: \"$@\" in the loop and \"$file\" inside it. A leading dash is read as an option by `wc`, so end the options first: `wc -w -- \"$file\"`. Keep the final status in a variable that starts at 0.",
+             "Skeleton: `status=0`, then `for file in \"$@\"; do`, test `[[ -f \"$file\" ]]` (print to stderr with `>&2`, set `status=1`, `continue` if it fails), count with `wc -w -- \"$file\"`, `done`, and finally `exit \"$status\"`. Check the no-argument case with `[[ $# -gt 0 ]]` first."),
+    "lab9": ("Draw two boxes for the two locks and two arrows for the workers. Who holds which lock at the barrier, and who is waiting for it? Run the opposite mode and read both logs.",
+             "A deadlock needs a circle. If every worker takes the locks in the same order, no worker can hold the second lock while waiting for the first. Look at the line that makes worker B swap `first` and `second`: when must it do that, and when not?",
+             "Make the swap happen only in opposite mode: `if [[ \"$role\" = B && \"$mode\" = opposite ]]; then ...`. Keep the barrier and the `sleep \"${HOLD:-0}\"` line, and write the rule with `$first` and `$second`, not with the names."),
+    "lab10": ("What must always be true after a run? Write it as a sentence with the number `keep`. Then list `backups` and count the archives that have YOUR name at the start.",
+             "The names contain a time stamp, so sorting the names puts the oldest first. Collect only the complete archives made by this script into an array, sort it, and remove everything except the last `keep` entries. Do not touch other names.",
+             "Use the exact pattern of the names: `[[ \"$name\" =~ ^NAME-[0-9]{8}T[0-9]{15}-[0-9]+\\.tar\\.gz$ ]]` with your own prefix in `$name`. After `mapfile -t ordered < <(printf '%s\\n' \"${owned[@]}\" | LC_ALL=C sort -r)`, the entries to remove are `\"${ordered[@]:$keep}\"`. Quote every path and write `rm -- \"$path\"`."),
     "lab8": ("Write the rule that must always be true: units sold + units left = starting stock. Which lines of buy.sh read or change these numbers?",
              "Run `cat -n store/buy.sh`. Find the line that reads stock.txt and the lines that write. No other buyer may run between the first and the last of them.",
              "Syntax: `exec 9>\"$store/stock.lock\"` opens the lock file, `flock -x -w 5 9 || exit 3` waits for it. Where must these two lines go so that the stock check uses a fresh value?"),
@@ -114,6 +132,48 @@ PRELAB = {
               "`.` is the current directory and `..` is one level up."),
              ("Which command keeps the original file in place?", ("mv", "cp", "both"), "b",
               "`cp` makes a second file. `mv` changes the location of the one file.")),
+    "lab3": (("`ls *.txt` lists all names that end in `.txt`. Who turns the `*` into file names?", ("the ls program", "the shell, before ls runs", "the kernel"), "b",
+              "Bash expands the pattern first and gives `ls` the finished list. Quotes stop this."),
+             ("A hard link and the original file have:", ("different inode numbers", "the same inode number", "no inode"), "b",
+              "They are two names for one inode, so they show the same data."),
+             ("A symbolic link stores:", ("a copy of the data", "the inode of the file", "the path of the file it points to"), "c",
+              "If that path stops existing, the link is dangling.")),
+    "lab4": (("Which number is standard error?", ("1", "2", "0"), "b",
+              "0 is input, 1 is output, 2 is error. `2>` sends only the error messages."),
+             ("In `a | b`, what goes into `b`?", ("the files of a", "the output of a", "the error messages of a"), "b",
+              "The pipe connects the standard output of `a` to the input of `b`. Errors still go to the screen."),
+             ("`grep '^ok,' file | wc -l` prints:", ("the sum of the numbers", "the number of matching lines", "the number of words in the file"), "b",
+              "`wc -l` counts lines. A sum of field 2 needs a different command, such as `awk`.")),
+    "lab5": (("`pthread_join(t, NULL)` makes the calling thread:", ("start the thread t", "wait until the thread t has finished", "stop the thread t at once"), "b",
+              "It waits for that one thread. Without it, main can read a result that is not ready, or return and end the process."),
+             ("Threads of one process share:", ("the address space (global data and the heap)", "nothing at all", "only the program counter"), "a",
+              "That is why a worker can write into a struct that main reads. Separate processes after `fork` have separate copies."),
+             ("Does joining two workers also stop them from updating one shared counter at the same time?", ("yes, join does both", "no, join only waits for the end; mutual exclusion needs a lock", "only if the delay is long"), "b",
+              "Completion and mutual exclusion are two different problems. A delay is not a lock.")),
+    "lab6": (("What are the three digits of the mode `640`, in order?", ("owner, group, others", "others, group, owner", "read, write, execute"), "a",
+              "6 is for the owner (read + write), 4 for the group (read), 0 for others (nothing)."),
+             ("For a directory, the x bit means:", ("you may run the directory as a program", "you may enter it and reach the files inside it by name", "you may delete it"), "b",
+              "x on a folder is search permission. Without it you cannot open the files inside, even if their own mode allows it. r only lets you list the names."),
+             ("A file has mode 644 but sits in a folder with mode 700 owned by someone else. Can you read the file?", ("yes, the file mode allows it", "no, you cannot enter the folder", "only if you know the file name"), "b",
+              "The system checks every folder on the path. A 700 folder of another user stops you before the file mode is looked at.")),
+    "lab7": (("`\"$@\"` (with the quotes) in a script gives:", ("all arguments as one string", "each argument as a separate word, with its spaces kept", "only the first argument"), "b",
+              "Each argument stays one piece, even if it contains spaces. Without the quotes the shell splits it again."),
+             ("What does `--` mean in `wc -w -- file`?", ("everything after it is a file name, not an option", "wc counts two words", "wc reads from the keyboard"), "a",
+              "It ends option parsing. A file called `-x.txt` is then read as a file name."),
+             ("The first command of a script fails but the last command succeeds. The script's exit status is:", ("always the first failure", "the status of the last command, unless you set your own", "always 0"), "b",
+              "Keep your own variable (`status=1`) and finish with `exit \"$status\"`.")),
+    "lab9": (("Two workers each hold one lock and wait for the lock of the other. This is called:", ("starvation", "deadlock", "a race condition"), "b",
+              "A circular wait: nobody can continue, and nobody releases what they hold."),
+             ("`flock -x -w 2 9` waits at most:", ("2 seconds, then it gives up with a failure status", "2 seconds, then it takes the lock anyway", "forever"), "a",
+              "A timeout does not remove a deadlock; it only ends the waiting so the program can recover."),
+             ("Which rule removes the circular wait?", ("every worker takes the locks in the same global order", "every worker waits longer", "every worker uses a different lock file"), "a",
+              "With one order, a worker that waits for the first lock cannot hold the second one at the same time.")),
+    "lab10": (("`tar -czf a.tar.gz dir` does two things. Which?", ("it packs the files into one archive and compresses it", "it encrypts the files and deletes them", "it copies the files to a second disk"), "a",
+              "`tar` packs many files into one; `gzip` (the `z`) compresses the bytes. Neither one proves that you can restore."),
+             ("How do you know a backup can be restored?", ("tar printed no error", "you extracted it somewhere else and compared the files", "the file is not empty"), "b",
+              "Only a restore test shows that the data comes back. Compare with `cmp`."),
+             ("A script is started by cron. Which assumption is risky?", ("it uses the folder where the script itself is stored", "it assumes the current folder is the project folder and that PATH holds every program", "it prints a message"), "b",
+              "Cron starts a script from another folder with a very small environment. Use the script's own folder and full paths.")),
     "lab8": (("Two buyers both read stock=5. Then each writes 5-4. What is in the stock file at the end?", ("-3", "1", "5"), "b",
               "Each one writes its own result, 1. The second write replaces the first. One update is lost."),
              ("A critical section is:", ("code that must not be mixed with other code using the same data", "the slowest part of a program", "code that runs as root"), "a",
@@ -279,6 +339,937 @@ def lab3_checkpoint(pick, v):
     return cv, intro, qs, after
 
 
+LAB4_STATUSES = ("ok", "done", "sent", "paid", "pass", "ready", "clear", "shipped")
+
+
+def lab4_values(pick):
+    """Your status word and an other word. Keys that start with _ are the numbers in your CSV; they are not shown."""
+    first = pick("status", len(LAB4_STATUSES))
+    other = (first + 1 + pick("other", len(LAB4_STATUSES) - 1)) % len(LAB4_STATUSES)
+    return {"status": LAB4_STATUSES[first], "other": LAB4_STATUSES[other],
+            "_a": 2 + pick("a", 8), "_b": 2 + pick("b", 8), "_c": 2 + pick("c", 8),
+            "_x": 1 + pick("x", 8), "_z": 20 + pick("z", 80), "_turn": pick("turn", 6)}
+
+
+def lab4_rows(v):
+    """The records of data/events.csv: three of your status, two of the other word, one 'late' look-alike."""
+    s, o = v["status"], v["other"]
+    rows = [(s, v["_a"]), (o, v["_x"]), (s, v["_b"]), (s + "-late", v["_z"]), (s, v["_c"]), (o, v["_x"] + 3)]
+    turn = v["_turn"] % len(rows)
+    return rows[turn:] + rows[:turn]
+
+
+def lab4_csv(rows):
+    return "status,count\n" + "".join(f"{name},{count}\n" for name, count in rows)
+
+
+def lab4_total(rows, status):
+    return sum(count for name, count in rows if name == status)
+
+
+def lab4_fixture(v):
+    rows = lab4_rows(v)
+    return {"data/events.csv": lab4_csv(rows), "data/expected.txt": f"{v['status']} total: {lab4_total(rows, v['status'])}\n"}
+
+
+def lab4_predict(v):
+    s, rows = v["status"], lab4_rows(v)
+    first = next(count for name, count in rows if name == s)
+    n = sum(1 for name, _ in rows if name == s)
+    return [question("first", f"What number does  grep '^{s},' data/events.csv | cut -d, -f2 | head -n 1  print? (Read the file first.)", "int", [first]),
+            question("equal", "Is that number the required total of all your records? (yes/no)", "yesno", "n"),
+            question("lines", f"How many lines does  grep '^{s},' data/events.csv | wc -l  print?", "int", [n]),
+            question("why", "One sentence: what does the number from wc -l measure, and what does the total measure?", "text")]
+
+
+def lab4_checkpoint(pick, v):
+    s, o = v["status"], v["other"]
+    word = WORDS[pick("word", len(WORDS))]
+    a, b = 2 + pick("p", 15), 2 + pick("q", 15)
+    rows = [(o, 4 + pick("o", 6)), (s, a), (s + "-late", 30 + pick("z", 60)), (s, b), ("not-" + s, 40 + pick("n", 50))]
+    name = f"{word}.csv"
+    cv = {"name": name, "rows": [list(r) for r in rows], "total": a + b}
+    intro = [f"New data arrive as a file called data/{name}. These are its records, after the header:"]
+    intro += [f"    {n},{c}" for n, c in rows]
+    intro += ["Your report.sh will be used on this file. Answer before you create it."]
+    qs = [question("total", "What will your report.sh print for this file? Type only the total number.", "int", [a + b]),
+          question("lines", f"A friend selects with  grep '^{s},'  and counts with  wc -l.  What number does wc -l print for this file?", "int", [2]),
+          question("stream", "If you give report.sh a file that does not exist, your error message goes to a numbered stream. Which number?", "int", [2]),
+          question("why", "One sentence: why is the wc -l number not the total?", "text")]
+    lines = " ".join(["'status,count'"] + [f"'{n},{c}'" for n, c in rows])
+    after = ["Now make the file and run your own script on it, in your lab4 folder:",
+             '  cd "$OSLAB_WORKSPACE/lab4"',
+             f"  printf '%s\\n' {lines} > data/{name}",
+             f"  bash report.sh data/{name} > checkpoint.txt",
+             "  cat checkpoint.txt",
+             "Then run: oslab check lab4"]
+    return cv, intro, qs, after
+
+
+TWO_WORKERS_C = r'''#define _POSIX_C_SOURCE 200809L
+#include <pthread.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+struct job { int id; int steps; int result; };
+static void *worker(void *arg) {
+    struct job *job = arg;
+    const struct timespec delay = {0, 20000000};
+    for (int i = 0; i < job->steps; ++i) {
+        job->result += job->id;
+        nanosleep(&delay, NULL); /* teaching delay, not synchronization */
+    }
+    printf("worker %d finished\n", job->id);
+    return NULL;
+}
+int main(void) {
+    struct job a = {@IDA@, @SA@, 0}, b = {@IDB@, @SB@, 0};
+    pthread_t ta, tb;
+    int rc = pthread_create(&ta, NULL, worker, &a);
+    if (rc) { fprintf(stderr, "create A: %s\n", strerror(rc)); return 1; }
+    rc = pthread_create(&tb, NULL, worker, &b);
+    if (rc) {
+        fprintf(stderr, "create B: %s\n", strerror(rc));
+        pthread_join(ta, NULL);
+        return 1;
+    }
+    /* The report line must look like:  A result=NUMBER B result=NUMBER */
+    /* TODO: join both workers and check each return code. */
+    /* TODO: after both joins, print a.result and b.result. */
+    puts("main finishing");
+    return 0;
+}
+'''
+
+THREAD_TRACE = "thread,step\nA,read\nB,read\nA,write\nB,write\n"
+THREAD_STARTER = ("#include <pthread.h>\n#include <stdio.h>\nstatic void *worker(void *arg) { puts((const char *)arg); return NULL; }\n"
+                  "int main(void) { pthread_t a, b;\n  if (pthread_create(&a, NULL, worker, \"A\") || pthread_create(&b, NULL, worker, \"B\")) return 1;\n"
+                  "  /* TODO: join both workers before reading results. */\n  return 0;\n}\n")
+
+
+def lab5_values(pick):
+    return {"id_a": 2 + pick("id_a", 4), "id_b": 6 + pick("id_b", 4),
+            "steps_a": 2 + pick("steps_a", 4), "steps_b": 2 + pick("steps_b", 4)}
+
+
+def lab5_source(v):
+    return (TWO_WORKERS_C.replace("@IDA@", str(v["id_a"])).replace("@SA@", str(v["steps_a"]))
+            .replace("@IDB@", str(v["id_b"])).replace("@SB@", str(v["steps_b"])))
+
+
+def lab5_fixture(v):
+    return {"threads/two_workers.c": lab5_source(v), "threads/starter.c": THREAD_STARTER, "threads/trace.csv": THREAD_TRACE}
+
+
+def lab5_predict(v):
+    ra, rb = v["id_a"] * v["steps_a"], v["id_b"] * v["steps_b"]
+    return [question("unjoined", "A program starts two workers and main returns at once, without joining them. Must the line `worker A finished` always appear? (yes/no)", "yesno", "n"),
+            question("a", f"Your worker A has id {v['id_a']} and {v['steps_a']} steps; each step adds its id to the result. After main has joined A, what is a.result?", "int", [ra]),
+            question("b", f"Your worker B has id {v['id_b']} and {v['steps_b']} steps. After main has joined B, what is b.result?", "int", [rb]),
+            question("why", "One sentence: why must main wait for a worker before it reads that worker's result?", "text")]
+
+
+def lab5_checkpoint(pick, v):
+    word = WORDS[pick("word", len(WORDS))]
+    steps_a, steps_b = 1 + pick("sa", 6), 1 + pick("sb", 6)
+    unjoined, workers = 2 + pick("unjoined", 5), 3 + pick("workers", 4)
+    final = v["id_b"] * unjoined
+    cv = {"name": word, "steps_a": steps_a, "steps_b": steps_b,
+          "ra": v["id_a"] * steps_a, "rb": v["id_b"] * steps_b}
+    intro = [f"Case 1. A program starts workers A and B like yours. Main joins A but NOT B, and then prints b.result.",
+             f"Worker B has id {v['id_b']} and needs {unjoined} steps of 20 ms each, so its final result is {final}.",
+             "Case 2 is a file task, printed after the questions."]
+    qs = [question("sure", f"Case 1: is it guaranteed that main prints {final}? (yes/no)", "yesno", "n"),
+          question("low", "Case 1: what is the smallest number main could print for b.result?", "int", [0]),
+          question("joins", f"A program creates {workers} workers and all creations succeed. How many pthread_join calls does it need?", "int", [workers]),
+          question("why", "One sentence: what does main still not know when it reads b.result without joining B?", "text")]
+    after = ["Case 2: make a copy of your program with new step counts, and run it.",
+             '  cd "$OSLAB_WORKSPACE/lab5"',
+             f"  cp threads/two_workers.c threads/{word}.c",
+             f"  Edit threads/{word}.c: in the line  struct job a = ...  give worker A {steps_a} steps and worker B {steps_b} steps (keep the ids).",
+             f"  gcc -Wall -Wextra -pthread threads/{word}.c -o threads/{word}",
+             f"  timeout 5 threads/{word} > checkpoint.txt",
+             "  cat checkpoint.txt",
+             "Then run: oslab check lab5"]
+    return cv, intro, qs, after
+
+
+LAB5_JOB_LINE = re.compile(r"struct job a = \{\s*(\d+)\s*,\s*(\d+)\s*,\s*0\s*\}\s*,\s*b = \{\s*(\d+)\s*,\s*(\d+)\s*,\s*0\s*\}\s*;")
+LAB5_REPORT = re.compile(r"^A result=(-?\d+) B result=(-?\d+)$", re.M)
+LAB5_CHECKED_JOIN = re.compile(r"(=\s*pthread_join\s*\(|if\s*\(\s*(\w+\s*=\s*)?pthread_join\s*\()")
+
+
+def lab5_build(source_text, directory, name):
+    """Compile the student's program in a disposable folder. Returns (built, problems, binary)."""
+    source = directory / f"{name}.c"
+    source.write_text(source_text, encoding="utf-8")
+    binary = directory / name
+    try:
+        done = subprocess.run(["gcc", "-Wall", "-Wextra", "-pthread", str(source), "-o", str(binary)], cwd=str(directory),
+                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+    except FileNotFoundError:
+        return False, ["gcc is not installed on this machine: tell the instructor (the lab has a trace fallback)"], binary
+    except subprocess.TimeoutExpired:
+        return False, ["the compiler took more than 60 seconds"], binary
+    lines = [line.strip() for line in done.stderr.decode("utf-8", "replace").splitlines() if line.strip()]
+    lines = [line.replace(str(directory) + "/", "") for line in lines]
+    if done.returncode:
+        return False, ["it does not compile: " + " | ".join(lines[:3])[:240]], binary
+    if lines:
+        return False, ["the compiler printed a warning (the lab asks for none): " + " | ".join(lines[:2])[:240]], binary
+    return True, [], binary
+
+
+def lab5_run(binary, directory):
+    try:
+        done = subprocess.run([str(binary)], cwd=str(directory), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, timeout=5)
+    except subprocess.TimeoutExpired:
+        return 124, ""
+    return done.returncode, done.stdout.decode("utf-8", "replace")
+
+
+def lab5_trial(source_text, directory, name, ra, rb):
+    """Build and run one version of the program. Returns the problems with its report line."""
+    built, problems, binary = lab5_build(source_text, directory, name)
+    if not built:
+        return problems
+    code, out = lab5_run(binary, directory)
+    lines = out.splitlines()
+    if code:
+        return [f"the program ended with status {code} (124 means it ran for more than 5 seconds)"]
+    reports = LAB5_REPORT.findall(out)
+    if len(reports) != 1:
+        return ["main must print one line  A result=NUMBER B result=NUMBER  (after both joins)"]
+    got = tuple(int(x) for x in reports[0])
+    finished = [i for i, line in enumerate(lines) if re.match(r"^worker \d+ finished$", line)]
+    where = next(i for i, line in enumerate(lines) if LAB5_REPORT.match(line))
+    if got != (ra, rb):
+        hint = "; main read the results before the workers finished: join each worker first" if 0 in got and (ra, rb) != (0, 0) else ""
+        return [f"expected A result={ra} B result={rb}, got A result={got[0]} B result={got[1]}{hint}"]
+    if len(finished) < 2 or where < max(finished):
+        return ["the results are right, but main printed them before both `worker ... finished` lines: it read them too early (by luck)"]
+    return []
+
+
+def check_lab5(target, values, extra):
+    ida, idb, sa, sb = values["id_a"], values["id_b"], values["steps_a"], values["steps_b"]
+    names = [f"two_workers.c builds with -Wall -Wextra -pthread and no warning",
+             f"both workers finish first: main prints `A result={ida * sa} B result={idb * sb}`",
+             "the return code of every pthread_join is checked",
+             f"changed case (A 0 steps, B 1 step): main prints `A result=0 B result={idb}`"]
+    if extra:
+        names.append("checkpoint: your copy builds, prints the right results, and checkpoint.txt holds them")
+    source = target / "threads/two_workers.c"
+    if not source.is_file() or source.is_symlink():
+        return [(name, ["threads/two_workers.c does not exist (or is a link): run `oslab start lab5` to get it back"]) for name in names]
+    text = read_text(source)
+    line = LAB5_JOB_LINE.search(text)
+    if line and tuple(int(x) for x in line.groups()) != (ida, sa, idb, sb):
+        print(f"NOTE: your program has the numbers a = {{{line.group(1)}, {line.group(2)}}} and b = {{{line.group(3)}, {line.group(4)}}}, "
+              f"but your own values are a = {{{ida}, {sa}}} and b = {{{idb}, {sb}}} (oslab values lab5). Put your own numbers in the line "
+              "`struct job a = ...`.")
+    sandbox = Path(tempfile.mkdtemp(prefix=".check-", dir=str(target)))
+    try:
+        built, build_problems, _ = lab5_build(text, sandbox, "w")
+        results = [(names[0], build_problems)]
+        results.append((names[1], build_problems if not built else lab5_trial(text, sandbox, "w", ida * sa, idb * sb)))
+        joins = len(LAB5_CHECKED_JOIN.findall(text))
+        results.append((names[2], [] if joins >= 2 else [f"found {joins} checked pthread_join call(s); each of the two workers needs one, "
+                                                         "written as  rc = pthread_join(...)  or  if (pthread_join(...))"]))
+        match = LAB5_JOB_LINE.search(text)
+        if not match:
+            results.append((names[3], ["keep the line  struct job a = {ID, STEPS, 0}, b = {ID, STEPS, 0};  on one line, as it was"]))
+        else:
+            changed = text[:match.start()] + f"struct job a = {{{match.group(1)}, 0, 0}}, b = {{{match.group(3)}, 1, 0}};" + text[match.end():]
+            results.append((names[3], build_problems if not built else lab5_trial(changed, sandbox, "c", 0, idb)))
+        if extra:
+            ra, rb = extra["ra"], extra["rb"]
+            mine = target / "threads" / f"{extra['name']}.c"
+            problems = []
+            if not mine.is_file():
+                problems.append(f"threads/{extra['name']}.c does not exist: copy your program to that name (Case 2)")
+            else:
+                problems = lab5_trial(read_text(mine), sandbox, "k", ra, rb)
+            line = f"A result={ra} B result={rb}"
+            if line not in read_text(target / "checkpoint.txt"):
+                problems.append(f"checkpoint.txt does not hold the line `{line}`: save the output of your copy there")
+            results.append((names[4], problems))
+    finally:
+        shutil.rmtree(str(sandbox), ignore_errors=True)
+    return results
+
+
+# (file mode, folder mode, can the owner's group list the folder, the policy as a sentence)
+LAB6_POLICIES = (
+    (0o640, 0o750, True, "The owner may change the file. The owner's group may read it and list the folder. Others have no access."),
+    (0o644, 0o711, False, "Everyone may read the file if they know its name, but only the owner may list the folder. Only the owner may change anything."),
+    (0o660, 0o770, True, "The owner and the owner's group may read and change the file and the folder. Others have no access."),
+    (0o600, 0o700, False, "Only the owner may use the file and the folder. Nobody else may read, change, list or enter."),
+)
+LAB6_OWN = 3  # the first three policies are given to students for shared/; the fourth is a checkpoint-only policy
+
+
+def lab6_values(pick):
+    index = pick("policy", LAB6_OWN)
+    return {"notice": LAB6_POLICIES[index][3], "box": "sealed-" + WORDS[pick("box", len(WORDS))], "_policy": index}
+
+
+def lab6_fixture(v):
+    return {"private/record.txt": "student-owned record\n", "shared/notice.txt": "Read-only public notice\n"}
+
+
+def lab6_predict(v):
+    group_list = LAB6_POLICIES[v["_policy"]][2]
+    return [question("list", "A directory has mode 600 (rw-------) and holds a file with mode 600 that you own. Can you list the NAMES in the directory? (yes/no)", "yesno", "y"),
+            question("open", "Can you open that file through the directory? (yes/no)", "yesno", "n"),
+            question("mode", "Type the octal mode (three digits) of a file with the permissions rw-r-----.", "word", "640"),
+            question("group", f"Your notice policy for shared/ is: {v['notice']}  Can the owner's group list the names in shared/? (yes/no)", "yesno", "y" if group_list else "n"),
+            question("why", "One sentence: which permission bit of a directory decides whether you can open a file inside it?", "text")]
+
+
+def lab6_checkpoint(pick, v):
+    others = [i for i in range(len(LAB6_POLICIES)) if i != v["_policy"]]
+    index = others[pick("policy", len(others))]
+    file_mode, dir_mode, group_list, sentence = LAB6_POLICIES[index]
+    folder = "checkpoint-" + WORDS[pick("word", len(WORDS))]
+    cv = {"folder": folder, "file_mode": f"{file_mode:03o}", "dir_mode": f"{dir_mode:03o}"}
+    intro = [f"A new folder {folder}/ will hold one file, data.txt. The policy for both is:", f"    {sentence}",
+             "Answer before you create anything."]
+    qs = [question("file", "Type the octal mode (three digits) of data.txt.", "word", cv["file_mode"]),
+          question("dir", f"Type the octal mode (three digits) of the folder {folder}.", "word", cv["dir_mode"]),
+          question("group", "Can the owner's group list the names in the folder? (yes/no)", "yesno", "y" if group_list else "n"),
+          question("why", "One sentence: why must the folder have an x (search) bit for someone to read data.txt inside it?", "text")]
+    after = ["Now make it for real, with your two answers:",
+             '  cd "$OSLAB_WORKSPACE/lab6"',
+             f"  mkdir {folder}",
+             f"  printf 'checkpoint text\\n' > {folder}/data.txt",
+             f"  chmod YOUR_FILE_MODE {folder}/data.txt     # replace YOUR_FILE_MODE with your answer",
+             f"  chmod YOUR_DIR_MODE {folder}     # replace YOUR_DIR_MODE with your answer",
+             f"  stat -c '%A %a %n' {folder} {folder}/data.txt > checkpoint.txt",
+             "  cat checkpoint.txt",
+             "Then run: oslab check lab6"]
+    return cv, intro, qs, after
+
+
+def lab6_mode_problem(target, rel, want, is_dir, role):
+    """A problem line when `rel` does not have mode `want`, else None."""
+    path = target / rel
+    try:
+        info = os.lstat(str(path))
+    except OSError:
+        return f"{rel} does not exist"
+    if stat.S_ISLNK(info.st_mode):
+        return f"{rel} is a link: use the real file"
+    if stat.S_ISDIR(info.st_mode) != is_dir:
+        return f"{rel} must be a {'folder' if is_dir else 'file'}"
+    mode = stat.S_IMODE(info.st_mode)
+    if mode == want:
+        return None
+    kind = stat.S_IFDIR if is_dir else stat.S_IFREG
+    return (f"{rel} has mode {mode:03o} ({stat.filemode(mode | kind)}) but {role} needs {want:03o} "
+            f"({stat.filemode(want | kind)})")
+
+
+def lab6_listed_modes(text):
+    """From lines in the form of  stat -c '%A %a %U:%G %n'  : {name: octal mode text}."""
+    found = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and re.match(r"^[0-7]{3,4}$", parts[1]):
+            skip = 3 if len(parts) >= 4 and re.match(r"^[\w.-]+:[\w.-]+$", parts[2]) else 2  # owner:group is optional
+            found[" ".join(parts[skip:])] = parts[1]
+    return found
+
+
+def check_lab6(target, values, extra):
+    file_mode, dir_mode, _, _ = LAB6_POLICIES[values["_policy"]]
+    box = values["box"]
+    private = [lab6_mode_problem(target, "private", 0o700, True, "a private folder"),
+               lab6_mode_problem(target, "private/record.txt", 0o600, False, "a private record")]
+    notice = [lab6_mode_problem(target, "shared", dir_mode, True, "your notice policy"),
+              lab6_mode_problem(target, "shared/notice.txt", file_mode, False, "your notice policy")]
+    trace = read_text(target / "evidence/traversal.txt")
+    sealed = [p for p in [lab6_mode_problem(target, f"demo/{box}", 0o700, True, "the restored demo folder")] if p]
+    inside = read_text(target / "demo" / box / "item.txt")
+    if "inside" not in inside:
+        sealed.append(f"demo/{box}/item.txt must hold the line `inside` (see Core 2, step 2)")
+    if "permission denied" not in trace.lower():
+        sealed.append("evidence/traversal.txt has no `Permission denied` line: save the failed read, too (Core 2, step 2)")
+    elif "inside" not in trace:
+        sealed.append("evidence/traversal.txt has no successful read (`inside`) after you restored the mode")
+    listed = lab6_listed_modes(read_text(target / "evidence/policy.txt"))
+    record = []
+    for rel in ("private", "private/record.txt", "shared", "shared/notice.txt"):
+        try:
+            actual = f"{stat.S_IMODE(os.lstat(str(target / rel)).st_mode):03o}"
+        except OSError:
+            continue
+        if listed.get(rel) != actual:
+            record.append(f"evidence/policy.txt must list {rel} with its mode {actual}: run the stat line again after the last chmod (Core 1)"
+                          if rel not in listed else f"evidence/policy.txt shows {listed[rel]} for {rel} but it is {actual} now: run the stat line again")
+    text = read_text(target / "private/record.txt")
+    if not text.startswith("student-owned record"):
+        record.append("private/record.txt lost its first line `student-owned record`; only append to it")
+    if "owner update" not in text:
+        record.append("private/record.txt has no line `owner update`: append it as its owner (Core 2, step 1)")
+    results = [("private/ is 700 and private/record.txt is 600", [p for p in private if p]),
+               (f"shared/ and shared/notice.txt follow your notice policy ({dir_mode:03o} and {file_mode:03o})", [p for p in notice if p]),
+               (f"demo/{box}: the read failed, the mode is back to 700 and the file is read again", sealed),
+               ("evidence/policy.txt lists the four modes as they are now, and the record has your update", record)]
+    if extra:
+        folder = extra["folder"]
+        problems = [p for p in (lab6_mode_problem(target, folder, int(extra["dir_mode"], 8), True, "the checkpoint policy"),
+                                lab6_mode_problem(target, f"{folder}/data.txt", int(extra["file_mode"], 8), False, "the checkpoint policy")) if p]
+        if "checkpoint text" not in read_text(target / folder / "data.txt"):
+            problems.append(f"{folder}/data.txt must hold the line `checkpoint text`")
+        listed = lab6_listed_modes(read_text(target / "checkpoint.txt"))
+        if listed.get(folder) != extra["dir_mode"] or listed.get(f"{folder}/data.txt") != extra["file_mode"]:
+            problems.append("checkpoint.txt must hold the stat line of the folder and of data.txt (run it after the last chmod)")
+        results.append(("checkpoint: the new folder and data.txt have the modes of the policy, and checkpoint.txt shows them", problems))
+    return results
+
+
+LAB7_WORDS = ("alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta")
+LAB7_SKELETON = "#!/usr/bin/env bash\nset -u\n# TODO: loop over quoted arguments, reject missing files, and count words.\n"
+
+
+def lab7_values(pick):
+    """file1 has spaces in its name, file2 starts with a dash. Keys that start with _ are the word counts."""
+    a = pick("a", len(WORDS))
+    b = (a + 1 + pick("b", len(WORDS) - 1)) % len(WORDS)
+    c = (b + 1 + pick("c", len(WORDS) - 1)) % len(WORDS)
+    d = (c + 1 + pick("d", len(WORDS) - 1)) % len(WORDS)
+    parts = 2 + pick("parts", 2)
+    first = " ".join([WORDS[a], WORDS[b], WORDS[c]][:parts]) + ".txt"
+    return {"file1": first, "file2": f"-{WORDS[d]}.txt", "_n1": 2 + pick("n1", 5), "_n2": 1 + pick("n2", 4), "_parts": parts}
+
+
+def lab7_texts(v):
+    return " ".join(LAB7_WORDS[:v["_n1"]]) + "\n", " ".join(LAB7_WORDS[:v["_n2"]]) + "\n"
+
+
+def lab7_fixture(v):
+    first, second = lab7_texts(v)
+    return {f"input/{v['file1']}": first, f"input/{v['file2']}": second, "count_words.sh": LAB7_SKELETON}
+
+
+def lab7_predict(v):
+    return [question("pieces", f"A script receives the file name '{v['file1']}' as ONE argument, but loops over an unquoted $@. Into how many pieces does the loop split that name?", "int", [v["_parts"]]),
+            question("dash", f"You are inside input/ and run  wc -w {v['file2']}  (no --). Does wc count the words of that file? (yes/no)", "yesno", "n"),
+            question("status", "One input file is missing and the next one is fine. Should the script end with status 0? (yes/no)", "yesno", "n"),
+            question("why", "One sentence: why does a leading dash in a file name need  --  before it?", "text")]
+
+
+def lab7_checkpoint(pick, v):
+    word = WORDS[pick("w1", len(WORDS))]
+    other = WORDS[(WORDS.index(word) + 1 + pick("w2", len(WORDS) - 1)) % len(WORDS)]
+    third = WORDS[(WORDS.index(other) + 1 + pick("w3", len(WORDS) - 1)) % len(WORDS)]
+    kinds = ((f"{word}  {other}.txt", 2), (f"-{word} {other}.txt", 2), (f"{word} {other} {third}.txt", 3))
+    name, tokens = kinds[pick("kind", len(kinds))]
+    words = 2 + pick("words", 5)
+    text = " ".join(LAB7_WORDS[:words])
+    cv = {"name": name, "words": words, "text": text}
+    intro = [f"A new input file will be called  '{name}'  (the name is between single quotes; it has no quote in it).",
+             f"Its content is {words} words. Answer before you create it."]
+    qs = [question("tokens", f"You forget the quotes and type  bash count_words.sh input/{name}.  How many arguments does the shell give your script?", "int", [tokens]),
+          question("words", "How many words should your script report for the new file?", "int", [words]),
+          question("status", "Two files are given: the first is missing and the second is fine. Should the final status be 0? (yes/no)", "yesno", "n"),
+          question("why", "One sentence: why do you write \"$file\" with double quotes in the script, and not $file?", "text")]
+    after = ["Now make the file and run your own script on it, in your lab7 folder:",
+             '  cd "$OSLAB_WORKSPACE/lab7"',
+             f"  printf '%s\\n' '{text}' > 'input/{name}'",
+             f"  bash count_words.sh 'input/{name}' > checkpoint.txt",
+             "  cat checkpoint.txt",
+             "Then run: oslab check lab7"]
+    return cv, intro, qs, after
+
+
+def lab7_run(script, arguments, cwd, direct=False):
+    """Run the student's script on test files. Returns (status, stdout, stderr)."""
+    command = ([str(script)] if direct else ["bash", str(script)]) + list(arguments)
+    try:
+        done = subprocess.run(command, cwd=str(cwd), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, timeout=10)
+    except subprocess.TimeoutExpired:
+        return 124, "", "the script ran for more than 10 seconds"
+    except OSError as exc:
+        return 126, "", str(exc)
+    return done.returncode, done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")
+
+
+def lab7_line_problem(out, name, count):
+    """A problem line unless some output line holds the file name and its word count."""
+    lines = [line for line in out.splitlines() if name in line]
+    if not lines:
+        return f"no output line holds the file name `{name}`: print the name, intact, with its count"
+    if not any(re.search(rf"(?<!\d){count}(?!\d)", line) for line in lines):
+        return f"the line for `{name}` must show {count} words; it says: {lines[0][:60]!r}"
+    return None
+
+
+def check_lab7(target, values, extra):
+    first, second = values["file1"], values["file2"]
+    n1, n2 = values["_n1"], values["_n2"]
+    names = [f"count_words.sh runs directly (./count_words.sh) on `{first}` and reports {n1} words",
+             f"two files at once: `{first}` ({n1}) and `{second}` ({n2}), names intact",
+             f"run inside input/: `{second}` (a leading dash) is counted, not read as an option",
+             "no argument: usage on stderr; a missing file: message on stderr, the next file is still counted, final status not 0"]
+    if extra:
+        names.append("checkpoint: the new file is counted by your script, and checkpoint.txt holds the line")
+    script = target / "count_words.sh"
+    if not script.is_file() or script.is_symlink():
+        return [(name, ["count_words.sh does not exist (or is a link): write it in Core 1"]) for name in names]
+    sandbox = Path(tempfile.mkdtemp(prefix=".check-", dir=str(target)))
+    try:
+        shutil.copy2(str(script), str(sandbox / "count_words.sh"))
+        (sandbox / "input").mkdir()
+        text1, text2 = lab7_texts(values)
+        (sandbox / "input" / first).write_text(text1, encoding="utf-8")
+        (sandbox / "input" / second).write_text(text2, encoding="utf-8")
+        mine = sandbox / "count_words.sh"
+        results = []
+        problems = []
+        if not os.access(str(mine), os.X_OK):
+            problems.append("the script is not executable by its owner: run `chmod u+x count_words.sh`")
+        else:
+            code, out, err = lab7_run("./count_words.sh", [f"input/{first}"], sandbox, direct=True)
+            problems += [f"status {code}, expected 0" + (f"; message: {err.strip()[:80]}" if err.strip() else "")] if code else []
+            problems += [p for p in [lab7_line_problem(out, first, n1)] if p]
+        results.append((names[0], problems))
+        code, out, err = lab7_run(mine, [f"input/{first}", f"input/{second}"], sandbox)
+        problems = ([f"status {code}, expected 0" + (f"; message: {err.strip()[:80]}" if err.strip() else "")] if code else [])
+        problems += [p for p in [lab7_line_problem(out, first, n1), lab7_line_problem(out, second, n2)] if p]
+        results.append((names[1], problems))
+        code, out, err = lab7_run("../count_words.sh", [second], sandbox / "input")
+        problems = ([f"status {code}, expected 0: put `--` before the file operand of wc, and quote it" + (f" ({err.strip()[:70]})" if err.strip() else "")] if code else [])
+        problems += [p for p in [lab7_line_problem(out, second, n2)] if p]
+        results.append((names[2], problems))
+        problems = []
+        code, out, err = lab7_run(mine, [], sandbox)
+        if code == 0:
+            problems.append("with no argument the script must end with a status other than 0")
+        if not err.strip():
+            problems.append("with no argument, print a usage message to stderr (>&2)")
+        code, out, err = lab7_run(mine, ["missing.txt", f"input/{first}"], sandbox)
+        if code == 0:
+            problems.append("a missing file must make the final status other than 0")
+        if not err.strip():
+            problems.append("a missing file needs a message on stderr (>&2)")
+        problem = lab7_line_problem(out, first, n1)
+        if problem:
+            problems.append("after the missing file, the next file must still be counted: " + problem)
+        results.append((names[3], problems))
+        if extra:
+            (sandbox / "input" / extra["name"]).write_text(extra["text"] + "\n", encoding="utf-8")
+            code, out, err = lab7_run(mine, [f"input/{extra['name']}"], sandbox)
+            problems = ([f"status {code}, expected 0" + (f"; message: {err.strip()[:80]}" if err.strip() else "")] if code else [])
+            problems += [p for p in [lab7_line_problem(out, extra["name"], extra["words"])] if p]
+            if read_text(target / "input" / extra["name"]).split() != extra["text"].split():
+                problems.append(f"input/{extra['name']} must hold the {extra['words']} words printed by oslab checkpoint lab7")
+            problem = lab7_line_problem(read_text(target / "checkpoint.txt"), extra["name"], extra["words"])
+            if problem:
+                problems.append("checkpoint.txt: " + problem)
+            results.append((names[4], problems))
+    finally:
+        shutil.rmtree(str(sandbox), ignore_errors=True)
+    return results
+
+
+LAB9_RESOURCES = ("amber", "birch", "cedar", "dune", "ember", "frost", "grove", "haze")
+LAB9_WORKER = r'''#!/usr/bin/env bash
+set -euo pipefail
+[[ $# -eq 2 && "$1" =~ ^(A|B)$ && "$2" =~ ^(opposite|ordered)$ ]] || { echo 'usage: worker.sh A|B opposite|ordered' >&2; exit 2; }
+role=$1
+mode=$2
+vault=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+res1=@R1@
+res2=@R2@
+mkdir -p "$vault/coord"
+# Worker A takes @AF@ first and @AS@ second. Worker B takes them the other way round.
+first=@FIRST@; second=@SECOND@
+# TODO: in ordered mode, every worker must use one global order.
+if [[ "$role" = B ]]; then tmp=$first; first=$second; second=$tmp; fi
+exec 8>"$vault/$first.lock"
+flock -x -w 2 8 || { echo "$role first lock timeout"; exit 3; }
+printf '%s holds %s\n' "$role" "$first"
+sleep "${HOLD:-0}"   # teaching delay after the first lock; keep this line
+if [[ "$mode" = opposite ]]; then
+    touch "$vault/coord/$role.ready"
+    other=B
+    [[ "$role" = B ]] && other=A
+    for step in {1..30}; do
+        [[ -f "$vault/coord/$other.ready" ]] && break
+        sleep 0.1
+    done
+    [[ -f "$vault/coord/$other.ready" ]] || { echo 'barrier timeout'; exit 4; }
+fi
+exec 9>"$vault/$second.lock"
+printf '%s requests %s\n' "$role" "$second"
+flock -x -w 2 9 || { echo "$role second lock timeout"; exit 5; }
+printf '%s holds both\n' "$role"
+'''
+LAB9_OLD_WORKER = "#!/usr/bin/env bash\nset -euo pipefail\n# TODO: acquire two owned lock files with flock -w 2; log each acquisition.\n"
+
+
+def lab9_values(pick):
+    one = pick("res1", len(LAB9_RESOURCES))
+    two = (one + 1 + pick("res2", len(LAB9_RESOURCES) - 1)) % len(LAB9_RESOURCES)
+    return {"res1": LAB9_RESOURCES[one], "res2": LAB9_RESOURCES[two], "a_first": LAB9_RESOURCES[(one, two)[pick("a_first", 2)]]}
+
+
+def lab9_worker(v):
+    first, second = ("$res1", "$res2") if v["a_first"] == v["res1"] else ("$res2", "$res1")
+    second_name = v["res2"] if v["a_first"] == v["res1"] else v["res1"]
+    return (LAB9_WORKER.replace("@R1@", v["res1"]).replace("@R2@", v["res2"]).replace("@AF@", v["a_first"])
+            .replace("@AS@", second_name).replace("@FIRST@", first).replace("@SECOND@", second))
+
+
+def lab9_fixture(v):
+    return {f"vault/{v['res1']}.txt": f"{v['res1']}\n", f"vault/{v['res2']}.txt": f"{v['res2']}\n", "vault/worker.sh": lab9_worker(v)}
+
+
+def lab9_predict(v):
+    a_first = v["a_first"]
+    a_second = v["res2"] if a_first == v["res1"] else v["res1"]
+    return [question("stuck", f"Worker A holds {a_first} and requests {a_second}. Worker B holds {a_second} and requests {a_first}. Can either one get its second lock before the other releases something? (yes/no)", "yesno", "n"),
+            question("edges", "How many wait edges (a worker waiting for a lock that the other holds) does this picture have?", "int", [2]),
+            question("timeout", "Each worker waits at most 2 seconds (flock -w 2). Does that timeout PREVENT the deadlock? (yes/no)", "yesno", "n"),
+            question("order", f"Now both workers always take {v['res1']} first and {v['res2']} second. Can they still wait for each other forever? (yes/no)", "yesno", "n"),
+            question("why", "One sentence: why does one global lock order remove the circular wait?", "text")]
+
+
+def lab9_checkpoint(pick, v):
+    names = list(LAB9_RESOURCES)
+    x = names.pop(pick("x", len(names)))
+    y = names.pop(pick("y", len(names)))
+    z = names.pop(pick("z", len(names)))
+    cv = {"x": x, "y": y, "z": z}
+    intro = [f"A third worker C joins. Three workers each need two of the locks {x}, {y} and {z}:",
+             f"    A holds {x} and requests {y}",
+             f"    B holds {y} and requests {z}",
+             f"    C holds {z} and requests {x}",
+             "Answer before you do the file task."]
+    qs = [question("cycle", "Can all three workers be stuck at the same time? (yes/no)", "yesno", "y"),
+          question("wrong", f"You choose the global order {x}, then {y}, then {z}. Which worker (type A, B or C) lists its two locks in the wrong order?", "word", "C"),
+          question("after", "If all three workers follow that global order, how many of them can wait forever in a cycle?", "int", [0]),
+          question("why", "One sentence: does your order rule still work when a third worker joins? Why?", "text")]
+    after = ["Now test that your ordering rule does not depend on the names. Use YOUR worker script with two new names:",
+             '  cd "$OSLAB_WORKSPACE/lab9"',
+             "  cp vault/worker.sh vault/third.sh",
+             f"  Edit vault/third.sh: change ONLY the two lines at its top to  res1={x}  and  res2={y}",
+             "  timeout 6 bash vault/third.sh A ordered > evidence/cp-a.txt 2>&1 &",
+             "  timeout 6 bash vault/third.sh B ordered > evidence/cp-b.txt 2>&1 &",
+             "  wait",
+             "  cat evidence/cp-a.txt evidence/cp-b.txt | tee checkpoint.txt",
+             "Then run: oslab check lab9"]
+    return cv, intro, qs, after
+
+
+def lab9_pair(script, mode, hold, cwd):
+    """Start worker A and worker B of the student's script together. Returns {role: (status, output)}."""
+    folder = Path(cwd)
+    for marker_file in (folder / "coord").glob("*.ready") if (folder / "coord").is_dir() else ():
+        marker_file.unlink()
+    env = dict(os.environ, HOLD=str(hold))
+    processes = {role: subprocess.Popen(["bash", str(script), role, mode], cwd=str(folder), env=env,
+                                        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                 for role in ("A", "B")}
+    result = {}
+    for role, process in processes.items():
+        try:
+            out, _ = process.communicate(timeout=8)
+            code = process.returncode
+        except subprocess.TimeoutExpired:
+            process.kill()
+            out, _ = process.communicate()
+            code = 124
+        result[role] = (code, out.decode("utf-8", "replace"))
+    return result
+
+
+def lab9_ordered_problems(result):
+    """Problems when the two workers did not both finish in ordered mode."""
+    problems = []
+    for role, (code, out) in result.items():
+        if code == 5:
+            problems.append(f"worker {role} timed out on its second lock: the workers still take the two locks in different orders")
+        elif code == 124:
+            problems.append(f"worker {role} ran for more than 8 seconds")
+        elif code:
+            problems.append(f"worker {role} ended with status {code}: {out.strip()[:80]!r}")
+        elif f"{role} holds both" not in out:
+            problems.append(f"worker {role} did not print `{role} holds both`")
+    return problems
+
+
+def check_lab9(target, values, extra):
+    res1, res2 = values["res1"], values["res2"]
+    names = ["opposite mode: both workers hold their first lock and at least one times out on the second (status 5)",
+             "ordered mode: both workers finish with status 0 and print `holds both`",
+             "your ordering rule does not depend on the names: it also works with two other resource names",
+             "evidence/opposite.txt shows the conflict and evidence/ordered.txt shows both workers finishing"]
+    if extra:
+        names.append("checkpoint: your script works with the checkpoint's names, and checkpoint.txt shows both workers")
+    script = target / "vault/worker.sh"
+    if not script.is_file() or script.is_symlink():
+        return [(name, ["vault/worker.sh does not exist (or is a link): run `oslab start lab9` or `oslab reset lab9`"]) for name in names]
+    text = read_text(script)
+    sandbox = Path(tempfile.mkdtemp(prefix=".check-", dir=str(target)))
+    try:
+        def fresh(name, content):
+            folder = sandbox / name
+            folder.mkdir()
+            (folder / "worker.sh").write_text(content, encoding="utf-8")
+            return folder / "worker.sh", folder
+        mine, folder = fresh("v1", text)
+        result = lab9_pair(mine, "opposite", 0, folder)
+        problems = []
+        if not any(code == 5 for code, _ in result.values()):
+            problems.append("no worker timed out on its second lock: in opposite mode worker A and worker B must take the two locks "
+                            "in opposite orders (and the barrier must stay)")
+        for role, (code, out) in result.items():
+            if "holds" not in out and code not in (0, 5):
+                problems.append(f"worker {role} ended with status {code} before it held a lock: {out.strip()[:80]!r}")
+        results = [(names[0], problems)]
+        mine, folder = fresh("v2", text)
+        ordered_problems = lab9_ordered_problems(lab9_pair(mine, "ordered", 0.6, folder))
+        results.append((names[1], ordered_problems))
+        one, two = re.search(r"^res1=\S*$", text, re.M), re.search(r"^res2=\S*$", text, re.M)
+        if ordered_problems:
+            results.append((names[2], ["fix the ordered mode first (the milestone above)"]))
+        elif not one or not two:
+            results.append((names[2], ["keep the two lines  res1=...  and  res2=...  at the top of the script, as they were (oslab reset lab9 restores them)"]))
+        else:
+            renamed = re.sub(r"^res1=\S*$", "res1=quartz", re.sub(r"^res2=\S*$", "res2=rubble", text, flags=re.M), flags=re.M)
+            mine, folder = fresh("v3", renamed)
+            problems = lab9_ordered_problems(lab9_pair(mine, "ordered", 0.6, folder))
+            if problems:
+                problems.append(f"with other lock names the workers wait for each other again: your rule must not depend on the names {res1} and {res2}")
+            results.append((names[2], problems))
+        opposite, ordered = read_text(target / "evidence/opposite.txt"), read_text(target / "evidence/ordered.txt")
+        problems = []
+        if not re.search(r"^opposite A=\d+ B=\d+", opposite, re.M) or ("second lock timeout" not in opposite and not re.search(r"=5\b", opposite)):
+            problems.append("evidence/opposite.txt must start with `opposite A=.. B=..` and show the timeout of a worker (Levels 2-3, step 3)")
+        if not re.search(r"^ordered A=0 B=0", ordered, re.M) or ordered.count("holds both") < 2:
+            problems.append("evidence/ordered.txt must start with `ordered A=0 B=0` and show `holds both` twice (Levels 5-6, step 2)")
+        results.append((names[3], problems))
+        if extra:
+            third = read_text(target / "vault/third.sh")
+            problems = []
+            if not third:
+                problems.append("vault/third.sh does not exist: copy your worker.sh to that name (checkpoint task)")
+            elif not re.search(rf"^res1={extra['x']}$", third, re.M) or not re.search(rf"^res2={extra['y']}$", third, re.M):
+                problems.append(f"in vault/third.sh the two lines must read  res1={extra['x']}  and  res2={extra['y']}")
+            else:
+                mine, folder = fresh("v5", third)
+                problems += lab9_ordered_problems(lab9_pair(mine, "ordered", 0.6, folder))
+            saved = read_text(target / "checkpoint.txt")
+            if saved.count("holds both") < 2 or extra["x"] not in saved:
+                problems.append(f"checkpoint.txt must show both workers with `holds both` and the new lock names ({extra['x']}, {extra['y']})")
+            results.append((names[4], problems))
+    finally:
+        shutil.rmtree(str(sandbox), ignore_errors=True)
+    return results
+
+
+LAB10_NAMES = ("nightly", "daily", "weekly", "vault", "records", "report", "archive", "memo")
+LAB10_SCRIPT = r'''#!/usr/bin/env bash
+set -euo pipefail
+keep=@KEEP@
+name=@NAME@
+work=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+mkdir -p "$work/backups"
+stamp=$(date -u +%Y%m%dT%H%M%S%N)
+final="$work/backups/$name-$stamp-$$.tar.gz"
+pending=$(mktemp "$work/backups/.pending-XXXXXX")
+trap 'rm -f -- "$pending"' EXIT
+tar -czf "$pending" -C "$work" project
+tar -tzf "$pending" >/dev/null
+mv -- "$pending" "$final"
+# TODO: retain only the newest $keep completed $name-*.tar.gz files.
+printf 'created %s\n' "$final"
+'''
+LAB10_OLD_SCRIPT = "#!/usr/bin/env bash\nset -euo pipefail\n# TODO: archive project with absolute paths, verify it, retain newest three owned archives.\n"
+LAB10_PROJECT = {"project/report.txt": "report v1\n", "project/config.ini": "mode=practice\n"}
+
+
+def lab10_values(pick):
+    return {"keep": 2 + pick("keep", 4), "name": LAB10_NAMES[pick("name", len(LAB10_NAMES))]}
+
+
+def lab10_fixture(v):
+    return dict(LAB10_PROJECT, **{"backup.sh": LAB10_SCRIPT.replace("@KEEP@", str(v["keep"])).replace("@NAME@", v["name"])})
+
+
+def lab10_pattern(name):
+    return re.compile(rf"^{re.escape(name)}-[0-9]{{8}}T[0-9]{{15}}-[0-9]+\.tar\.gz$")
+
+
+def lab10_predict(v):
+    keep, name = v["keep"], v["name"]
+    return [question("assume", "A cron entry runs backup.sh with its full path, from another directory and with almost no environment. Must it work just because it worked in your shell? (yes/no)", "yesno", "n"),
+            question("count", f"Your finished script keeps {keep} archives. You run it {keep + 3} times in a row. How many archives named {name}-... remain in backups/?", "int", [keep]),
+            question("which", "Which ones remain: the oldest or the newest? (type oldest or newest)", "word", "newest"),
+            question("unrelated", f"backups/ also holds keep-me.txt and a file called {name}-notes.tar.gz. Does your script delete either of them? (yes/no)", "yesno", "n"),
+            question("why", "One sentence: why do the names of the archives let you find the oldest one?", "text")]
+
+
+def lab10_checkpoint(pick, v):
+    keep = 2 + pick("keep", 4)
+    if keep == v["keep"]:
+        keep = 2 + (keep - 1) % 4
+    runs = keep + 2
+    cv = {"keep": keep, "runs": runs}
+    name = v["name"]
+    intro = [f"New rule: keep only the newest {keep} archives. You run the script {runs} times in a row.",
+             "Answer before you change anything."]
+    qs = [question("left", f"How many archives named {name}-... remain after the {runs} runs?", "int", [keep]),
+          question("gone", "Which archive is removed first: the oldest or the newest? (type oldest or newest)", "word", "oldest"),
+          question("notes", f"backups/ holds a file called {name}-notes.tar.gz. Must the script delete it? (yes/no)", "yesno", "n"),
+          question("why", "One sentence: what must your script contain so that this rule needs a change in only one place?", "text")]
+    after = ["Now test it on a copy of YOUR script, in your lab10 folder:",
+             '  cd "$OSLAB_WORKSPACE/lab10"',
+             "  cp backup.sh backup-cp.sh",
+             f"  Edit backup-cp.sh: change only the line  keep=...  to  keep={keep}",
+             f"  for i in $(seq 1 {runs}); do bash backup-cp.sh; done",
+             "  ls backups > checkpoint.txt",
+             "  cat checkpoint.txt",
+             "Then run: oslab check lab10"]
+    return cv, intro, qs, after
+
+
+def lab10_sandbox(parent, script_text, mode, script_name="backup.sh"):
+    """A disposable lab folder: the student's script, the project, and files in backups/ that must survive."""
+    folder = Path(tempfile.mkdtemp(prefix="run-", dir=str(parent)))
+    (folder / script_name).write_text(script_text, encoding="utf-8")
+    os.chmod(str(folder / script_name), mode)
+    for rel, text in LAB10_PROJECT.items():
+        (folder / rel).parent.mkdir(exist_ok=True)
+        (folder / rel).write_text(text, encoding="utf-8")
+    (folder / "backups").mkdir()
+    return folder
+
+
+def lab10_run(command, cwd, env=None):
+    try:
+        done = subprocess.run(command, cwd=str(cwd), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, timeout=20)
+    except subprocess.TimeoutExpired:
+        return 124, "the script ran for more than 20 seconds"
+    return done.returncode, done.stderr.decode("utf-8", "replace").strip()[:100]
+
+
+def lab10_archives(folder, name):
+    pattern = lab10_pattern(name)
+    return sorted(p.name for p in (folder / "backups").iterdir() if p.is_file() and not p.is_symlink() and pattern.match(p.name))
+
+
+def lab10_series(script_name, folder, name, keep, runs):
+    """Run the script `runs` times. Returns (problems, archives still there)."""
+    seen, problems = set(), []
+    for number in range(runs):
+        code, err = lab10_run(["bash", str(folder / script_name)], folder)
+        if code:
+            return [f"run {number + 1} ended with status {code}" + (f": {err}" if err else "")], []
+        seen |= set(lab10_archives(folder, name))
+    left = lab10_archives(folder, name)
+    wanted = sorted(seen)[-keep:]
+    if len(left) != keep:
+        problems.append(f"{len(left)} archive(s) named {name}-... remain after {runs} runs, expected {keep}"
+                        + (f" (does your pattern also match {name}-notes.tar.gz?)" if len(left) < keep else " (is anything deleted?)"))
+    elif left != wanted:
+        problems.append("the archives that remain are not the newest ones: sort the names and remove from the oldest end")
+    return problems, left
+
+
+def check_lab10(target, values, extra):
+    keep, name = values["keep"], values["name"]
+    names = [f"one run makes a complete archive {name}-STAMP-PID.tar.gz that restores (file listing and bytes)",
+             f"retention: after {keep + 2} runs exactly the {keep} newest {name}-... archives remain",
+             f"files that are not yours stay: keep-me.txt and {name}-notes.tar.gz are untouched",
+             "restricted environment: run from another folder with env -i and PATH=/usr/bin:/bin, the script still works"]
+    if extra:
+        names.append(f"checkpoint: your copy with keep={extra['keep']} leaves {extra['keep']} archives, and checkpoint.txt lists them")
+    script = target / "backup.sh"
+    if not script.is_file() or script.is_symlink():
+        return [(n, ["backup.sh does not exist (or is a link): run `oslab start lab10` or write it in Core 1"]) for n in names]
+    text = read_text(script)
+    mode = stat.S_IMODE(os.lstat(str(script)).st_mode) | stat.S_IRUSR
+    sandbox = Path(tempfile.mkdtemp(prefix=".check-", dir=str(target)))
+    try:
+        # 1: one run, then restore
+        folder = lab10_sandbox(sandbox, text, mode)
+        code, err = lab10_run(["bash", str(folder / "backup.sh")], folder)
+        problems = []
+        archives = lab10_archives(folder, name)
+        if code:
+            problems.append(f"the first run ended with status {code}" + (f": {err}" if err else ""))
+        elif len(archives) != 1:
+            problems.append(f"expected one archive named {name}-STAMP-PID.tar.gz in backups/, found {len(archives)}"
+                            + (" (the old name `backup-` is not yours: use `name` from oslab values lab10)" if list((folder / "backups").glob("backup-*")) and not archives else ""))
+        else:
+            archive = folder / "backups" / archives[0]
+            listed = subprocess.run(["tar", "-tzf", str(archive)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            code, listing = listed.returncode, listed.stdout.decode("utf-8", "replace")
+            if code or "project/report.txt" not in listing or "project/config.ini" not in listing:
+                problems.append("the archive must list project/report.txt and project/config.ini (use tar -C so the member names start with project/)")
+            else:
+                restore = folder / "restored"
+                restore.mkdir()
+                subprocess.run(["tar", "-xzf", str(archive), "-C", str(restore)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                for rel, text_ in LAB10_PROJECT.items():
+                    if read_text(restore / rel) != text_:
+                        problems.append(f"{rel} does not come back with the same bytes after restoring")
+            if list((folder / "backups").glob(".pending-*")):
+                problems.append("a .pending-... file is left in backups/: only complete archives may stay")
+        results = [(names[0], problems)]
+        # 2 and 3: retention and files that are not yours
+        folder = lab10_sandbox(sandbox, text, mode)
+        (folder / "backups" / "keep-me.txt").write_text("unrelated; preserve me\n", encoding="utf-8")
+        (folder / "backups" / f"{name}-notes.tar.gz").write_text("not an archive made by the script\n", encoding="utf-8")
+        problems, _ = lab10_series("backup.sh", folder, name, keep, keep + 2)
+        results.append((names[1], problems))
+        survivors = ["write the retention first (the milestone above): files that are not yours can only be tested "
+                     "when your script really deletes old archives"] if problems else []
+        for fixed, expected in (("keep-me.txt", "unrelated; preserve me\n"), (f"{name}-notes.tar.gz", "not an archive made by the script\n")):
+            if read_text(folder / "backups" / fixed) != expected:
+                survivors.append(f"backups/{fixed} was deleted or changed: remove only files that match the exact names made by this script")
+        results.append((names[2], survivors))
+        # 4: restricted environment, other working directory
+        folder = lab10_sandbox(sandbox, text, mode)
+        elsewhere = sandbox / "elsewhere"
+        elsewhere.mkdir(exist_ok=True)
+        code, err = lab10_run(["env", "-i", f"HOME={target}", "PATH=/usr/bin:/bin", "/bin/bash", str(folder / "backup.sh")], elsewhere)
+        problems = []
+        if code:
+            problems.append(f"with env -i the script ended with status {code}" + (f": {err}" if err else "") + ". Find the program or the folder it expects")
+        elif len(lab10_archives(folder, name)) != 1:
+            problems.append("with env -i no archive appeared in the script's own backups/ folder")
+        results.append((names[3], problems))
+        if extra:
+            wanted = extra["keep"]
+            mine = target / "backup-cp.sh"
+            problems = []
+            if not mine.is_file():
+                problems.append("backup-cp.sh does not exist: copy backup.sh to that name (checkpoint task)")
+            else:
+                copy_text = read_text(mine)
+                if not re.search(rf"^keep={wanted}\s*$", copy_text, re.M):
+                    problems.append(f"in backup-cp.sh the line must read  keep={wanted}")
+                folder = lab10_sandbox(sandbox, copy_text, mode, "backup-cp.sh")
+                (folder / "backups" / f"{name}-notes.tar.gz").write_text("not an archive made by the script\n", encoding="utf-8")
+                found, _ = lab10_series("backup-cp.sh", folder, name, wanted, extra["runs"])
+                problems += found
+            listed = [line for line in read_text(target / "checkpoint.txt").splitlines() if lab10_pattern(name).match(line.strip())]
+            if len(listed) != wanted:
+                problems.append(f"checkpoint.txt must list the {wanted} archives that remain in backups/ (found {len(listed)})")
+            results.append((names[4], problems))
+    finally:
+        shutil.rmtree(str(sandbox), ignore_errors=True)
+    return results
+
+
 def lab8_values(pick):
     # Each buyer alone fits in the stock; together they never do (stock >= 7, each wants stock-3 or more).
     stock = 7 + pick("stock", 8)
@@ -310,9 +1301,10 @@ def lab8_checkpoint(pick, v):
     return cv, intro, qs, after
 
 
-VALUES = {"lab1": lab1_values, "lab2": lab2_values, "lab3": lambda pick: {}, "lab8": lab8_values}
-PREDICT = {"lab1": lab1_predict, "lab2": lab2_predict, "lab3": lab3_predict, "lab8": lab8_predict}
-CHECKPOINT = {"lab1": lab1_checkpoint, "lab2": lab2_checkpoint, "lab3": lab3_checkpoint, "lab8": lab8_checkpoint}
+VALUES = {"lab1": lab1_values, "lab2": lab2_values, "lab3": lambda pick: {}, "lab4": lab4_values, "lab5": lab5_values, "lab6": lab6_values, "lab7": lab7_values, "lab9": lab9_values, "lab10": lab10_values, "lab8": lab8_values}
+PREDICT = {"lab1": lab1_predict, "lab2": lab2_predict, "lab3": lab3_predict, "lab4": lab4_predict, "lab5": lab5_predict, "lab6": lab6_predict, "lab7": lab7_predict, "lab9": lab9_predict, "lab10": lab10_predict, "lab8": lab8_predict}
+CHECKPOINT = {"lab1": lab1_checkpoint, "lab2": lab2_checkpoint, "lab3": lab3_checkpoint, "lab4": lab4_checkpoint,
+              "lab5": lab5_checkpoint, "lab6": lab6_checkpoint, "lab7": lab7_checkpoint, "lab9": lab9_checkpoint, "lab10": lab10_checkpoint, "lab8": lab8_checkpoint}
 
 
 def lab_values(lab, user):
@@ -511,8 +1503,15 @@ def safe_tree(path, root=None):
     if path.is_dir():
         if os.path.ismount(path):
             fail(f"unmount before managing this directory: {path}")
-        for child in path.iterdir():
-            safe_tree(child, root)
+        try:
+            children = list(path.iterdir())
+        except PermissionError:
+            return  # a folder the student made unreadable on purpose (Lab 6); nothing there can be followed
+        for child in children:
+            try:
+                safe_tree(child, root)
+            except PermissionError:
+                continue  # inside a folder without search permission
     elif path.exists() and not path.is_file():
         fail(f"special file is not managed: {path}")
 
@@ -589,7 +1588,45 @@ def show_values(lab):
         return
     print(f"Your personal values for {lab} ({current_user()}):")
     for key, value in values.items():
-        print(f"  {key:8} = {value}")
+        if not key.startswith("_"):  # keys that start with _ build your files; they are not for you to read
+            print(f"  {key:8} = {value}")
+
+
+# Fixture files whose content changed when a lab got personal values. A workspace started before the change
+# still holds the old content; `oslab start` replaces such a file only while it is exactly the old content.
+LEGACY_FIXTURES = {
+    "lab4": {"data/events.csv": "status,count\nok,3\nfail,2\nok,5\n", "data/expected.txt": "ok total: 8\n"},
+    "lab7": {"input/one file.txt": "alpha beta\n", "input/-dash.txt": "gamma\n"},
+    "lab9": {"vault/alpha.txt": "alpha\n", "vault/beta.txt": "beta\n", "vault/worker.sh": LAB9_OLD_WORKER},
+    "lab10": {"backup.sh": LAB10_OLD_SCRIPT},
+}
+# Fixture files that workspaces started before the change do not have at all (names, or a function of the new files).
+NEW_FIXTURES = {"lab5": lambda files: ("threads/two_workers.c",),
+                "lab7": lambda files: [name for name in files if name.startswith("input/")],
+                "lab9": lambda files: [name for name in files if name.startswith("vault/")]}
+
+
+def refresh_fixtures(target, lab):
+    """Bring an older workspace up to date without touching anything the student changed."""
+    files = FIXTURES[lab]
+    if callable(files):
+        files = files(lab_values(lab, current_user()))
+    for name, old in LEGACY_FIXTURES.get(lab, {}).items():
+        dest = target / name
+        if not (dest.is_file() and not dest.is_symlink() and read_text(dest) == old):
+            continue  # missing, or the student changed it: leave it alone
+        if name not in files:
+            dest.unlink()
+            print(f"{lab}: {name} was an old shared file and is removed; your own files are added")
+        elif files[name] != old:
+            dest.write_text(files[name], encoding="utf-8")
+            print(f"{lab}: {name} was the old shared file; it is now your own version")
+    for name in NEW_FIXTURES.get(lab, lambda files: ())(files):
+        dest = target / name
+        if not dest.exists() and not dest.is_symlink():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(files[name], encoding="utf-8")
+            print(f"{lab}: added {name}")
 
 
 def start(base, lab):
@@ -598,6 +1635,7 @@ def start(base, lab):
     if target.exists():
         safe_tree(target)
         marker(target, lab)
+        refresh_fixtures(target, lab)
         print(f"{lab}: existing work preserved at {target}")
         submit(lab, "start", {})
         return
@@ -1052,7 +2090,86 @@ def check_lab3(target, values, extra=None):
     return results
 
 
-CHECKS = {"lab1": check_lab1, "lab2": check_lab2, "lab3": check_lab3, "lab8": check_lab8}
+def run_report(script, arguments, cwd):
+    """Run the student's own script on a small input, with a time limit. Returns (status, stdout, stderr)."""
+    try:
+        done = subprocess.run(["bash", str(script), *arguments], cwd=str(cwd), stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+    except subprocess.TimeoutExpired:
+        return 124, "", "the script ran for more than 10 seconds"
+    except OSError as exc:
+        return 127, "", str(exc)
+    return done.returncode, done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")
+
+
+def check_lab4(target, values, extra):
+    if read_text(target / "data/events.csv") == LEGACY_FIXTURES["lab4"]["data/events.csv"]:
+        print("NOTE: data/events.csv is the old shared file from before the update. Run `oslab start lab4` to get your own, "
+              "then use your status word (oslab values lab4) in report.sh.")
+    source = target / "report.sh"
+    if not source.is_file() or source.is_symlink():
+        problem = ["report.sh does not exist in the lab4 folder (or is a link): write it in Core 1"]
+        status = values["status"]
+        names = [f"report.sh prints `{status} total: TOTAL` for your own events.csv", f"no row has your status: it prints `{status} total: 0`",
+                 f"extra records and a look-alike ({status}-late): the total is still right",
+                 "a missing input: a message on standard error and a status other than 0"]
+        if extra:
+            names.append("checkpoint: report.sh is right on the new file and checkpoint.txt holds its output")
+        return [(name, problem) for name in names]
+    status, other = values["status"], values["other"]
+    label = f"{status} total: "
+    sandbox = Path(tempfile.mkdtemp(prefix=".check-", dir=str(target)))
+
+    def trial(rows, name="in.csv"):
+        (sandbox / name).write_text(lab4_csv(rows), encoding="utf-8")
+        code, out, err = run_report(sandbox / "report.sh", [name], sandbox)
+        total = lab4_total(rows, status)
+        selected = [count for n, count in rows if n == status]
+        if code:
+            return [f"exit status {code}, expected 0" + (f"; message: {err.strip()[:100]}" if err.strip() else "")]
+        if out == f"{label}{total}\n":
+            return []
+        if len(out.splitlines()) != 1:
+            return [f"it must print exactly one line, `{label}{total}`; it printed {len(out.splitlines())} line(s): {out.strip()[:60]!r}"]
+        problems = [f"expected `{label}{total}`, got `{out.strip()[:60]}`"]
+        if out.strip() == f"{label}{len(selected)}":
+            problems.append("that is the number of matching rows; add up field 2 instead")
+        elif selected and out.strip() == f"{label}{selected[0]}":
+            problems.append("that is only the first matching record; add up every one")
+        elif out.strip() == f"{label}{total + sum(count for n, count in rows if n.startswith(status) and n != status)}":
+            problems.append(f"a look-alike such as {status}-late was counted; the first field must be exactly `{status}`")
+        return problems
+    try:
+        shutil.copyfile(str(source), str(sandbox / "report.sh"))
+        results = [(f"report.sh prints `{label}TOTAL` for your own events.csv", trial(lab4_rows(values))),
+                   (f"no row has your status: it prints `{label}0`", trial([(other, 5), (other, 2)])),
+                   (f"extra records and a look-alike ({status}-late): the total is still right",
+                    trial([(status, 7), (status + "-late", 50), (other, 9), (status, 8), ("not-" + status, 99)]))]
+        (sandbox / "in.csv").unlink()
+        code, out, err = run_report(sandbox / "report.sh", ["missing.csv"], sandbox)
+        problems = []
+        if code == 0:
+            problems.append("a missing input file must end with a status other than 0")
+        if out.strip():
+            problems.append(f"the message must go to standard error (>&2), not to the screen output; stdout held {out.strip()[:50]!r}")
+        if code != 0 and not err.strip():
+            problems.append("print a message with echo ... >&2 so the user knows what went wrong")
+        results.append(("a missing input: a message on standard error and a status other than 0", problems))
+        if extra:
+            rows = [tuple(r) for r in extra["rows"]]
+            problems = trial(rows, extra["name"])
+            expected = lab4_csv(rows)
+            if read_text(target / "data" / extra["name"]) != expected:
+                problems.append(f"data/{extra['name']} does not hold the records of the checkpoint: use the printf line printed by oslab checkpoint lab4")
+            if read_text(target / "checkpoint.txt").strip() != f"{label}{extra['total']}":
+                problems.append(f"checkpoint.txt must hold `{label}{extra['total']}`, the output of your report.sh on data/{extra['name']}")
+            results.append(("checkpoint: report.sh is right on the new file and checkpoint.txt holds its output", problems))
+    finally:
+        shutil.rmtree(str(sandbox), ignore_errors=True)
+    return results
+
+
+CHECKS = {"lab1": check_lab1, "lab2": check_lab2, "lab3": check_lab3, "lab4": check_lab4, "lab5": check_lab5, "lab6": check_lab6, "lab7": check_lab7, "lab9": check_lab9, "lab10": check_lab10, "lab8": check_lab8}
 # Details a check sends with its milestones, so the marking screen can give part of a row's points.
 CHECK_DETAILS = {"lab3": lambda target, values: {"lab3_checks": [not problems for _, problems in check_lab3(target, values)]},
                  "lab2": lambda target, values: {"path_error": lab2_path_error(target, values)}}

@@ -1,34 +1,46 @@
 # Lab 10 — Backups, Archiving and Scheduling: individual report
 
-Copy this template to `lab10/README.md` in your own course repository. Follow [the instructions](lab10-instruction.md).
+Copy this template to `lab10/README.md` in your own course repository. Follow [the instructions](lab10-instruction.md). Your prediction, debrief and checkpoint answers are already saved by `oslab`; do not copy them here. The marks come from those records and your evidence files; this report is your own record of the lab.
 
 - Student name/ID:
 - Ubuntu username and environment:
-- Artifact paths (turn these into links after copying to your submission): `backup.sh`, `evidence/restore.txt`, `evidence/automation.txt`
+- My values (`oslab values lab10`): keep = , name =
+- Files: `backup.sh`, `evidence/restore.txt`, `evidence/automation.txt`
 
-## Original Prediction
+## What I Did
 
-Copy the prediction you wrote before execution and its reason. State how/when it was captured (paper or the course worksheet).
+| Step | My command or line | What it showed |
+|---|---|---|
+| Archive and restore: the `tar` options I used and why `-C` | | |
+| The retention: the lines I wrote at the `TODO` | | |
+| How my script recognises "an archive made by this script" | | |
+| The run under `env -i` from another folder | | |
 
-## Test Evidence
+## What My Tests Show
 
-Link to two short records under `evidence/`. Include enough command/input/output context to interpret them.
-
-| Test | Claim | Result that would contradict it | Observed result | What remains unproven |
+| Test | Claim | A result that would contradict it | What I saw | What remains unproven |
 |---|---|---|---|---|
-| verified archive restoration | | | | |
-| retention with unrelated file and restricted environment | | | | |
+| restore: member list and `cmp` (restore.txt) | | | | |
+| several runs: how many archives remain | | | | |
+| `keep-me.txt` and the look-alike file survive | | | | |
+| restricted environment (automation.txt) | | | | |
 
-## Explanation and Correction
+## Explanation
 
-Explain archiving/compression, safe retention and cron path/timezone assumptions. State whether actual cron ran.
+`oslab debrief lab10` records which prediction answers you confirmed and which you corrected. Here, in 3–5 sentences for yourself:
 
-Keep the original prediction above and add a correction supported by one observed result.
+- What is the difference between archiving and compressing? How did you establish that the archive can be restored?
+- What stopped the retention from deleting files that are not yours?
+- Which two assumptions would you check before you trust the script under cron?
+
+## What My Tests Do Not Prove
+
+One or two sentences. Real scheduling, a source that changes during the backup, or a clock that moves: which did you not test?
+
+## Plus / Challenge (only if you did them)
+
+Your answers from `evidence/plus.txt`. If cron was not available, say so here.
 
 ## AI Note (optional)
 
-One useful suggestion and the test you used to verify it. If you did not use AI, leave this section out.
-
-## Cleanup
-
-State which owned processes/jobs/mounts you cleaned up or why none were created. The supervised changed-case answer is collected separately; do not reconstruct it after collection.
+One suggestion an AI tool gave you and the test you used to check it.

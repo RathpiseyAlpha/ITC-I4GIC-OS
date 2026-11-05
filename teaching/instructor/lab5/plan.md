@@ -1,93 +1,111 @@
 # Instructor plan — OS Lab 5 — Threads, Kernel Workers & Process Signals (Hands-on)
 
-**Public repository notice:** this plan and its answers are public. The `instructor` folder does not make them confidential. Prepare fresh graded variants and private answer distribution outside this repository; do not use the public checkpoint verbatim for secure assessment.
+**Public repository notice:** this plan is public, and so is the code that computes every student's values and answers. Personal values stop neighbour copying and force each answer to use the student's own numbers; they are not secret. The live checkpoint is protected by its release time, not by secrecy. Keep anything that must stay private outside this repository.
 
-## Objectives and Original-task Mapping
+This lab uses the pilot format. Read the [student instruction](../../../labs/lab5/lab5-instruction.md) and the [report template](../../../labs/lab5/README.md) first.
+
+## Objectives
 
 1. Create POSIX threads and check API return codes.
 2. Join each worker before consuming its result and explain shared versus separate address spaces.
 3. Use a bounded execution trace to diagnose missing completion synchronization.
 
-Original Task 1 processes/threads introduces memory ownership; Task 2 thread interaction and joining is the core. Task 3 kernel mapping and Task 4 signals remain extensions.
-
-Read the [student instruction](../../../labs/lab5/lab5-instruction.md), [report template](../../../labs/lab5/README.md) and [optional extensions](../../../labs/lab5/extensions.md). Sources/tests should demonstrate these objectives, not merely a helper PASS message.
+The original Tasks 3 and 4 (kernel mapping, signals) and the fork-versus-thread comparison stay in the [optional extensions](../../../labs/lab5/extensions.md).
 
 ## Before Class
 
-- Environment: Shared Ubuntu server with an individual account for each student. Required tools: `gcc` with pthread support, `timeout`, `ps`; instructor provides trace fallback if compiler is unavailable. No student sudo or privileged execution of student code.
-- Confirm gcc -pthread and timeout before class. Without a compiler, supply the annotated source/trace for diagnosis and mark executable implementation as unverified.
-- In an ordinary test account run `oslab doctor`, `oslab start lab5`, then `cd "$OSLAB_WORKSPACE/lab5"` (export the configured workspace first). Inspect fixture tree, ownership and quota. Verify a second start preserves edits.
-- Provide the actual server host, individual usernames, submission repository paths and any prepared optional directory. Installation takes place before the 120-minute class.
-- Prepare one normal and one edge/failure observation below. Prepare a fresh private checkpoint of comparable scope; retain its key privately and collect answers before debrief.
+- Install or update the helper as in the [runbook](../../../server/RUNBOOK.md). Check that `/var/lib/itc-oslab/inbox` exists with mode `1733` and that `/var/lib/itc-oslab/release/lab5.checkpoint` does **not** exist.
+- `gcc` with pthread support and `timeout` must exist for ordinary users. As an ordinary test account: `oslab doctor` must say `class inbox: connected`; `oslab start lab5`; `oslab values lab5` prints four numbers; `oslab check lab5` must say `1/4` (the unmodified program builds without warning; the other three fail).
+- If `gcc` is missing, `oslab check lab5` says so on every line. Use the trace fallback: students read `threads/two_workers.c` and `threads/trace.csv`, answer the prediction and the checkpoint, and report that executable behaviour was not tested.
+- Prepare a roster file with one account name per line. All `oslab-teach` commands below take `--roster FILE`.
+- Ask students to run `oslab prelab lab5` the evening before. Look at the `prelab` column.
 
 ## Guide
 
-Project the guide (`labs/lab5/guides/slides.html`, 46 slides; PDF `lab5-guides.pdf`). It follows the instruction. The "Beyond the core" slides are optional background and are not in the 120-minute timetable.
+The slide guide (`labs/lab5/guides/slides.html`, 55 slides) was rebuilt on 2026-11-05 in the pilot format: personal worker ids and step counts, a program with two TODO gaps, `oslab predict`, Core 1 and Core 2, Plus and Challenge, the live checkpoint and `oslab debrief`. If the guide and the Markdown instruction ever differ, the instruction governs. Slides 1 to 3 are the cover and opening question, 4 to 8 the concepts, 9 to 17 the lab overview and setup, 18 to 21 the guided one-worker example, 22 and 23 the prediction, 24 to 31 Core 1, 32 to 36 Core 2, 37 and 38 Plus and Challenge, 39 to 42 the checkpoint, 43 to 49 debrief, submission, grading and mistakes, 50 to 53 fork, kernel workers and signals, and 54 and 55 the takeaways.
 
-| Slides | Content |
-|---|---|
-| 1 to 3 | Cover, learning objectives and an opening question. |
-| 4 to 8 | Concepts first: processes and threads, what threads share, create and join, completion versus mutual exclusion. |
-| 9 to 14 | How the lab works: the scenario, the timetable, the rules, setup and the starting tree. |
-| 15 to 21 | Guided: one thread, then the prediction. |
-| 22 to 31 | Task 2: two workers and completion, then the tests. |
-| 32 to 34 | The individual checkpoint: why, and the practice question. |
-| 35 to 40 | Correction, submission, grading, common mistakes. |
-| 41 to 46 | Beyond the core: fork, kernel workers and signals, then takeaways and the next lab. |
+## Timetable and What You Do
 
-## Exact 120-minute Timetable
+Keep `sudo oslab-teach board lab5 --roster FILE --watch 20` open on your own screen. Do not project it: it shows names.
 
-| Minutes | Teacher action and evidence |
-|---|---|
-| 0–10 | State objectives, scenario and required artifacts; verify login, helper and working directory |
-| 10–25 | Demonstrate the numbered guided commands; pause for the embedded observation questions |
-| 25–35 | Capture original prediction before execution; optional peer comparison at most five minutes |
-| 35–70 | Individual numbered investigation; circulate using topic hints; AI optional |
-| 70–85 | Require normal and edge/failure cases; check claim, contradiction and test limits |
-| 85–100 | Collect individual changed-case answer; no AI or peer help |
-| 100–110 | Discuss key and anonymized misconceptions; students preserve and correct prediction |
-| 110–120 | Confirm cleanup; copy selected artifacts and two records to personal course repository |
+| Minutes | Students | You |
+|---|---|---|
+| 0–10 | Setup | Check the `started` column. Ask each student to read their four numbers aloud to a neighbour: they differ |
+| 10–25 | Guided: one worker | Type along. Ask which line makes main wait, and what `rc` holds on success |
+| 25–35 | Prediction | At minute 30 read the **prediction spread** aloud without names. The `unjoined` question (must `worker A finished` always appear?) is the one to discuss |
+| 35–55 | Core 1: finish the two-worker program | Nobody is given the lines. Sort your visits by the board: no check yet, then stuck at 1/4. Say "which variable is worker B's thread?" |
+| 55–70 | Core 2: test and change | The most common TRY is milestone 4 (changed case): a student who joined only A passes the normal run by luck, because A takes longer. Use it for the demonstration |
+| 70–85 | Instructor demonstration, Plus and Challenge | Remove the join of B and run the program ten times on the projector. Ask what this proves about "it worked three times" |
+| 85–100 | Live checkpoint | At minute 85 say "close AI tools" and run `sudo oslab-teach release lab5` |
+| 100–110 | Debrief | Students run `oslab debrief lab5` first (two minutes), then use the script below |
+| 110–120 | Submit | Run `sudo oslab-teach export lab5 --roster FILE > lab5.csv` |
 
-## Expected Results and Public Model
+## Expected Results
 
-Guided worker produces 42 after join. Joined A (id 2, three steps) gives 6; B (id 3, four steps) gives 12, then B with two steps gives 6. A zero-step worker produces 0 and still needs a join. Print order may vary; accept no deterministic ordering claim.
+Every student has other ids and step counts; the shape is the same. For a student whose `oslab values lab5` says `id_a = 3`, `id_b = 9`, `steps_a = 5`, `steps_b = 2`:
 
-Public complete model: [two_workers_solution.c](two_workers_solution.c). Compile `gcc -Wall -Wextra -Werror -pthread two_workers_solution.c -o /tmp/YOUR_OWN_UNIQUE_OUTPUT` in an owned temporary directory; run with `timeout 5`. Edit B steps to 2 and then 0 for changed tests. The model joins any already-created threads even if a later create fails.
+- The program prints `worker 9 finished` after about 40 ms, `worker 3 finished` after about 100 ms, then `A result=15 B result=18`, then `main finishing`.
+- Before the joins are added, `main finishing` appears at once and the workers are cut off when the process ends, so the `finished` lines may be missing.
+- The changed case (A 0 steps, B 1 step) must print `A result=0 B result=9`.
 
-Accept equivalent correct commands/programs. Different observations caused by scheduling/capabilities require an evidence-based explanation, not fabricated expected output. Do not grade an exact filename unless execution depends on it.
+Public model: [two_workers_solution.c](two_workers_solution.c) is the student's file with both `TODO` lines filled in (it uses A = {2, 3} and B = {3, 4}, so it prints `A result=6 B result=12`; your students have other numbers).
 
-## Checkpoint Key and Quick Marking
+- **Join mistakes the check finds:** one join only; a join with the wrong thread variable; the report line printed before the joins (results 0); a join that is not tested (milestone 3 counts `rc = pthread_join(...)` and `if (pthread_join(...))`).
+- **Why a missing join can still pass milestone 2:** if B is not joined but A takes longer, B has finished by the time A is joined. Milestone 4 changes the steps, A takes 0, and the same program fails.
+- **Plus:** with B's join removed, main prints B's number when B is quick, and a smaller number or 0 when B is slow. Nothing is guaranteed.
+- **Challenge:** in the order of `trace.csv` (A read, B read, A write, B write) both workers read 0, so both write 1. The final value is 1, not 2: one update is lost. Joining does not prevent this; a lock does (Lab 8).
 
-Practice question: Main joins worker A but not worker B, then reads B’s result. Explain what remains unestablished and identify the minimal synchronization change. Would that change alone protect a counter updated concurrently by both workers?
+## Checkpoint Key and Marking
 
-Key: Joining A does not establish B completion; join B before reading B.result. A quick observed finish cannot replace the synchronization guarantee. Workers owning separate result fields avoid a shared-counter race in this core.
+Key: `sudo oslab-teach key lab5 --roster FILE` prints each student's values and expected answers, including the checkpoint after release. The checkpoint has two cases with numbers made from a random release value:
 
-Of the checkpoint's two points, award one for the defensible result/diagnosis and one for the mechanism plus a suitable verification observation. Relevant but incomplete reasoning earns partial credit. Students with an unfinished earlier artifact can still earn both checkpoint points. Use a private changed example for a graded session.
+- Case 1 (questions): main joins A but not B and prints `b.result`. Not guaranteed (no), the smallest possible value is 0, the number of joins for K workers is K, and one sentence: main still does not know whether B has finished.
+- Case 2 (file task): a copy `threads/WORD.c` with new step counts; `oslab check lab5` builds and runs it and expects `A result=ID_A*STEPS_A B result=ID_B*STEPS_B`, and `checkpoint.txt` must hold that line.
 
-## Misconceptions and Progressive Support
+The checkpoint is worth 3 points:
 
-Students assume sleep or a successful run ensures completion, read B early, or report errno for pthread calls. Check their direct return codes and exactly which joins occur before reads.
+| Part | Points | Source |
+|---|---:|---|
+| The three marked answers: guaranteed, smallest value, number of joins (all right 1, at least half 0.5) | 1 | `checkpoint_auto_points` in the export |
+| The file task: the copy builds, prints the right results, `checkpoint.txt` holds them | 1 | milestone 5 of `oslab check` |
+| The sentence: main does not know whether B has finished (or: B may still be running) | 1 | you read it in the export |
 
-Use the student task's progressive hints in order: mechanism → diagnostic observation → narrow implementation clue. Do not distribute the full model during the investigation. For a student behind pace, supply a clean *separate* fixture or restrict to one case, preserving their original work and the independent checkpoint.
+The `flag` column says `rewritten` when a prediction or checkpoint was sent more than once or removed; look at that student's work before marking.
 
-Prediction accuracy is lightly weighted: a reasoned attempt, preserved answer, relevant test and correction matter. No random public oral examination is required. A solo student can use the guided example instead of the optional peer exchange.
+## Debrief Script (10 minutes)
 
-## Capability Fallback and Cleanup
+1. Show the prediction spread for `unjoined`. Ask a student who answered "yes" what happens to a worker when `main` returns.
+2. Ask who got milestone 4 red while 2 was green, and why a passing run is not a proof.
+3. Draw the trace: two workers read 0, both write 1. Ask what a join changes here (nothing) and what is needed (mutual exclusion, Lab 8).
+4. Name the limit: the delay is for teaching, not for synchronization.
 
-Use local Linux/WSL for unprivileged work if the server is unavailable; source/printed trace analysis can support mechanism assessment but does not establish executable behavior. VM/peer/cron/FUSE work needs the actual capability checks described in extensions. A teacher demonstration alone does not establish each student's practical recovery competence.
+## Misconceptions
 
-All core executions use a five-second timeout and joined workers; confirm the executable ended. Copy source, not binaries, into the submission. Kernel workers are observed only, never signalled.
+- A delay or `sleep` in main waits for the worker (it only hides the problem).
+- One join waits for all threads (it waits for exactly one).
+- A run that prints the right numbers proves there is no race.
+- Joining the threads makes updates to a shared counter safe.
 
-After evidence is saved, `oslab clean lab5` is optional. It removes only the marked managed workspace; escaping links and detected mountpoints are refused. Internal symbolic links are supported. Confirm any optional jobs/processes/mounts are stopped before cleanup.
+Use the hints in order (`oslab hint lab5 1` to `3`).
+
+## Caveats Moved Out of the Student Text
+
+- `oslab check lab5` compiles and runs only the caller's own file, in a disposable folder inside the lab folder, with a 60-second limit for the compiler and 5 seconds for each run. It never runs another student's program.
+- Milestone 4 changes the `struct job a = ..., b = ...;` line of a copy. A student who moved that definition to several lines gets a message asking to keep it on one line.
+- `oslab reset lab5` saves the current attempt and creates a fresh program. Do not suggest it for one missing join.
+
+## Fallback
+
+Without the class inbox, everything works in practice mode: answers stay in the student's workspace, the checkpoint uses practice values, and you collect predictions by a show of hands. If the server is down, students can do the whole lab in WSL or a local Linux with the [local setup](../../../labs/SETUP.md).
 
 ## Topic Rubric (10 points)
 
-| Evidence mapped to lab objectives | Points |
+| Evidence | Points |
 |---|---:|
-| Correct worker creation, joins and result use (objectives 1–3) | 3 |
-| Normal and changed-step/zero-step evidence with build diagnosis | 2 |
-| Explain thread memory, completion and mutual-exclusion differences; original prediction and evidence-based correction | 2 |
-| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
-| Concise, attributable evidence and required artifacts | 1 |
+| Program: `oslab check lab5` passes the four Core milestones | 2 |
+| Tests: `normal.txt` and `changed.txt` show the runs, and the README explains thread memory, completion and mutual exclusion | 2 |
+| Prediction saved in time, and corrected with `oslab debrief lab5` | 2 |
+| Live checkpoint: the four answers and the copy running with new step counts | 3 |
+| Complete submission: the required files in the repository, on time | 1 |
 
-Review only the required artifacts and two selected records, plus prediction/correction and the collected checkpoint. AI use is optional; ask for one verified suggestion if used, not full chat history, paid tools or an AI detector. Optional extension completion is not required for full core credit.
+Every row is suggested on the marking screen: row 1 from the best `oslab check` record, row 3 from the prediction (1) and the last debrief (1 when all its answers are right, 0.5 when at least half are), row 4 from the checkpoint, and row 5 from the website's file check of the repository. Row 2 needs your reading of the README.

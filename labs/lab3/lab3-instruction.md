@@ -21,6 +21,31 @@ By the end, you should be able to:
 2. Use inode numbers to distinguish a hard link from a separate copy.
 3. Explain and repair a symbolic link after its target is renamed.
 
+## How This Lab Works
+
+A few small helper commands (`oslab`) save your answers and check your files. They are the same ones you used in Labs 1 and 2.
+
+| Command | What it does |
+|---|---|
+| `oslab prelab lab3` | Three short questions before class. A wrong answer costs nothing; read the explanation |
+| `oslab predict lab3` | Saves your prediction once, **before** the experiment |
+| `oslab hint lab3 1` | A hint. Use level 1, then 2, then 3. Hints cost no points |
+| `oslab check lab3` | Checks your files and shows what is still missing |
+| `oslab checkpoint lab3` | A short test near the end. It opens when the instructor says so |
+| `oslab debrief lab3` | After the experiment: you give the right answers to your prediction questions |
+
+- The **core** (Tasks 1 and 2) is for everyone. **Plus** and **Challenge** are optional for students who finish early. Full marks need only the core and the checkpoint.
+- AI tools are allowed in the tasks, Plus and Challenge. They are **not** allowed in the prediction and the checkpoint. Always test what an AI tells you.
+
+## Before the Lab
+
+Do this before class. It takes about 10 minutes.
+
+```bash
+oslab doctor
+oslab prelab lab3
+```
+
 ## Task Overview and 120-minute Timetable
 
 | Minutes | Activity |
@@ -231,6 +256,45 @@ Before the checkpoint it checks **four milestones**: wildcard output, hard-link 
 
 The checker inspects your current files. The labelled sections in `evidence/links.txt` show the earlier failure and repair; your teacher reviews those rather than asking you to repeat the whole experiment. Keep links inside the managed lab folder.
 
+## Plus and Challenge (optional)
+
+Do these only if the core is finished and `oslab check lab3` shows no `TRY` line. They are not needed for full marks. They use their own folder, `extra/`, and their own file, `evidence/plus.txt`, so your core files stay as the checker expects them.
+
+**Plus — one more wildcard.** In the `lab3` root, add square brackets: `[12]` matches one character, either `1` or `2`.
+
+```bash
+cd "$OSLAB_WORKSPACE/lab3"
+printf '<%s>\n' practice/report[12].txt
+printf '<%s>\n' practice/report[!1].*
+```
+
+`[!1]` means "any one character except `1`". Before you run them, write down which names you expect each command to print. Then run them, and write one sentence in `evidence/plus.txt` about any difference between your guess and the result. Hint: the second pattern needs one character, then a dot, then anything.
+
+```bash
+printf 'Plus: my answer is ...\n' > evidence/plus.txt
+```
+
+**Challenge — a chain of links.** Make a link that points to another link, then find where it ends.
+
+```bash
+mkdir -p extra
+cd extra
+printf 'chain end\n' > end.txt
+ln -s end.txt middle.txt
+ln -s middle.txt start.txt
+ls -l start.txt middle.txt
+readlink start.txt
+readlink -f start.txt
+cat start.txt
+cd ..
+```
+
+`readlink` prints one step. `readlink -f` follows the whole chain. What happens to `cat start.txt` if you rename `end.txt`? Predict first, then test it inside `extra/` only, and add your answer to `evidence/plus.txt`:
+
+```bash
+printf 'Challenge: my answer is ...\n' >> evidence/plus.txt
+```
+
 ## Individual Changed-case Checkpoint (85–100 minutes)
 
 Work alone, with AI tools closed. When the instructor announces that the checkpoint is open, run:
@@ -300,4 +364,4 @@ AI is optional during Tasks 1–2 and tests, and excluded from the prediction an
 
 ## Help, References and Optional Work
 
-Use `man ln` and `man readlink` for command syntax. If a link fails, inspect `readlink`, locate the link's own directory, then resolve the stored target from there. The [visual guide](guides/slides.html) illustrates the concepts but may show the older paper submission flow; **use the terminal submission steps in this instruction**. GRUB and library tasks in [extensions](extensions.md) are optional and do not affect the core grade.
+Use `man ln` and `man readlink` for command syntax. If a link fails, inspect `readlink`, locate the link's own directory, then resolve the stored target from there. The [visual guide](guides/slides.html) illustrates the concepts and follows these steps, including the terminal prediction, checkpoint and submission; if the two ever differ, **this instruction governs**. GRUB and library tasks in [extensions](extensions.md) are optional and do not affect the core grade.

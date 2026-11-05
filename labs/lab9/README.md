@@ -1,34 +1,46 @@
-# Lab 9 — The Quantum Vault Deadlock: individual report
+# Lab 9 — Deadlock and Lock Ordering: individual report
 
-Copy this template to `lab9/README.md` in your own course repository. Follow [the instructions](lab9-instruction.md).
+Copy this template to `lab9/README.md` in your own course repository. Follow [the instructions](lab9-instruction.md). Your prediction, debrief and checkpoint answers are already saved by `oslab`; do not copy them here. The marks come from those records and your evidence files; this report is your own record of the lab.
 
 - Student name/ID:
-- Ubuntu username and environment:
-- Artifact paths (turn these into links after copying to your submission): `worker.sh`, `evidence/opposite.txt`, `evidence/ordered.txt`
+- Ubuntu username:
+- My values (`oslab values lab9`): res1 = , res2 = , a_first =
+- Files: `vault/worker.sh` (as `worker.sh`), `evidence/opposite.txt`, `evidence/ordered.txt`
 
-## Original Prediction
+## What I Did
 
-Copy the prediction you wrote before execution and its reason. State how/when it was captured (paper or the course worksheet).
+| Step | My line or command | What happened |
+|---|---|---|
+| The opposite run: statuses of A and B | | |
+| The line of `worker.sh` that I changed for the global order | | |
+| The ordered run: statuses of A and B | | |
+| The check that no worker or lock was left | | |
 
-## Test Evidence
+## The Circle
 
-Link to two short records under `evidence/`. Include enough command/input/output context to interpret them.
+Draw (in text or as a picture in `images/`) what each worker held and requested at the barrier in the opposite run.
 
-| Test | Claim | Result that would contradict it | Observed result | What remains unproven |
-|---|---|---|---|---|
-| both ordered workers finish | | | | |
-| coordinated opposite ordering and barrier timeout | | | | |
+| Worker | Holds | Requests | Waits for |
+|---|---|---|---|
+| A | | | |
+| B | | | |
 
-## Explanation and Correction
+## Explanation
 
-Draw the holdings/requests, explain prevention versus timeout recovery, and the purpose/limits of the barrier.
+`oslab debrief lab9` records which prediction answers you confirmed and which you corrected. Here, in 3–5 sentences for yourself:
 
-Keep the original prediction above and add a correction supported by one observed result.
+- At least one worker ended with status 5 in the opposite run. What happened to the other worker after that, and why?
+- Why does one global order remove the circular wait?
+- Why do the timeouts stay in the script after the repair?
+
+## What My Tests Do Not Prove
+
+One or two sentences. The ordering fixes this model with two locks. What is not shown for a larger system?
+
+## Plus / Challenge (only if you did them)
+
+Your answers from `evidence/plus.txt`.
 
 ## AI Note (optional)
 
-One useful suggestion and the test you used to verify it. If you did not use AI, leave this section out.
-
-## Cleanup
-
-State which owned processes/jobs/mounts you cleaned up or why none were created. The supervised changed-case answer is collected separately; do not reconstruct it after collection.
+One suggestion an AI tool gave you and the test you used to check it.
