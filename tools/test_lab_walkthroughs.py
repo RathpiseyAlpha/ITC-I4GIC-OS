@@ -137,6 +137,11 @@ test -f "$OSLAB_WORKSPACE/lab2/TechCorp/$third/found.txt"
     assert (base/'lab3/links/hard.txt').read_text() == 'version 1\n'
     assert (base/'lab3/links/source.txt').read_text() == 'version 2\n'
     assert os.stat(base/'lab3/links/hard.txt').st_ino == os.stat(base/'lab3/links/renamed.txt').st_ino
+    out = shell(prefix + 'oslab check lab3\n', home, env, 'Lab3 checked walkthrough')
+    assert 'milestones: 4/4' in out, out
+    trace = (base/'lab3/evidence/links.txt').read_text()
+    assert all(label in trace for label in ('BEFORE RENAME', 'AFTER RENAME, BEFORE REPAIR', 'AFTER REPAIR'))
+    assert 'No such file or directory' in trace
 
     report = shlex.quote(str(ROOT/'teaching/instructor/lab4/report_solution.sh'))
     shell(f'''set -e

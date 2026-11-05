@@ -552,6 +552,7 @@ LAB_SPECS = {
         "total_points": 100,
         "files": [
             "README.md",
+            "evidence/wildcards.txt",
             "evidence/links.txt",
             "evidence/replacement.txt",
         ],
@@ -1705,7 +1706,8 @@ def _oslab_activity(username, lab):
 
     checks = [{"passed": c.get("passed", 0), "total": c.get("total", 0),
                "failed": c.get("failed", []), "reasons": c.get("reasons", {}), "time": c.get("time", ""),
-               "checkpoint": c.get("checkpoint"), "pathError": c.get("path_error")}
+               "checkpoint": c.get("checkpoint"), "pathError": c.get("path_error"),
+               "lab3Checks": c.get("lab3_checks")}
               for c in kinds.get("check", [])]
     out = {
         "available": True, "values": values, "released": bool(nonce),
@@ -1752,12 +1754,34 @@ def _share(right, total):
     return 1.0 if right == total else 0.5 if right * 2 >= total else 0.0
 
 
-def _mark_suggestions(rubric, activity, grade=None):
-    """Points the lab records already justify, for the pilot rubric
-    (files 2, report 2, prediction 2, checkpoint 3, homework 1).
+def _mark_suggestions(rubric, activity, grade=None, lab=None):
+    """Provisional points from lab records, for Lab 3 and the pilot rubric.
     grade is the file check of the submitted folder, for the last row."""
     if not activity.get("available"):
         return {}
+    if lab == "lab3" and [r["max"] for r in rubric] == [3.0, 2.0, 2.0, 2.0, 1.0]:
+        out = {}
+        best = max(activity["checks"], key=lambda c: c["passed"], default=None)
+        if best and best.get("lab3Checks") is not None:
+            core = best["lab3Checks"]
+            out["r1"] = {"points": float(sum(core[:3])),
+                         "note": "Wildcard, hard-link and repaired-target checks; review the wildcard explanation."}
+            out["r2"] = {"points": float(core[3]),
+                         "note": "New-source comparison checked; add up to 1 after reviewing the labelled rename/failure/repair record."}
+        if activity.get("prediction"):
+            debrief = activity.get("debrief")
+            marks = [a["ok"] for a in debrief["answers"] if a["ok"] is not None] if debrief else []
+            out["r3"] = {"points": 1.0 + (_share(sum(marks), len(marks)) if debrief else 0),
+                         "note": "Original prediction saved (accuracy not graded); review the report correction against the debrief."}
+        cp = activity.get("checkpoint")
+        if cp and not cp["practice"]:
+            marks = [a["ok"] for a in cp["answers"] if a["ok"] is not None]
+            out["r4"] = {"points": _share(sum(marks), len(marks)) + float(cp["taskDone"]),
+                         "note": "Path answers plus repaired-link task; read the sentence about the link's directory."}
+        if grade and grade.get("found"):
+            complete = all(item.get("status") == "ok" for item in grade.get("items", []))
+            out["r5"] = {"points": float(complete), "note": "Required submission files present; review the short report."}
+        return out
     if [r["max"] for r in rubric] != [2.0, 2.0, 2.0, 3.0, 1.0]:
         return {}
     out = {}
@@ -2138,7 +2162,7 @@ def route_admin_mark():
     return jsonify({
         "user": user, "lab": lab, "id": sid, "name": STUDENTS[sid]["name"],
         "mark": _mark_view(lab, _load_marks().get(lab, {}).get(user), rubric),
-        "suggested": _mark_suggestions(rubric, activity, grade_student_lab(user, lab)) if activity else {},
+        "suggested": _mark_suggestions(rubric, activity, grade_student_lab(user, lab), lab=lab) if activity else {},
         "activity": activity,
     })
 

@@ -51,6 +51,10 @@ oslab list
 
 Then follow the lab's `start`, `cd`, and `pwd` steps. These functions last for this Bash session. A new terminal needs them defined again. A missing compiler, personal cron daemon or filesystem tool has a topic-specific fallback in the lab; do not claim that a printed trace establishes executable behavior.
 
+## Lab 3 collection
+
+Lab 3 also supports `oslab predict lab3`, `check`, `checkpoint`, `debrief` and `status`. Its core uses the fixed names in the instructions; the checkpoint supplies a separate folder and file name. On the class server, answers go to the same inbox and marking dashboard as the pilot labs. Check `oslab doctor` before submitting. No separate prediction file is required. An older helper that says Lab 3 uses paper must be updated by the instructor.
+
 ## Working directory versus submission repository
 
 ```text
@@ -72,4 +76,4 @@ Record a short terminal transcript with commands, inputs and decisive output. `t
 
 To review a submitted script, recreate a fresh fixture with `oslab start labN` in a separate practice workspace below your home, then copy the source back to its original workspace location (for example `store/buy.sh`, `vault/worker.sh`, or `backup.sh` next to `project/`). The concise submission intentionally omits binaries and mutable fixture data; do not expect a copied script to find that data merely because it is in the submission folder.
 
-In Labs 1, 2 and 8, predictions and checkpoint answers are saved by `oslab predict` and `oslab checkpoint`. In the other labs they are written on paper or the existing course worksheet before executing the relevant case; a final README can record that prediction but cannot prove when it was written.
+In Labs 1, 2, 3 and 8, predictions and checkpoint answers are saved by `oslab predict` and `oslab checkpoint`. In the other labs they are written on paper or the existing course worksheet before executing the relevant case; a final README can record that prediction but cannot prove when it was written.

@@ -1,27 +1,25 @@
-# OS Lab 3 — Wildcards, Links, GRUB & Shared Libraries (Hands-on)
+# OS Lab 3 — Wildcards, Hard Links and Symbolic Links
 
 | Item | Details |
 |---|---|
 | Course | Operating Systems, Institute of Technology of Cambodia |
-| Duration | 120 minutes; installation and VM preparation happen before class |
-| Ownership | Individual work and submission; optional short peer exchange |
+| Duration | 120 minutes |
+| Ownership | Individual work and submission |
 | Primary environment | Shared Ubuntu server with an individual account for each student |
-| Prerequisites | Lab 2 navigation; understanding of filenames and directories |
-| Required tools | `ln`, `ls`, `readlink`, `stat`, `mv`; compiler only for library extension |
-| Practice fallback | Local Linux/WSL for unprivileged tasks; disposable VM for boot/system administration |
-| Core versus extensions | Follow the core below; [optional extensions](extensions.md) retain wider original coverage |
+| Prerequisites | Lab 2: changing directories, relative paths, copying and moving files |
+| Required tools | Bash, Python 3, `ln`, `ls`, `readlink`, `stat`, `mv` |
+| Practice fallback | Local Linux/WSL; see [setup](../SETUP.md) |
+| Optional work | GRUB and shared libraries are in [extensions](extensions.md); they are not graded in this core |
 
-> **Scenario:** Alex is maintaining TechCorp file references. A file is being renamed, and dependent references must still work. Wildcards and links form the core; boot recovery and custom libraries are separate extensions.
+You maintain a report that other names refer to. Today you will rename the report, find out which references break, repair a symbolic link, and create a different file using the old name.
 
 ## Lab Objectives
 
-After the required core, you should be able to:
+By the end, you should be able to:
 
-1. Select files with a wildcard and explain shell expansion versus a literal name.
-2. Create and inspect hard links and symbolic links using inode and target-path evidence.
-3. Predict and diagnose the effects of renaming or replacing a link target.
-
-**Extension objectives:** Build/load a user-local shared library and practise GRUB observation, configuration and recovery in a snapshot-backed disposable VM. These retain the original lab's wider topics; they are not required to finish the two-hour core.
+1. Explain which filenames a Bash wildcard selects and what quoting changes.
+2. Use inode numbers to distinguish a hard link from a separate copy.
+3. Explain and repair a symbolic link after its target is renamed.
 
 ## Task Overview and 120-minute Timetable
 
@@ -29,30 +27,21 @@ After the required core, you should be able to:
 |---|---|
 | 0–10 | Introduction, objectives and setup |
 | 10–25 | Guided example: commands and observations |
-| 25–35 | Written prediction; optional five-minute peer comparison |
-| 35–70 | Numbered individual investigation tasks; AI optional |
-| 70–85 | Normal and edge tests; instructor feedback |
+| 25–35 | Submit a prediction using `oslab` |
+| 35–70 | Rename, repair and create a new file with the old name |
+| 70–85 | Check the results and fix incomplete work |
 | 85–100 | Individual changed-case checkpoint; no AI or peers |
-| 100–110 | Correction and conceptual explanation |
-| 110–120 | Cleanup and submission |
-
-Original Task 1 wildcards introduces selection; Task 2 links is the central investigation. Original Tasks 3–5 GRUB/shared-library work are optional and keep their specific environment requirements.
+| 100–110 | Compare prediction with results and explain the difference |
+| 110–120 | Submit the short report and evidence |
 
 ## Lab Setup (0–10 minutes)
 
-1. Log in to the Ubuntu server using **your own account**. All commands below run as that ordinary user in Bash. Use only your own files and processes.
-2. Check the helper. If it is unavailable, follow [the local setup guide](../SETUP.md) to define `oslab` from your cloned course repository; it uses the same fixtures.
-
-   ```bash
-   whoami
-   command -v oslab
-   oslab doctor
-   ```
-
-3. Start the lab and **enter its directory**. `oslab start` preserves existing work and does not change the current directory. If resuming, inspect existing files before running commands that write to them.
+1. Log in with **your own account**. Run `oslab doctor`. It must say **class inbox: connected** for your instructor to receive your answers. If it says **practice mode**, tell the instructor before the prediction. Your answers are saved locally, but are not sent to the class board.
+2. If `oslab` is unavailable, follow [the setup guide](../SETUP.md). Start the lab and enter its directory:
 
    ```bash
    export OSLAB_WORKSPACE="${OSLAB_WORKSPACE:-$HOME/oslab-work}"
+   oslab doctor
    oslab start lab3
    cd "$OSLAB_WORKSPACE/lab3"
    pwd
@@ -60,7 +49,7 @@ Original Task 1 wildcards introduces selection; Task 2 links is the central inve
    find . -maxdepth 3 -type f
    ```
 
-4. Compare your files with the starting tree. `.oslab-managed.json` identifies the managed workspace; leave it intact. `evidence/` was created in step 3. If `tree` is installed, `tree -a -L 3` can display the same structure.
+3. Check the starting files. `links/source.txt` contains `version 1`. Leave `.oslab-managed.json` intact; the helper uses it to recognize your workspace. `target-name.txt` is a spare fixture file and is not used in the core.
 
    ```text
    lab3/
@@ -71,11 +60,13 @@ Original Task 1 wildcards introduces selection; Task 2 links is the central inve
    └── evidence/
    ```
 
-The workspace is for experiments. Your personal course Git repository holds the final submission; you will copy selected files there at the end. VM work and privileged commands are never performed on the shared server.
+`oslab start` preserves existing work. If you are resuming, inspect your files before repeating commands that create or rename them. Do not reset the lab just to fix one link. No task in this core needs `sudo`.
 
 ## Task 1 — Wildcards: Guided Example (10–25)
 
-1. Work in a separate practice folder and create three clearly different names.
+**Starting directory:** the `lab3` root. This practice folder is separate from the report in `links/`.
+
+1. Create two text files and one log file:
 
    ```bash
    mkdir -p practice
@@ -85,17 +76,21 @@ The workspace is for experiments. Your personal course Git repository holds the 
    ls practice
    ```
 
-2. Inspect how the shell expands patterns before using them in a file operation.
+2. Run these commands **before creating the demo links in step 3**. The braces group the commands; `tee` displays their output and saves it in one file.
 
    ```bash
-   printf '<%s>\n' practice/*.txt
-   printf '<%s>\n' practice/report?.txt
-   printf '<%s>\n' 'practice/*.txt'
+   {
+     printf '<%s>\n' practice/*.txt
+     printf '<%s>\n' practice/report?.txt
+     printf '<%s>\n' 'practice/*.txt'
+   } | tee evidence/wildcards.txt
    ```
 
-   The first two commands name two text files; quotes around the whole pattern leave a literal `*`. Brace expansion such as `{1,2}` generates words; it is not a filename wildcard test.
+   `*` matches any sequence of characters; `?` matches exactly one character. Bash expands an unquoted pattern into matching filenames before running `printf`. Quotes keep the last pattern literal.
 
-3. Introduce links without changing the investigation files.
+   **Record in your report:** Which two names does the first command print? Does the second print the same names? Why does the third print a `*` instead of filenames? Use the filenames above in your answer.
+
+3. Create a hard link and a symbolic link to `report1.txt`:
 
    ```bash
    ln practice/report1.txt practice/hard-demo.txt
@@ -104,139 +99,205 @@ The workspace is for experiments. Your personal course Git repository holds the 
    readlink practice/soft-demo.txt
    ```
 
-   A hard link names the same inode on one filesystem. A symbolic link stores a path, resolved relative to the link's directory when that path is relative. `ls -l` displays the stored target.
+   `ls -li` shows the inode number in its first column. On the same filesystem, two hard-linked names identify the same inode and the same file data. A symbolic link has its own inode and stores a target path; `readlink` prints that path.
 
-   An inode is the record that describes a file: its mode, owner, size, timestamps, link count and where its data is. The directory only holds a name and the inode number, so the name is not part of the inode. `ls -li` prints that number in the first column.
+   A **relative symbolic-link target starts from the directory containing the link**. Here `soft-demo.txt` is inside `practice/`, so the stored target `report1.txt` means `practice/report1.txt`. Storing `practice/report1.txt` would incorrectly look for `practice/practice/report1.txt`.
 
-   ![What an inode looks like. The directory has a row for each file name with an inode number, for example report1.txt with 12345. Inode 12345 holds the mode, owner, size, timestamps, link count and the block where the data is. The data block holds the bytes of the file. The file name is not stored in the inode.](figures/inode.svg)
+   **Check together:** Compare the inode numbers of `report1.txt` and `hard-demo.txt`. Then compare the symbolic link's number. These observations introduce the experiment; no extra screenshot or written answer is required here.
 
-   ![Hard link and symbolic link. A hard link: report1.txt and hard-demo.txt are two names for inode 12345, which has link count 2 and holds the data. A symbolic link: soft-demo.txt has its own inode, 99001, which stores the path report1.txt. That path is looked up as a name, which leads to inode 12345 and the data.](figures/hard-soft-links.svg)
+   ![A directory maps filenames to inode numbers; the inode holds file metadata and points to the data.](figures/inode.svg)
 
-   The inode numbers in the figures (12345, 99001) are examples. Yours will be different, so compare your own `ls -li` output.
-
-   **Observe:** Which inode numbers match? Why is `report1.txt` the appropriate relative target here instead of `practice/report1.txt`?
+   ![Two hard-linked names share an inode. A symbolic link has a separate inode storing the target path.](figures/hard-soft-links.svg)
 
 ## Prediction (25–35)
 
-Before renaming the investigation source, write: **After `source.txt` becomes `renamed.txt`, will a hard link still read the old bytes? Will a symbolic link storing `source.txt` still work? Explain each mechanism.** Optional peer comparison is five minutes; keep your own answer.
+**Do this before Task 2, alone and without AI.** You are predicting the following sequence, not running it yet:
+
+- `links/source.txt` contains `version 1`.
+- You create `hard.txt` with `ln source.txt hard.txt` and `soft.txt` with `ln -s source.txt soft.txt` inside `links/`.
+- You rename `source.txt` to `renamed.txt`.
+- Later you create a **new** `source.txt` containing `version 2`.
+
+Submit your answers in the terminal:
+
+```bash
+oslab predict lab3
+oslab status lab3
+```
+
+The helper asks whether each link works after the rename, which version the hard link reads after the new file is created, and one sentence explaining your reasoning. It saves your first prediction and sends it to the instructor's inbox. **Do not create or upload a separate prediction file.** `status` confirms it was saved. A wrong prediction does not lose accuracy points; you will explain your result at the end.
+
+In local practice, the record is `$OSLAB_WORKSPACE/.records/lab3-predict.json`; it stays on your machine. On the class server, the instructor sees it on the board and website. If you see “collects its prediction on paper”, the installed helper needs updating; tell the instructor.
 
 ## Task 2 — Hard Links and Symbolic Links (35–70)
 
-1. Enter the supplied link folder and create two references to the source.
+Work through these five steps in order. Keep the names shown so the automatic checker can find the files.
 
-   ```bash
-   cd "$OSLAB_WORKSPACE/lab3/links"
-   cat source.txt
-   ln source.txt hard.txt
-   ln -s source.txt soft.txt
-   ls -li source.txt hard.txt soft.txt | tee ../evidence/links.txt
-   ```
+### 1. Create the references and record the starting state
 
-   If resuming and a destination already exists, inspect it rather than repeatedly running `ln` or overwriting it. Record the before-state in `../evidence/links.txt`.
+Enter `links/`. Check that `source.txt` still contains `version 1`, then make the links. `tee` starts your evidence file; later commands append to it.
 
-2. Rename the original directory entry and inspect both references.
+```bash
+cd "$OSLAB_WORKSPACE/lab3/links"
+cat source.txt
+ln source.txt hard.txt
+ln -s source.txt soft.txt
+{
+  printf '\n=== BEFORE RENAME ===\n'
+  ls -li source.txt hard.txt soft.txt
+  printf 'hard.txt: '; cat hard.txt
+  printf 'soft.txt: '; cat soft.txt
+  printf 'stored target: '; readlink soft.txt
+} | tee ../evidence/links.txt
+```
 
-   ```bash
-   mv -- source.txt renamed.txt
-   cat hard.txt
-   readlink soft.txt
-   cat soft.txt 2>&1 | tee -a ../evidence/links.txt
-   ```
+**Check:** All three names should read `version 1`. `source.txt` and `hard.txt` should have equal inode numbers. If `ln` says `File exists`, inspect the existing entry; do not overwrite work blindly.
 
-   The final command is a deliberate failure case. Write what the error means before repairing anything.
+### 2. Rename the source and observe the failure
 
-3. Repair **only** `soft.txt` so it refers to the renamed file. Choose a relative target path yourself. Inspect the old link first; remove only that owned symbolic-link entry and recreate it with `ln -s`. Do not replace `hard.txt`.
-4. Inspect inode identity and content after repair:
+You are still in `links/`. Rename the original, then read each reference:
 
-   ```bash
-   {
-     ls -li renamed.txt hard.txt soft.txt
-     readlink soft.txt
-     cat hard.txt soft.txt
-   } | tee -a ../evidence/links.txt
-   ```
+```bash
+mv -- source.txt renamed.txt
+{
+  printf '\n=== AFTER RENAME, BEFORE REPAIR ===\n'
+  ls -li renamed.txt hard.txt soft.txt
+  printf 'hard.txt: '; cat hard.txt
+  printf 'stored target: '; readlink soft.txt
+  printf 'soft.txt: '; cat soft.txt
+} 2>&1 | tee -a ../evidence/links.txt
+```
 
-5. Investigate a changed case: create a **new** `source.txt` containing `version 2`. Predict whether `hard.txt` will now read version 1 or version 2, then check it. Explain why reusing a filename does not reuse the original inode automatically.
+The `cat soft.txt` error is **expected**. The link still exists, but the path it stores no longer names an existing file. This is a *dangling symbolic link*. `2>&1` includes the error message in the saved evidence.
 
-   ```bash
-   printf 'version 2\n' > source.txt
-   { ls -li source.txt hard.txt; cat source.txt hard.txt; } | tee ../evidence/replacement.txt
-   ```
+**Record in your report:** What target does `readlink soft.txt` print at this point, and which filename is now missing? Answer about this state, before the repair or the new `source.txt` exists.
 
-**Complete when:** the hard link survives rename, the repaired symbolic link resolves correctly, and your changed-name test distinguishes filename from inode.
+### 3. Repair only the symbolic link
 
-**Hints:** (1) a hard link is another directory entry; (2) compare `ls -li` and `readlink`; (3) resolve the symbolic target from `links/`, not from the terminal's current directory.
+Make `soft.txt` point to `renamed.txt` using a **relative** target. Write the two commands yourself: remove the owned `soft.txt` entry with `rm -- soft.txt`, then create the symbolic link again with `ln -s TARGET soft.txt`. Replace `TARGET` with the path from the link's folder to the renamed file.
+
+Do not delete or recreate `hard.txt`. Do not rename `renamed.txt` back. Run `cat soft.txt`: it should now print `version 1`.
+
+### 4. Save the repaired state
+
+Still in `links/`, append the repaired link's target, inode numbers and file contents:
+
+```bash
+{
+  printf '\n=== AFTER REPAIR ===\n'
+  ls -li renamed.txt hard.txt soft.txt
+  printf 'stored target: '; readlink soft.txt
+  printf 'hard.txt: '; cat hard.txt
+  printf 'soft.txt: '; cat soft.txt
+} | tee -a ../evidence/links.txt
+```
+
+**Check:** `renamed.txt` and `hard.txt` still share an inode. The repaired symbolic link reads `version 1` through its stored path.
+
+### 5. Reuse the old filename for a different file
+
+Only `renamed.txt`, `hard.txt` and the repaired `soft.txt` refer to the original report now. Create a **new** `source.txt` and save the comparison:
+
+```bash
+printf 'version 2\n' > source.txt
+{
+  printf '\n=== NEW FILE USING THE OLD NAME ===\n'
+  ls -li source.txt renamed.txt hard.txt soft.txt
+  printf 'source.txt: '; cat source.txt
+  printf 'hard.txt: '; cat hard.txt
+  printf 'soft.txt: '; cat soft.txt
+} | tee ../evidence/replacement.txt
+```
+
+**Record in your report:** Give the inode numbers of the new `source.txt` and `hard.txt`, and the version each prints. Explain why creating a new file under the old name does not change the file that `hard.txt` refers to. Your repaired `soft.txt` should still refer to `renamed.txt`.
 
 ## Tests and Feedback (70–85)
 
-Save before/renamed/repaired observations in `evidence/links.txt`, returning to the workspace root first. Save the recreated-name result as `evidence/replacement.txt`.
+Return to the lab root and run the checker:
 
-| Case | Evidence | What it tests |
-|---|---|---|
-| Normal | All references read version 1 before rename | Link construction and correct target path |
-| Failure/repair | Symbolic read fails after rename and succeeds after repair | Path indirection and diagnosis |
-| Changed name | New source reads version 2 while hard link keeps version 1 | Filename replacement versus inode identity |
+```bash
+cd "$OSLAB_WORKSPACE/lab3"
+oslab check lab3
+```
 
-The helper accepts internal symbolic links for this lab; it refuses links that escape the managed directory. Do not use it to manage links to `/etc`, other homes or unrelated directories.
+Before the checkpoint it checks **four milestones**: wildcard output, hard-link identity, the repaired symbolic target, and the new source's distinct identity/content. Read each `TRY` explanation, fix that item, and run the check again. The check sends results to the instructor; it does not automatically award your whole grade.
 
-**Troubleshooting:** `File exists` means inspect the destination; a dangling link can exist even when its target does not. Hard links cannot normally cross filesystems. See [the Lab 3 guide](guides/slides.html), `man ln`, and `man readlink`.
+| State in your evidence | Expected result |
+|---|---|
+| Before rename | Both links read `version 1`; source and hard link share an inode |
+| After rename, before repair | Hard link reads `version 1`; symbolic link is dangling |
+| After repair | Symbolic link resolves to `renamed.txt` and reads `version 1` |
+| After creating a new source | New source reads `version 2`; both links still read `version 1` |
 
+The checker inspects your current files. The labelled sections in `evidence/links.txt` show the earlier failure and repair; your teacher reviews those rather than asking you to repeat the whole experiment. Keep links inside the managed lab folder.
 
 ## Individual Changed-case Checkpoint (85–100 minutes)
 
-Close AI tools and peer help. Answer the instructor's short question on paper or the existing course worksheet. Your earlier implementation need not be complete to answer it.
+Work alone, with AI tools closed. When the instructor announces that the checkpoint is open, run:
 
-> A symbolic link inside `lab3/links/` stores `../source.txt`. Only `lab3/links/source.txt` exists. Resolve the stored path and explain why the link fails; give a suitable target for the existing file.
+```bash
+oslab checkpoint lab3
+```
 
-Give the result or diagnosis, the mechanism, and one observation that could check it. The instructor collects this answer before discussing the public key; the public question is practice, so a graded session may use a fresh private variant.
+The helper describes a **separate folder**, an existing data file and a symbolic link with an incorrect target. It asks two short answers and one explanation, then prints a small file task using your assigned names. Submit the answers in the terminal; then follow the printed task and run `oslab check lab3` again. A fifth milestone checks the checkpoint files. Do not change your Task 2 files.
+
+**Practice example:** A folder `lab3/checkpoint-maple/` contains `note.txt`. A link `shortcut.txt` in that same folder stores `../note.txt`, but `lab3/note.txt` does not exist. Does the link work? What relative target should it store instead? Which folder is the starting point for resolving the stored path?
+
+The public example is practice; the helper supplies the names for your own case. The first class answer is retained. In local practice the checkpoint is available without an instructor release, and the teacher does not receive it.
 
 ## Explanation and Correction (100–110 minutes)
 
-Keep your original prediction visible. Under it, write **confirmed** or **corrected**, cite the relevant test, and explain the OS mechanism in 3–5 sentences. Initial prediction accuracy is lightly weighted; a reasoned attempt and evidence-based correction earn credit.
+Run `oslab debrief lab3` to answer the prediction questions again **after** the experiment. It keeps the original prediction unchanged and sends your corrected answers to the instructor.
 
-Answer: (a) Which file change broke the symbolic reference? (b) Why did the hard link survive? (c) What happens if the new filename contains different bytes?
+In the [short report](README.md), complete the three specific answers from Tasks 1 and 2. End with **confirmed** or **corrected** and one sentence connecting your prediction to an observed result. Use your actual filenames, inode numbers and version text; no general essay is needed.
 
 ## Cleanup and Final Submission (110–120 minutes)
 
-Save evidence before optional cleanup. If you later run `oslab clean lab3`, only the managed directory is removed; internal links are removed as entries and external links are refused. No boot configuration changes occur in the core.
+There are two submission routes, each with a clear purpose:
 
-1. Set `SUBMISSION_REPO` to the **absolute path of your existing personal course repository**. Replace the example ID/path below with your own; do not copy another student's repository.
+| What | Where it goes | How |
+|---|---|---|
+| Prediction, check results, checkpoint answers and debrief | Instructor's class inbox | Sent by the `oslab` commands above; confirm with `oslab status lab3` |
+| Short report and three text evidence files | `lab3/` in your personal course Git repository | Copy the files, commit and push below |
+
+1. Set `SUBMISSION_REPO` to your **existing personal course repository**, using your own ID. Use the [README template](README.md) to create `lab3/README.md` there; keep an existing report if you are resuming.
 
    ```bash
    SUBMISSION_REPO="$HOME/os-gic-YOUR_ID/os-lab-YOUR_ID"
    mkdir -p "$SUBMISSION_REPO/lab3/evidence"
-   ```
-
-2. Use [this lab's README template](README.md). Copy the listed artifacts and **two selected test records**, rather than every terminal output. Check the final tree below before submitting.
-
-   ```bash
    cd "$OSLAB_WORKSPACE/lab3"
-   cp -- evidence/links.txt evidence/replacement.txt "$SUBMISSION_REPO/lab3/evidence/"
+   cp -- evidence/wildcards.txt evidence/links.txt evidence/replacement.txt "$SUBMISSION_REPO/lab3/evidence/"
+   oslab status lab3
    ```
+
+2. Check that your submission has this structure:
 
    ```text
    lab3/
    ├── README.md
    └── evidence/
-       ├── links.txt        # inode/target and before/failure/repair evidence
-       └── replacement.txt  # recreated source name and content observations
+       ├── wildcards.txt    # two expanded patterns and one quoted literal
+       ├── links.txt        # labelled before / renamed / repaired states
+       └── replacement.txt  # new source versus original hard-linked file
    ```
 
-3. Write your own explanations. The prediction must have been captured before execution on paper or the existing course mechanism; copying it into the README afterwards is only a record, not proof of timing. The independent checkpoint is collected separately.
-4. Inspect your course repository with `git status --short`, add only your lab files, and commit/push using the normal course submission procedure. Do not include passwords, personal shell configuration, generated binaries or disk images.
+3. In your personal repository, run `git status --short`, add only the intended Lab 3 files, then commit and push using the course submission procedure. Your `oslab` records are already collected; do not copy private record folders or submit screenshots of every command.
+4. Keep the practice workspace until grading is complete. `oslab clean lab3` is optional afterwards and removes only the managed workspace. The core creates no background jobs, mounts or boot configuration changes.
 
 ## Grading Criteria (10 points)
 
 | Evidence mapped to lab objectives | Points |
 |---|---:|
-| Correct wildcard explanation and working hard/symbolic links (objectives 1–3) | 3 |
-| Rename failure, repair and recreated-name evidence | 2 |
-| Explain inode identity and relative symbolic-target resolution; original prediction and evidence-based correction | 2 |
-| Individual changed-case checkpoint: result/diagnosis and mechanism | 2 |
-| Concise, attributable evidence and required artifacts | 1 |
+| Wildcard result, hard-link identity and repaired symbolic target: 1 point each | 3 |
+| Labelled rename/failure/repair evidence and recreated-name comparison: 1 point each | 2 |
+| Original prediction saved, followed by debrief and an evidence-based correction: 1 point each | 2 |
+| Individual checkpoint: path answers and working repaired link: 1 point each | 2 |
+| Complete short report and three evidence files submitted | 1 |
 
-Equivalent valid commands, filenames and approaches earn credit if the evidence meets the objectives. A naming difference is penalized only when it actually breaks execution. AI is permitted during investigation and tests, optional throughout, and excluded from the initial prediction and individual checkpoint. If used, note one helpful suggestion and its verification; no paid tool, chat history or AI detector is required.
+The board and website summarize the objective checks and saved answers. The teacher reviews your short explanations and the labelled failure/repair record; a helper `PASS` alone does not prove the earlier sequence or your understanding. Incorrect initial predictions are not penalized. Equivalent valid target paths earn credit; the named files are used so the checker can locate the result. If you use different names, show the teacher the equivalent files for manual review.
+
+AI is optional during Tasks 1–2 and tests, and excluded from the prediction and checkpoint. If used, add one sentence naming a suggestion and how you checked it. No chat history is required.
 
 ## Help, References and Optional Work
 
-Use the progressive hints in the task sections before requesting a full solution. See [the extension guide](extensions.md) for follow-up tasks with their own environment requirements. Existing visual guides are background references and may show the older broader sequence; this Markdown instruction defines the current required core.
+Use `man ln` and `man readlink` for command syntax. If a link fails, inspect `readlink`, locate the link's own directory, then resolve the stored target from there. The [visual guide](guides/slides.html) illustrates the concepts but may show the older paper submission flow; **use the terminal submission steps in this instruction**. GRUB and library tasks in [extensions](extensions.md) are optional and do not affect the core grade.

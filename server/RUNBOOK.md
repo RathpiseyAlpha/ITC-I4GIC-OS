@@ -8,7 +8,7 @@ Required: Python 3.8+, Bash, coreutils, `/usr/local/bin` writable by an administ
 
 Topic tools: `gcc`/pthread (Lab 5), `flock` (Labs 8–9), `tar` and user cron (Lab 10), `mkfs.ext4`/`dumpe2fs` and optional FUSE (`fuse2fs`, `/dev/fuse`, user namespace policy) for Lab 11. Check availability; use the documented trace or unprivileged fallback if missing. Disposable VM snapshots are required before any GRUB recovery extension. Never alter the shared server's bootloader. Multi-user permissions need separately prepared narrow accounts/groups or use the individual trace fallback.
 
-## Class inbox, term name and instructor tool (pilot labs 1, 2 and 8)
+## Class inbox, term name and instructor tool (Labs 1, 2, 3 and 8)
 
 `install.sh --apply` also creates:
 
@@ -19,6 +19,8 @@ Topic tools: `gcc`/pthread (Lab 5), `flock` (Labs 8–9), `tar` and user cron (L
 | `/var/lib/itc-oslab/release` | root, `0755` | `oslab-teach release labN` writes `labN.checkpoint` here. Until that file exists, `oslab checkpoint labN` refuses to start |
 | `/usr/local/bin/oslab-teach` | root, `0755` | Instructor tool. It must list the inbox, so run it with `sudo` |
 | `/opt/itc-os-labs/inbox-reader` | root, `0644` | Only with `--inbox-reader=ACCOUNT`. Names the one account, besides root, that may list the inbox |
+
+Lab 3 uses the same inbox for prediction, checks, checkpoint and debrief. Its four core milestones check wildcard output, hard-link identity, repaired symbolic target and the new source. A released checkpoint adds a fifth milestone in a separate folder. Update the installed helper and website source together, then restart the website service. Its rubric remains 3/2/2/2/1, with suggestions for objective results and short human review of the transcript and explanations.
 
 ### Marking from the website
 

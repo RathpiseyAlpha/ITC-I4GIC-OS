@@ -6,7 +6,7 @@ Start with [environment setup](SETUP.md). Every route has a 120-minute individua
 |---|---|---|---|
 | 1 | OS Lab 1 — Introduction to Operating Systems (Hands-on) | [Instruction](lab1/lab1-instruction.md) · [Report](lab1/README.md) · [Extensions](lab1/extensions.md) | [Public plan](../teaching/instructor/lab1/plan.md) |
 | 2 | OS Lab 2 — Linux Navigation & File Management (Hands-on) | [Instruction](lab2/lab2-instruction.md) · [Report](lab2/README.md) · [Extensions](lab2/extensions.md) | [Public plan](../teaching/instructor/lab2/plan.md) |
-| 3 | OS Lab 3 — Wildcards, Links, GRUB & Shared Libraries (Hands-on) | [Instruction](lab3/lab3-instruction.md) · [Report](lab3/README.md) · [Extensions](lab3/extensions.md) | [Public plan](../teaching/instructor/lab3/plan.md) |
+| 3 | OS Lab 3 — Wildcards, Hard Links and Symbolic Links | [Instruction](lab3/lab3-instruction.md) · [Report](lab3/README.md) · [Extensions](lab3/extensions.md) | [Public plan](../teaching/instructor/lab3/plan.md) |
 | 4 | OS Lab 4 — Linux I/O Redirection, Pipelines & Process Management (Hands-on) | [Instruction](lab4/lab4-instruction.md) · [Report](lab4/README.md) · [Extensions](lab4/extensions.md) | [Public plan](../teaching/instructor/lab4/plan.md) |
 | 5 | OS Lab 5 — Threads, Kernel Workers & Process Signals (Hands-on) | [Instruction](lab5/lab5-instruction.md) · [Report](lab5/README.md) · [Extensions](lab5/extensions.md) | [Public plan](../teaching/instructor/lab5/plan.md) |
 | 6 | OS Lab 6 — Linux Security, Users, Groups & File Permissions (Hands-on) | [Instruction](lab6/lab6-instruction.md) · [Report](lab6/README.md) · [Extensions](lab6/extensions.md) | [Public plan](../teaching/instructor/lab6/plan.md) |

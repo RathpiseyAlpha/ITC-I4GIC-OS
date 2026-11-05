@@ -251,6 +251,34 @@ def lab2_checkpoint(pick, v):
     return cv, intro, qs, after
 
 
+def lab3_predict(v):
+    return [question("hard", "In links/, source.txt contains version 1. You create hard.txt with `ln source.txt hard.txt`, then rename source.txt to renamed.txt. Can `cat hard.txt` still read version 1? (yes/no)", "yesno", "y"),
+            question("soft", "In the same experiment, soft.txt was created with `ln -s source.txt soft.txt`. After the rename, before repair or creating any new source.txt, can `cat soft.txt` read the file? (yes/no)", "yesno", "n"),
+            question("replacement", "Next you create a NEW source.txt containing version 2. You have not changed hard.txt. Which version does `cat hard.txt` print? Type 1 or 2.", "int", [1]),
+            question("why", "One sentence: explain why a hard link and a symbolic link behave differently after the rename.", "text")]
+
+
+def lab3_checkpoint(pick, v):
+    folder, name = two_words(pick, "folder", "name")
+    cwd = f"checkpoint-{folder}"
+    target = f"{cwd}/{name}.txt"
+    cv = {"folder": cwd, "name": f"{name}.txt", "content": f"checkpoint {folder} {name}"}
+    intro = [f"Separate case: inside lab3/{cwd}/, the ONLY data file is {name}.txt.",
+             f"A symbolic link called shortcut.txt is in that same folder but stores ../{name}.txt.",
+             f"There is no lab3/{name}.txt. Answer before creating the checkpoint files."]
+    qs = [question("works", "Does the current shortcut resolve to the data file? (yes/no)", "yesno", "n"),
+          question("target", "What relative target should shortcut.txt store to read the data file beside it? Type the target path, not an ln command.", "path", [cwd, target]),
+          question("why", "One sentence: which directory is the starting point when Linux resolves a symbolic link's relative target?", "text")]
+    after = ["Now demonstrate your repair in a NEW folder, separate from links/:",
+             f'  cd "$OSLAB_WORKSPACE/lab3"',
+             f"  mkdir -p {cwd}",
+             f"  printf '%s\\n' '{cv['content']}' > {target}",
+             f"  cd {cwd}",
+             f"  ln -s YOUR_TARGET shortcut.txt  # replace YOUR_TARGET with your answer",
+             'Then run: oslab check lab3']
+    return cv, intro, qs, after
+
+
 def lab8_values(pick):
     # Each buyer alone fits in the stock; together they never do (stock >= 7, each wants stock-3 or more).
     stock = 7 + pick("stock", 8)
@@ -282,9 +310,9 @@ def lab8_checkpoint(pick, v):
     return cv, intro, qs, after
 
 
-VALUES = {"lab1": lab1_values, "lab2": lab2_values, "lab8": lab8_values}
-PREDICT = {"lab1": lab1_predict, "lab2": lab2_predict, "lab8": lab8_predict}
-CHECKPOINT = {"lab1": lab1_checkpoint, "lab2": lab2_checkpoint, "lab8": lab8_checkpoint}
+VALUES = {"lab1": lab1_values, "lab2": lab2_values, "lab3": lambda pick: {}, "lab8": lab8_values}
+PREDICT = {"lab1": lab1_predict, "lab2": lab2_predict, "lab3": lab3_predict, "lab8": lab8_predict}
+CHECKPOINT = {"lab1": lab1_checkpoint, "lab2": lab2_checkpoint, "lab3": lab3_checkpoint, "lab8": lab8_checkpoint}
 
 
 def lab_values(lab, user):
@@ -994,9 +1022,40 @@ def check_lab2(target, values, extra):
     return results
 
 
-CHECKS = {"lab1": check_lab1, "lab2": check_lab2, "lab8": check_lab8}
+def check_lab3(target, values, extra=None):
+    """Check real file identity and target paths, rather than trusting a transcript."""
+    links = target / "links"
+    hard, renamed, source, soft = (links / name for name in ("hard.txt", "renamed.txt", "source.txt", "soft.txt"))
+    results = []
+    wildcard = read_text(target / "evidence/wildcards.txt")
+    expected = "<practice/report1.txt>\n<practice/report2.txt>\n" * 2 + "<practice/*.txt>\n"
+    results.append(("wildcards: saved expansion of two patterns and one quoted literal",
+                    [] if wildcard == expected else ["From the lab3 root, save the three Task 1 printf commands to evidence/wildcards.txt before creating demo links."]))
+    same = (all(p.is_file() and not p.is_symlink() for p in (hard, renamed))
+            and os.path.samefile(hard, renamed) and read_text(hard) == "version 1\n")
+    results.append(("hard link: hard.txt and renamed.txt share the original file (version 1)",
+                    [] if same else ["Keep hard.txt as a hard link to the renamed original; compare ls -li and cat."]))
+    repaired = soft.is_symlink() and renamed.is_file() and soft.resolve() == renamed.resolve()
+    results.append(("symbolic link: soft.txt resolves to renamed.txt",
+                    [] if repaired else ["Repair only soft.txt; its relative target is resolved from links/."]))
+    replaced = (source.is_file() and not source.is_symlink() and read_text(source) == "version 2\n"
+                and same and not os.path.samefile(source, hard))
+    results.append(("replacement: new source.txt is version 2, separate from the version 1 inode",
+                    [] if replaced else ["Create a new source.txt after the rename; do not write version 2 through hard.txt or renamed.txt."]))
+    if extra:
+        folder = target / extra["folder"]
+        shortcut, data = folder / "shortcut.txt", folder / extra["name"]
+        done = (data.is_file() and not data.is_symlink() and read_text(data) == extra["content"] + "\n"
+                and shortcut.is_symlink() and shortcut.resolve() == data.resolve())
+        results.append(("checkpoint: shortcut.txt resolves to the supplied data file",
+                        [] if done else ["Follow the separate checkpoint task printed by oslab checkpoint lab3; leave links/ unchanged."]))
+    return results
+
+
+CHECKS = {"lab1": check_lab1, "lab2": check_lab2, "lab3": check_lab3, "lab8": check_lab8}
 # Details a check sends with its milestones, so the marking screen can give part of a row's points.
-CHECK_DETAILS = {"lab2": lambda target, values: {"path_error": lab2_path_error(target, values)}}
+CHECK_DETAILS = {"lab3": lambda target, values: {"lab3_checks": [not problems for _, problems in check_lab3(target, values)]},
+                 "lab2": lambda target, values: {"path_error": lab2_path_error(target, values)}}
 EVIDENCE_BUDGET = 8000  # bytes of file entries per record; oslab_teach drops records over 16 KB
 HASH_LIMIT = 5_000_000
 
