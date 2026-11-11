@@ -166,31 +166,27 @@ test -f "$OSLAB_WORKSPACE/lab2/TechCorp/$third/found.txt"
     assert f'soft: version {v23}' in (lab3/'evidence/replacement.txt').read_text()
     assert (lab3/'extra/three.txt').is_file() and (lab3/'evidence/wildcards.txt').read_text().count('\n') == 6
 
-    # Lab 4: the student's own report.sh is the public model with the personal status word in front of it.
-    status4 = values[4]['status']
-    solution4 = (ROOT/'teaching/instructor/lab4/report_solution.sh').read_text()
-    (base/'lab4/report.sh').write_text(f'STATUS={shlex.quote(status4)}\n' + solution4)
-
+    # Lab 4: execute the authored commands; no student-written script is supplied.
     def fences4(*starts):
-        return [personal(4, code) for name, code in routes[4] if name.startswith(tuple(f'## {s}' for s in starts))]
-    # The error-message fence of Core 1 exits 1 on purpose when run without an argument; it is a pattern, not a step.
-    core1 = [code for code in fences4('Core 1') if 'exit 1' not in code]
-    shell(prefix + section(4, 'Setup') + ''.join(core1) + ''.join(fences4('Core 2')) + ''.join(fences4('Instructor')),
-          base/'lab4', env, 'Lab4 core, Plus and Challenge as written')
+        return [personal(4, code) for name, code in routes[4] if name.startswith(tuple(f'## {x}' for x in starts))]
+    shell(prefix + section(4, 'Setup') + ''.join(fences4('Core 1', 'Core 2', 'Instructor')),
+          base/'lab4', env, 'Lab4 direct command workflow')
     out = shell(prefix + 'oslab check lab4\n', home, env, 'Lab4 check')
     assert 'milestones: 4/4' in out, out
-    edge = (base/'lab4/evidence/edge.txt').read_text()
-    assert f'{status4} total: 0' in edge and 'missing-input status=' in edge and 'missing-input status=0' not in edge, edge
-    assert (base/'lab4/evidence/normal.txt').read_text() == (base/'lab4/data/expected.txt').read_text()
-    # Every wrong way the objectives warn about must fail a milestone.
-    wrong = {'rows': f'echo "{status4} total: $(grep -c "^{status4}," "$1")"\n',
-             'prefix': f'awk -F, -v s="{status4}" \'$1 ~ "^"s {{ t += $2 }} END {{ print s " total: " t+0 }}\' "$1"\n',
-             'first': f'grep "^{status4}," "$1" | head -n 1 | cut -d, -f2 | sed "s/^/{status4} total: /"\n'}
-    for label, body in wrong.items():
-        (base/'lab4/report.sh').write_text('#!/usr/bin/env bash\n' + body)
-        result = subprocess.run(['bash', '-c', prefix + 'oslab check lab4\n'], cwd=home, env=env, capture_output=True, text=True)
-        assert 'milestones: 4/4' not in result.stdout, (label, result.stdout)
-    (base/'lab4/report.sh').write_text(f'STATUS={shlex.quote(status4)}\n' + solution4)
+    assert not (base/'lab4/report.sh').exists()
+    assert (base/'lab4/evidence/edge.txt').read_text().split() == ['0', '4']
+    assert (base/'lab4/evidence/normal.txt').read_text().strip() == '3'
+    # Common mistakes must fail rather than receiving artifact-only completion.
+    mistakes = {'selected.txt': 'look-alike,99\n', 'fields.txt': '3\n',
+                'normal.txt': '999\n', 'edge.txt': '4\n',
+                'stdout.txt': 'missing input\n', 'stderr.txt': '', 'status.txt': '0\n'}
+    for name, wrong in mistakes.items():
+        file = base/'lab4/evidence'/name
+        correct = file.read_text()
+        file.write_text(wrong)
+        out = shell(prefix + 'oslab check lab4\n', home, env, f'Lab4 wrong {name}')
+        assert 'milestones: 4/4' not in out, (name, out)
+        file.write_text(correct)
 
     # Lab 5: the program arrives with two gaps; the model fills them as a student would, then breaks them in turn.
     def fences5(*starts):

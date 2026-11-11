@@ -561,10 +561,10 @@ LAB_SPECS = {
     "lab4": {
         "total_points": 100,
         "files": [
-            "README.md",
-            "report.sh",
-            "evidence/normal.txt",
-            "evidence/edge.txt",
+            "README.md", "checkpoint.txt", "evidence/commands.txt",
+            "evidence/selected.txt", "evidence/fields.txt", "evidence/normal.txt",
+            "evidence/edge.txt", "evidence/stdout.txt", "evidence/stderr.txt",
+            "evidence/status.txt", "evidence/checkpoint-selected.txt",
         ],
         "dirs": ["evidence"],
     },

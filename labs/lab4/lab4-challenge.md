@@ -1,5 +1,7 @@
 # Lab 4 Post-Lab Challenge: Find the Suspicious Client
 
+> **Later study only:** these optional exercises use syntax/tools beyond the revised command-only Lab 4. Attempt them after the instructor teaches the prerequisites (Bash scripting in Lab 7; process-control/C prerequisites for lifecycle exercises). They are not assessed in the Lab 4 core.
+
 **Optional extension only.** The instructor supplies the log dataset in your own account before this challenge. Keep all work inside that assigned directory; the path shown below is an example and may differ on the shared server. This challenge is separate from the required 120-minute [Lab 4 core](lab4-instruction.md).
 
 ## Overview

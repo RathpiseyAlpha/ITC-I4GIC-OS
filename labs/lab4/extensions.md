@@ -1,5 +1,7 @@
 # Lab 4 — Optional Extensions
 
+> **Later study only:** these optional exercises use syntax/tools beyond the revised command-only Lab 4. Attempt them after the instructor teaches the prerequisites (Bash scripting in Lab 7; process-control/C prerequisites for lifecycle exercises). They are not assessed in the Lab 4 core.
+
 Follow [the required instruction](lab4-instruction.md) first. These procedures preserve the original lab's broader coverage and are not part of the 120-minute core.
 
 Use your individual account on the shared Ubuntu server for unprivileged tasks. VM-only sections require a disposable snapshot and instructor preparation. State exactly what you executed versus interpreted from a supplied trace; extra tasks are not a prerequisite for full core credit.

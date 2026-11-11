@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Public model for the simple two-field fixture, not general CSV parsing.
+# Historical script-era reference for later scripting lessons; NOT a Lab 4 requirement or checker model.
+# Retained to preserve earlier work; see plan.md for the current command-only model.
 # Every student has a personal status word. Set it with STATUS=ready (default: ok).
 set -euo pipefail
 [[ $# -eq 1 && -f "$1" && -r "$1" ]] || {

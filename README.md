@@ -133,7 +133,7 @@ Each lab is a 120-minute individual session on the course server. Start with the
 | 1 | Introduction to Operating Systems | ✅ Available | [Instructions](labs/lab1/lab1-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 1.pdf>) |
 | 2 | Linux Navigation & File Management | ✅ Available | [Instructions](labs/lab2/lab2-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 2.pdf>) |
 | 3 | Wildcards, Links, GRUB & Shared Libraries | ✅ Available | [Instructions](labs/lab3/lab3-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 3.pdf>) |
-| 4 | I/O Redirection, Pipelines & Process Management | ✅ Available | [Instructions](labs/lab4/lab4-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 4.pdf>) |
+| 4 | I/O Redirection & Pipelines | ✅ Available | [Instructions](labs/lab4/lab4-instruction.md) · [Guide](labs/lab4/guides/slides.html) |
 | 5 | Threads, Kernel Workers & Process Signals | ✅ Available | [Instructions](labs/lab5/lab5-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 5.pdf>) |
 | 6 | Linux Security, Users, Groups & File Permissions | ✅ Available | [Instructions](labs/lab6/lab6-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 6.pdf>) |
 | 7 | Bash Scripting, Permissions & Server Automation | ✅ Available | [Instructions](labs/lab7/lab7-instruction.md) · [Guide](<lectures/files/Converted Slides/Labs/Operating Systems — Lab 7.pdf>) |

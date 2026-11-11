@@ -96,9 +96,9 @@ HINTS = {
     "lab3": ("Which command did you run, and in which folder? Check with `pwd`, then run `ls -li` in links/ and compare the inode numbers in the first column. Your own names are in `oslab values lab3`.",
              "A hard link shares the inode of the original, so it still works after the rename. A symbolic link stores a name; run `readlink` on it and ask: is there a file with that name now? A NEW file with that name makes the link work again, but on the wrong file.",
              "A relative target is read from the folder that holds the link. To point the soft link at the renamed file in the same folder, the stored target is only that file name. Remove the old link with `rm --`, then `ln -s TARGET LINK` again, with your own names."),
-    "lab4": ("Run each stage of the pipeline alone and read what it prints. Which stage still shows the word `STATUS` or rows you do not want?",
-             "The total is a sum, not a count of lines. `wc -l` counts rows. Which command can add the numbers in column 2? Try `awk -F, '{ total += $2 } END { print total+0 }'` on the selected rows only.",
-             "Select the rows whose FIRST field is exactly your status: `$1 == \"STATUS\"` in awk, or `grep '^STATUS,'` (the comma stops a look-alike such as `STATUS-late`). Print the label and the total once, in `END`. For a missing file, print the message with `>&2` and `exit 1`."),
+    "lab4": ("Run each pipeline stage separately: grep selects rows, cut selects fields, and wc -l counts lines.",
+             "Use grep '^STATUS,' with your own word. The comma excludes STATUS-late. Save selected rows and field 2 separately; wc -l counts records, not quantities.",
+             "Match the first field exactly your status. Use > for the first count and >> for the second. For a missing file, run cat with > stdout and 2> stderr, then immediately echo $? into the status file."),
     "lab5": ("Read main from top to bottom. A thread starts at pthread_create, but main keeps going. Which line makes main wait for worker A, and which for worker B? Run `oslab check lab5` and read the TRY line.",
              "Each worker you created needs its own pthread_join, with the thread variable of THAT worker (ta, then tb). Put the joins before the line that prints the results, and test the return code: `rc = pthread_join(ta, NULL); if (rc) return 1;`",
              "After both joins, print the report line: `printf(\"A result=%d B result=%d\\n\", a.result, b.result);`. The worker prints `worker N finished` before it returns, so both of those lines come before your report line."),
@@ -143,7 +143,7 @@ PRELAB = {
              ("In `a | b`, what goes into `b`?", ("the files of a", "the output of a", "the error messages of a"), "b",
               "The pipe connects the standard output of `a` to the input of `b`. Errors still go to the screen."),
              ("`grep '^ok,' file | wc -l` prints:", ("the sum of the numbers", "the number of matching lines", "the number of words in the file"), "b",
-              "`wc -l` counts lines. A sum of field 2 needs a different command, such as `awk`.")),
+              "`wc -l` counts lines. Adding field quantities is a different task; it is not required in this lab.")),
     "lab5": (("`pthread_join(t, NULL)` makes the calling thread:", ("start the thread t", "wait until the thread t has finished", "stop the thread t at once"), "b",
               "It waits for that one thread. Without it, main can read a result that is not ready, or return and end the process."),
              ("Threads of one process share:", ("the address space (global data and the heap)", "nothing at all", "only the program counter"), "a",
@@ -402,17 +402,16 @@ def lab4_total(rows, status):
 
 def lab4_fixture(v):
     rows = lab4_rows(v)
-    return {"data/events.csv": lab4_csv(rows), "data/expected.txt": f"{v['status']} total: {lab4_total(rows, v['status'])}\n"}
+    return {"data/events.csv": lab4_csv(rows), "data/expected.txt": "3\n"}
 
 
 def lab4_predict(v):
     s, rows = v["status"], lab4_rows(v)
     first = next(count for name, count in rows if name == s)
-    n = sum(1 for name, _ in rows if name == s)
-    return [question("first", f"What number does  grep '^{s},' data/events.csv | cut -d, -f2 | head -n 1  print? (Read the file first.)", "int", [first]),
-            question("equal", "Is that number the required total of all your records? (yes/no)", "yesno", "n"),
-            question("lines", f"How many lines does  grep '^{s},' data/events.csv | wc -l  print?", "int", [n]),
-            question("why", "One sentence: what does the number from wc -l measure, and what does the total measure?", "text")]
+    return [question("first", f"What number does grep '^{s},' data/events.csv | cut -d, -f2 | head -n 1 print? Read the file first.", "int", [first]),
+            question("lines", f"How many lines does grep '^{s},' data/events.csv | wc -l print?", "int", [3]),
+            question("stream", "Which numbered stream carries cat's missing-file diagnostic?", "int", [2]),
+            question("why", "One sentence: what does wc -l count, and why is that different from adding the quantities?", "text")]
 
 
 def lab4_checkpoint(pick, v):
@@ -421,20 +420,21 @@ def lab4_checkpoint(pick, v):
     a, b = 2 + pick("p", 15), 2 + pick("q", 15)
     rows = [(o, 4 + pick("o", 6)), (s, a), (s + "-late", 30 + pick("z", 60)), (s, b), ("not-" + s, 40 + pick("n", 50))]
     name = f"{word}.csv"
-    cv = {"name": name, "rows": [list(r) for r in rows], "total": a + b}
-    intro = [f"New data arrive as a file called data/{name}. These are its records, after the header:"]
+    cv = {"name": name, "rows": [list(r) for r in rows], "revision": "command-evidence-1"}
+    intro = [f"New data arrive as data/{name}. These are its records after the header:"]
     intro += [f"    {n},{c}" for n, c in rows]
-    intro += ["Your report.sh will be used on this file. Answer before you create it."]
-    qs = [question("total", "What will your report.sh print for this file? Type only the total number.", "int", [a + b]),
-          question("lines", f"A friend selects with  grep '^{s},'  and counts with  wc -l.  What number does wc -l print for this file?", "int", [2]),
-          question("stream", "If you give report.sh a file that does not exist, your error message goes to a numbered stream. Which number?", "int", [2]),
-          question("why", "One sentence: why is the wc -l number not the total?", "text")]
+    intro += ["Answer before you create it. No script is needed."]
+    qs = [question("lines", f"How many records does grep '^{s},' select?", "int", [2]),
+          question("first", f"What is the first quantity printed by grep '^{s},' followed by cut -d, -f2?", "int", [a]),
+          question("stream", "Which numbered stream carries cat's missing-file diagnostic?", "int", [2]),
+          question("why", "One sentence: why is the record count different from a sum of quantities?", "text")]
     lines = " ".join(["'status,count'"] + [f"'{n},{c}'" for n, c in rows])
-    after = ["Now make the file and run your own script on it, in your lab4 folder:",
+    after = ["Create the new input in your lab4 folder:",
              '  cd "$OSLAB_WORKSPACE/lab4"',
              f"  printf '%s\\n' {lines} > data/{name}",
-             f"  bash report.sh data/{name} > checkpoint.txt",
-             "  cat checkpoint.txt",
+             f"Write your own grep pipeline to select exactly {s} from data/{name}.",
+             "Save its selected lines to evidence/checkpoint-selected.txt.",
+             "Save their record count (wc -l) to checkpoint.txt.",
              "Then run: oslab check lab4"]
     return cv, intro, qs, after
 
@@ -1656,6 +1656,13 @@ def refresh_fixtures(target, lab):
         elif files[name] != old:
             dest.write_text(files[name], encoding="utf-8")
             print(f"{lab}: {name} was the old shared file; it is now your own version")
+    if lab == "lab4":
+        values = lab_values(lab, current_user())
+        expected = target / "data/expected.txt"
+        old = f"{values['status']} total: {lab4_total(lab4_rows(values), values['status'])}\n"
+        if expected.is_file() and not expected.is_symlink() and read_text(expected) == old:
+            expected.write_text(files["data/expected.txt"], encoding="utf-8")
+            print("lab4: migrated generated expected total to the record count; student files preserved")
     links = target / "links"
     if lab == "lab3" and links.is_dir() and not any(links.iterdir()):  # the old unchanged report was just removed
         for name in files:
@@ -2242,82 +2249,59 @@ def check_lab3(target, values, extra=None):
     return results
 
 
-def run_report(script, arguments, cwd):
-    """Run the student's own script on a small input, with a time limit. Returns (status, stdout, stderr)."""
-    try:
-        done = subprocess.run(["bash", str(script), *arguments], cwd=str(cwd), stdin=subprocess.DEVNULL,
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
-    except subprocess.TimeoutExpired:
-        return 124, "", "the script ran for more than 10 seconds"
-    except OSError as exc:
-        return 127, "", str(exc)
-    return done.returncode, done.stdout.decode("utf-8", "replace"), done.stderr.decode("utf-8", "replace")
-
-
 def check_lab4(target, values, extra):
+    """Inspect command evidence only; never execute a student's commands or script."""
     if read_text(target / "data/events.csv") == LEGACY_FIXTURES["lab4"]["data/events.csv"]:
-        print("NOTE: data/events.csv is the old shared file from before the update. Run `oslab start lab4` to get your own, "
-              "then use your status word (oslab values lab4) in report.sh.")
-    source = target / "report.sh"
-    if not source.is_file() or source.is_symlink():
-        problem = ["report.sh does not exist in the lab4 folder (or is a link): write it in Core 1"]
-        status = values["status"]
-        names = [f"report.sh prints `{status} total: TOTAL` for your own events.csv", f"no row has your status: it prints `{status} total: 0`",
-                 f"extra records and a look-alike ({status}-late): the total is still right",
-                 "a missing input: a message on standard error and a status other than 0"]
-        if extra:
-            names.append("checkpoint: report.sh is right on the new file and checkpoint.txt holds its output")
-        return [(name, problem) for name in names]
+        print("NOTE: data/events.csv is the old shared file. Run oslab start lab4 to get your own.")
     status, other = values["status"], values["other"]
-    label = f"{status} total: "
-    sandbox = Path(tempfile.mkdtemp(prefix=".check-", dir=str(target)))
+    rows = lab4_rows(values)
+    selected = [(n, count) for n, count in rows if n == status]
 
-    def trial(rows, name="in.csv"):
-        (sandbox / name).write_text(lab4_csv(rows), encoding="utf-8")
-        code, out, err = run_report(sandbox / "report.sh", [name], sandbox)
-        total = lab4_total(rows, status)
-        selected = [count for n, count in rows if n == status]
-        if code:
-            return [f"exit status {code}, expected 0" + (f"; message: {err.strip()[:100]}" if err.strip() else "")]
-        if out == f"{label}{total}\n":
-            return []
-        if len(out.splitlines()) != 1:
-            return [f"it must print exactly one line, `{label}{total}`; it printed {len(out.splitlines())} line(s): {out.strip()[:60]!r}"]
-        problems = [f"expected `{label}{total}`, got `{out.strip()[:60]}`"]
-        if out.strip() == f"{label}{len(selected)}":
-            problems.append("that is the number of matching rows; add up field 2 instead")
-        elif selected and out.strip() == f"{label}{selected[0]}":
-            problems.append("that is only the first matching record; add up every one")
-        elif out.strip() == f"{label}{total + sum(count for n, count in rows if n.startswith(status) and n != status)}":
-            problems.append(f"a look-alike such as {status}-late was counted; the first field must be exactly `{status}`")
-        return problems
-    try:
-        shutil.copyfile(str(source), str(sandbox / "report.sh"))
-        results = [(f"report.sh prints `{label}TOTAL` for your own events.csv", trial(lab4_rows(values))),
-                   (f"no row has your status: it prints `{label}0`", trial([(other, 5), (other, 2)])),
-                   (f"extra records and a look-alike ({status}-late): the total is still right",
-                    trial([(status, 7), (status + "-late", 50), (other, 9), (status, 8), ("not-" + status, 99)]))]
-        (sandbox / "in.csv").unlink()
-        code, out, err = run_report(sandbox / "report.sh", ["missing.csv"], sandbox)
-        problems = []
-        if code == 0:
-            problems.append("a missing input file must end with a status other than 0")
-        if out.strip():
-            problems.append(f"the message must go to standard error (>&2), not to the screen output; stdout held {out.strip()[:50]!r}")
-        if code != 0 and not err.strip():
-            problems.append("print a message with echo ... >&2 so the user knows what went wrong")
-        results.append(("a missing input: a message on standard error and a status other than 0", problems))
-        if extra:
-            rows = [tuple(r) for r in extra["rows"]]
-            problems = trial(rows, extra["name"])
-            expected = lab4_csv(rows)
-            if read_text(target / "data" / extra["name"]) != expected:
-                problems.append(f"data/{extra['name']} does not hold the records of the checkpoint: use the printf line printed by oslab checkpoint lab4")
-            if read_text(target / "checkpoint.txt").strip() != f"{label}{extra['total']}":
-                problems.append(f"checkpoint.txt must hold `{label}{extra['total']}`, the output of your report.sh on data/{extra['name']}")
-            results.append(("checkpoint: report.sh is right on the new file and checkpoint.txt holds its output", problems))
-    finally:
-        shutil.rmtree(str(sandbox), ignore_errors=True)
+    def exact(name, expected):
+        path = target / name
+        if not path.is_file() or path.is_symlink() or read_text(path) != expected:
+            return [f"{name} must contain the command's exact output; rerun the instruction with your own status word"]
+        return []
+
+    def counts(name, expected):
+        path = target / name
+        try:
+            tokens = read_text(path).splitlines()
+            valid = path.is_file() and not path.is_symlink() and len(tokens) == len(expected)
+            valid = valid and all(re.fullmatch(r"\s*[0-9]+\s*", line) for line in tokens)
+            valid = valid and [int(line) for line in tokens] == expected
+        except (ValueError, OSError):
+            valid = False
+        return [] if valid else [f"{name} must hold record counts {expected}; wc -l counts lines, not quantities; use >> for the second test"]
+
+    selection = exact("data/events.csv", lab4_csv(rows))
+    selection += exact("evidence/selected.txt", "".join(f"{n},{c}\n" for n, c in selected))
+    selection += exact("evidence/fields.txt", "".join(f"{c}\n" for _, c in selected))
+    changed = exact("data/no-match.csv", lab4_csv([(other, 2)]))
+    changed += exact("data/changed.csv", lab4_csv(rows + [(status, 7), (status + "-late", 99)]))
+    changed += counts("evidence/edge.txt", [0, 4])
+    streams = exact("evidence/stdout.txt", "")
+    error = target / "evidence/stderr.txt"
+    if not error.is_file() or error.is_symlink() or "missing.csv" not in read_text(error):
+        streams.append("evidence/stderr.txt must contain cat's diagnostic naming missing.csv (use 2>)")
+    code = target / "evidence/status.txt"
+    if not code.is_file() or code.is_symlink() or not re.fullmatch(r"\s*[1-9][0-9]*\s*", read_text(code)):
+        streams.append("save a nonzero status immediately after cat: echo $? > evidence/status.txt")
+    if os.path.lexists(target / "data/missing.csv"):
+        streams.append("data/missing.csv exists; choose the absent input required by the instruction")
+    results = [("exact matching rows and extracted quantities are saved", selection),
+               ("normal.txt counts three matching records", counts("evidence/normal.txt", [3])),
+               ("changed and no-match inputs give counts 0 then 4", changed),
+               ("missing input: empty stdout, stderr diagnostic and nonzero status", streams)]
+    if extra:
+        if extra.get("revision") != "command-evidence-1":
+            problems = ["old script-era checkpoint: ask the instructor to preserve old records and start the revised checkpoint"]
+        else:
+            new_rows = [tuple(row) for row in extra["rows"]]
+            problems = exact("data/" + extra["name"], lab4_csv(new_rows))
+            problems += exact("evidence/checkpoint-selected.txt", "".join(f"{n},{c}\n" for n, c in new_rows if n == status))
+            problems += counts("checkpoint.txt", [sum(n == status for n, _ in new_rows)])
+        results.append(("checkpoint: fresh input, exact selection and record count are saved", problems))
     return results
 
 

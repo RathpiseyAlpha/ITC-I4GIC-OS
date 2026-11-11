@@ -171,39 +171,56 @@ bash -c "$build"$'\n'"rm -- links/first.txt"$'\n'"ln -s ../$moved links/first.tx
 printf 'no\n%s\n%s\n' "$v1" "$v2" | "${tool[@]}" debrief lab3 | grep -q 'Saved and sent'
 "${teach[@]}" export lab3 | grep -q '^student-a,'
 "${tool[@]}" hint lab3 3 | grep -q 'rm --'
-# Lab 4: personal CSV, a check that runs the student's own script, a prediction key and a checkpoint with a new file.
+# Lab 4: direct command evidence, migration, negative cases and a fresh checkpoint.
 lab4="$OSLAB_WORKSPACE/lab4"
 status=$(value lab4 status); other=$(value lab4 other)
 test -n "$status" && test -n "$other" && test "$status" != "$other"
 if "${tool[@]}" values lab4 | grep -q '^ *_'; then echo 'a hidden value was shown' >&2; exit 1; fi
-total=$(awk -F, -v s="$status" '$1 == s { t += $2 } END { print t }' "$lab4/data/events.csv")
-test "$(cat "$lab4/data/expected.txt")" = "$status total: $total"
-grep -q "^$status-late," "$lab4/data/events.csv"
+test "$(cat "$lab4/data/expected.txt")" = 3
 "${tool[@]}" check lab4 | grep -q 'milestones: 0/4'
-# A workspace from before the update: the old shared file is replaced, a file the student changed is not.
-printf 'status,count\nok,3\nfail,2\nok,5\n' > "$lab4/data/events.csv"; printf 'ok total: 8\n' > "$lab4/data/expected.txt"
+printf 'status,count\nok,3\nfail,2\nok,5\n' > "$lab4/data/events.csv"
+printf 'ok total: 8\n' > "$lab4/data/expected.txt"
 "${tool[@]}" check lab4 | grep -q 'NOTE: data/events.csv is the old shared file'
 "${tool[@]}" start lab4 | grep -q 'was the old shared file'
 grep -q "^$status-late," "$lab4/data/events.csv"
-test "$(cat "$lab4/data/expected.txt")" = "$status total: $total"
-printf 'my own edit\n' > "$lab4/data/events.csv"
-"${tool[@]}" start lab4 | grep -q 'existing work preserved'
-test "$(cat "$lab4/data/events.csv")" = 'my own edit'
-printf '#!/usr/bin/env bash\necho "%s total: $(grep -c "^%s," "$1")"\n' "$status" "$status" > "$lab4/report.sh"
-out=$("${tool[@]}" check lab4 || true)
-printf '%s\n' "$out" | grep -q 'that is the number of matching rows'
-printf '%s\n' "$out" | grep -q 'milestones: 1/4'
-{ printf 'STATUS=%s\n' "$status"; cat "$script_dir/../teaching/instructor/lab4/report_solution.sh"; } > "$lab4/report.sh"
+test "$(cat "$lab4/data/expected.txt")" = 3
+# Migrate only the generated personalized total; retain user edits and old scripts.
+total=$(awk -F, -v s="$status" '$1 == s { t += $2 } END { print t }' "$lab4/data/events.csv")
+printf '%s total: %s\n' "$status" "$total" > "$lab4/data/expected.txt"
+printf 'old student work\n' > "$lab4/report.sh"
+"${tool[@]}" start lab4 | grep -q 'migrated generated expected total'
+test "$(cat "$lab4/report.sh")" = 'old student work'
+printf 'my expected edit\n' > "$lab4/data/expected.txt"
+"${tool[@]}" start lab4 >/dev/null
+test "$(cat "$lab4/data/expected.txt")" = 'my expected edit'
+mkdir -p "$lab4/evidence"
+grep "^$status," "$lab4/data/events.csv" > "$lab4/evidence/selected.txt"
+cut -d, -f2 "$lab4/evidence/selected.txt" > "$lab4/evidence/fields.txt"
+wc -l < "$lab4/evidence/selected.txt" > "$lab4/evidence/normal.txt"
+printf 'status,count\n%s,2\n' "$other" > "$lab4/data/no-match.csv"
+cp "$lab4/data/events.csv" "$lab4/data/changed.csv"
+printf '%s,7\n%s-late,99\n' "$status" "$status" >> "$lab4/data/changed.csv"
+printf '0\n4\n' > "$lab4/evidence/edge.txt"
+cat "$lab4/data/missing.csv" > "$lab4/evidence/stdout.txt" 2> "$lab4/evidence/stderr.txt" && code=0 || code=$?
+printf '%s\n' "$code" > "$lab4/evidence/status.txt"
 "${tool[@]}" check lab4 | grep -q 'milestones: 4/4'
-test -z "$(ls -A "$lab4" | grep '^\.check-' || true)"
-printf 'status,count\n%s,1\n' "$status" > "$lab4/data/events.csv"
-"${tool[@]}" check lab4 | grep -q 'milestones: 4/4'
-first=$(awk -F, -v s="$status" 'NR > 1 && $1 == s { print $2; exit }' "$lab4/data/expected.txt" || true)
-printf '1\nyes\n9\nI guessed\n' | "${tool[@]}" predict lab4 | grep -q 'Saved and sent'
+printf '4\n' > "$lab4/evidence/edge.txt"
+"${tool[@]}" check lab4 | grep -q 'milestones: 3/4'
+printf '0\n4\n' > "$lab4/evidence/edge.txt"
+printf '0\n' > "$lab4/evidence/status.txt"
+"${tool[@]}" check lab4 | grep -q 'milestones: 3/4'
+printf '%s\n' "$code" > "$lab4/evidence/status.txt"
+printf '1\n9\n2\nI guessed\n' | "${tool[@]}" predict lab4 | grep -q 'Saved and sent'
 "${teach[@]}" release lab4
-cpout=$(printf '1\n2\n2\nit counts rows\n' | "${tool[@]}" checkpoint lab4)
-(cd "$lab4" && eval "$(printf '%s\n' "$cpout" | sed -n -e 's/^  \(printf .*\)$/\1/p' -e 's/^  \(bash report.sh .*\)$/\1/p')")
+cpout=$(printf '2\n1\n2\nit counts rows\n' | "${tool[@]}" checkpoint lab4)
+(cd "$lab4" && eval "$(printf '%s\n' "$cpout" | sed -n 's/^  \(printf .*\)$/\1/p')")
+cpname=$(printf '%s\n' "$cpout" | sed -n 's/^  printf .* > data\/\(.*\)$/\1/p')
+grep "^$status," "$lab4/data/$cpname" > "$lab4/evidence/checkpoint-selected.txt"
+wc -l < "$lab4/evidence/checkpoint-selected.txt" > "$lab4/checkpoint.txt"
 "${tool[@]}" check lab4 | grep -q 'milestones: 5/5'
+printf '3\n' > "$lab4/checkpoint.txt"
+"${tool[@]}" check lab4 | grep -q 'milestones: 4/5'
+printf '2\n' > "$lab4/checkpoint.txt"
 "${teach[@]}" export lab4 | grep -q '^student-a,'
 "${tool[@]}" hint lab4 3 | grep -q 'exactly your status'
 # Lab 5: a program with personal numbers, a check that builds and runs it, and a checkpoint copy with new step counts.
