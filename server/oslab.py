@@ -2355,8 +2355,13 @@ def check(base, lab):
         record = read_record(base, lab, "checkpoint")
         values = lab_values(lab, current_user())
         results = CHECKS[lab](target, values, record["values"] if record else None)
+        color = sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
         for text, problems in results:
-            print(f"{'TRY ' if problems else 'PASS'}: {text}")
+            label = "TRY :" if problems else "PASS:"
+            if color:
+                shade = 33 if problems else 32
+                label = f"\033[1;{shade}m{label}\033[0m"
+            print(f"{label} {text}")
             for problem in problems:
                 print(f"      why: {problem}")
         failed = [(text, problems) for text, problems in results if problems]
