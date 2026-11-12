@@ -44,7 +44,156 @@ A command receives stdin (stream 0), writes normal output to stdout (1), and wri
 
 These are command-line operators, introduced here before you use them. Exit status 0 means success; other values indicate a different outcome. For `grep`, 1 means no matching line and 2 means an error. Check status immediately: another command replaces it. A pipeline normally reports the status of its last command, not every stage.
 
-The input is simple two-field text separated by commas, without quoted commas. `grep '^ready,'` selects lines starting with the whole first field `ready`: `^` means start, and the comma prevents `ready-late` matching. `cut -d, -f2` keeps field 2. `wc -l` counts newline-terminated lines; it does not add the numbers on those lines.
+Use `grep` to select lines, `cut` to extract fields, and `wc -l` to count lines. Adding the quantities would answer a different question.
+
+### Example — Create a sample CSV
+
+Use a practice folder for these examples. In the lab tasks, use the personal input and status words from `oslab`.
+
+```bash
+mkdir -p ~/lab4-examples
+cd ~/lab4-examples
+printf 'status,count\nready,4\ndone,2\nready-late,9\nready,7\n' > events.csv
+```
+
+### grep — Select lines
+
+`grep [OPTIONS] 'PATTERN' [FILE ...]` selects matching lines. Omit the file to read stdin, for example from a pipe. Single quotes pass the pattern to `grep` as written. By default, `grep` uses basic regular expressions.
+
+| Option | What it does | Example |
+|---|---|---|
+| `-i` | Ignore case | `grep -i '^READY,' events.csv` |
+| `-n` | Show line numbers | `grep -n '^ready,' events.csv` |
+| `-v` | Select lines that do not match | `grep -v '^status,' events.csv` |
+| `-c` | Count selected lines per file | `grep -c '^ready,' events.csv` |
+| `-o` | Print each matching part on its own line | `grep -o '[[:digit:]]$' events.csv` |
+| `-x` | Require the whole line to match | `grep -x 'ready,4' events.csv` |
+| `-E` | Use extended regular expressions | `grep -E '^(ready\|done),' events.csv` |
+| `-F` | Treat the pattern as literal text | `grep -F 'ready-late,' events.csv` |
+
+#### Example — Combine options and match the first field
+
+```bash
+grep -in '^READY,' events.csv
+```
+
+```text
+2:ready,4
+5:ready,7
+```
+
+`-in` combines `-i` and `-n`. The `^` anchors the pattern at the start of the line. The comma ends the first field, so the pattern skips `ready-late`. Using `grep -c '^ready,' events.csv` prints `2`, the number of matching lines.
+
+### Regex reference
+
+#### Anchors, sets and metacharacters
+
+| Syntax | What it matches | Example pattern |
+|---|---|---|
+| `^` | Start of the line | `^ready,` |
+| `$` | End of the line | `,7$` |
+| `.` | Any one character on the line | `^d.ne,` |
+| `[abc]` | One of the listed characters | `,[47]$` |
+| `[a-z]` | One character in the range | `^[d-f]` |
+| `[^abc]` | One character outside the set | `,[^47]$` |
+| `*` | Zero or more of the preceding item | `^re*ady,` |
+| `\.` | A literal dot | `\.txt$` |
+
+#### Groups and repetition with `grep -E`
+
+| Syntax | What it does | Example pattern |
+|---|---|---|
+| `(...)` | Group a sequence into one item | `^(ready\|done),` |
+| `\|` | Match either alternative | `^(ready\|done),` |
+| `+` | Repeat the preceding item one or more times | `[[:digit:]]+$` |
+| `?` | Repeat the preceding item zero or one time | `^ready(-late)?,` |
+| `{n}` | Repeat exactly `n` times | `[[:digit:]]{2}$` |
+| `{n,}` | Repeat at least `n` times | `[[:digit:]]{2,}$` |
+| `{n,m}` | Repeat between `n` and `m` times | `[[:digit:]]{1,3}$` |
+
+#### Special character classes and boundaries
+
+| Class or boundary | What it matches |
+|---|---|
+| `[[:digit:]]` | A digit |
+| `[[:alpha:]]` | A letter |
+| `[[:alnum:]]` | A letter or digit |
+| `[[:lower:]]` and `[[:upper:]]` | A lowercase or uppercase letter |
+| `[[:space:]]` and `[[:blank:]]` | Whitespace, or a horizontal blank such as a space or tab |
+| `[[:punct:]]` | A punctuation character |
+| `\b` | A word boundary in GNU `grep` |
+
+Keep both pairs of brackets in `[[:digit:]]`. In `[^47]`, the first `^` inside the brackets negates the set. A hyphen creates a word boundary, so `\bready\b` also finds `ready` within `ready-late`. Use `^ready,` for an exact match on this CSV field.
+
+#### Example — Match alternatives and extract digits
+
+```bash
+grep -E '^(ready|done),' events.csv
+grep -o '[[:digit:]]$' events.csv
+```
+
+```text
+ready,4
+done,2
+ready,7
+4
+2
+9
+7
+```
+
+The first command prints whole lines whose first field is `ready` or `done`. The second prints only the final digit of each matching line.
+
+### cut — Extract fields or positions
+
+Use `cut -d DELIM -f LIST [FILE ...]` to extract fields or `cut -c LIST [FILE ...]` to select positions in ASCII text. Omit the file to read stdin. In field mode, numbering starts at 1 and the default delimiter is a tab. `cut` splits at the delimiter even inside quotes, so these examples use simple comma-separated text.
+
+| Syntax | What it does | Example |
+|---|---|---|
+| `-d DELIM` | Set the field separator | `cut -d ',' -f 2 events.csv` |
+| `-f LIST` | Select numbered fields | `cut -d, -f2 events.csv` |
+| `-f1,3` | Select fields 1 and 3 | `cut -d, -f1,3 people.txt` |
+| `-f2-3` | Select fields 2 through 3 | `cut -d, -f2-3 people.txt` |
+| `-f2-` | Select from field 2 to the end | `cut -d, -f2- people.txt` |
+| `-s` | In field mode, skip lines with no delimiter | `cut -s -d, -f2 people.txt` |
+| `-c1-3` | Select positions 1 through 3 in each ASCII line | `cut -c1-3 people.txt` |
+
+#### Example — Extract quantities and count matching records
+
+```bash
+grep '^ready,' events.csv | cut -d, -f2
+grep '^ready,' events.csv | wc -l
+```
+
+```text
+4
+7
+2
+```
+
+In the first pipeline, `grep` selects the two matching records and `cut` prints field 2 from each. In the second pipeline, `wc -l` counts the selected lines. Running `cut -d, -f2 events.csv` directly also prints `count`, the second field of the header.
+
+#### Example — Choose fields, a range, or positions
+
+```bash
+printf '101,Ada,KH\n102,Lina,SG\n' > people.txt
+cut -d, -f1,3 people.txt
+cut -d, -f2-3 people.txt
+cut -c1-3 people.txt
+printf '101,Ada,KH\nmissing\n' | cut -s -d, -f2
+```
+
+```text
+101,KH
+102,SG
+Ada,KH
+Lina,SG
+101
+102
+Ada
+```
+
+The comma in `-f1,3` selects individual fields. The hyphen in `-f2-3` selects a range. `-c1-3` reads positions directly. `-s` skips the line `missing` because it contains no comma.
 
 ## Timetable
 

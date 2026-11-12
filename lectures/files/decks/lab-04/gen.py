@@ -15,14 +15,16 @@ DECK_URL = None  # not published as a Slides artifact
 CREATED_AT = "2026-10-28T09:00:00Z"
 BG = "Concepts first"
 EXT = "Beyond the core"
+SAMPLE_TERMINAL = "student@server: ~/lab4-examples"
 
 d = init(HERE, 4)
 S = d.S
 CW, HALF = labkit.CW, labkit.HALF
 
 
-def example(t, lines, *, size=28, width=None):
-    return col(h3(t, "Example"), term(t, lines, size=size, width=width), gap=16, flex=None)
+def example(t, lines, *, size=28, width=None, terminal_title=None):
+    return col(h3(t, "Example"), term(t, lines, title=terminal_title, size=size, width=width),
+               gap=16, flex=None)
 
 # ---- opening --------------------------------------------------------------
 labcoverart.cover(d, "lab-04", "Redirection and Pipelines",
@@ -113,10 +115,11 @@ d.slide("pipes", "A pipe joins two commands",
         note="Read it stage by stage: all rows, then only the ok rows, then only field 2 of those rows.",
         label=BG)
 
-def guide_step(slug, title, commands, notes):
+def guide_step(slug, title, commands, notes, *, terminal_title=None):
     if commands:
         d.slide(slug, title,
-                lambda t: row(example(t, commands, size=24), lst(t, notes, size=30, flex=1),
+                lambda t: row(example(t, commands, size=24, terminal_title=terminal_title),
+                              lst(t, notes, size=30, flex=1),
                               gap=48, align="center"))
     else:
         d.slide(slug, title, lambda t: lst(t, notes, size=36))
@@ -145,25 +148,197 @@ guide_step(
         "printf writes text. The escape sequence creates a new line.",
         "Use > to replace the file and >> to append. cat displays the whole file.",
     ],
+    terminal_title="student@server: ~",
 )
 
 guide_step(
-    "example-filter", "Select records, extract fields and count lines",
+    "example-grep", "grep selects matching lines",
     [
         "grep '^ready,' events.csv",
         ("out", "ready,4"),
         ("out", "ready,7"),
+    ],
+    [
+        "Syntax: grep [OPTIONS] 'PATTERN' [FILE ...]. With no file, grep reads stdin.",
+        "grep uses basic regex by default. Single quotes protect the pattern from shell expansion.",
+        "Each match is printed as a complete line.",
+        "The caret (^) means start of line. The comma ends the first field, so ready-late is skipped.",
+    ],
+    terminal_title=SAMPLE_TERMINAL,
+)
+
+d.slide(
+    "grep-options", "Common grep options",
+    lambda t: tbl(t, ["Option", "What it does", "Example"],
+                  [[mono("-i"), "Ignore case", mono("grep -i '^READY,' events.csv")],
+                   [mono("-n"), "Show the line number with each match", mono("grep -n '^ready,' events.csv")],
+                   [mono("-v"), "Select lines that do not match", mono("grep -v '^status,' events.csv")],
+                   [mono("-c"), "Print the number of selected lines per file", mono("grep -c '^ready,' events.csv")],
+                   [mono("-o"), "Print only the matched parts, one per line", mono("grep -o '[[:digit:]]$' events.csv")],
+                   [mono("-x"), "Require a match across the whole line", mono("grep -x 'ready,4' events.csv")],
+                   [mono("-E"), "Use extended regular expressions", mono("grep -E '^(ready|done),' events.csv")],
+                   [mono("-F"), "Treat the pattern as literal text", mono("grep -F 'ready-late,' events.csv")]],
+                  [2, 7, 8]),
+)
+
+guide_step(
+    "example-grep-options", "Number, exclude and count matches",
+    [
+        "grep -in '^READY,' events.csv",
+        ("out", "2:ready,4"),
+        ("out", "5:ready,7"),
+        "grep -v '^status,' events.csv",
+        ("out", "ready,4"),
+        ("out", "done,2"),
+        ("out", "ready-late,9"),
+        ("out", "ready,7"),
+        "grep -c '^ready,' events.csv",
+        ("out", "2"),
+    ],
+    [
+        "Combine short options: -in is the same as -i -n.",
+        "-v keeps the data rows by excluding the header.",
+        "-c counts matching lines. Multiple matches on one line still contribute one line.",
+    ],
+    terminal_title=SAMPLE_TERMINAL,
+)
+
+d.slide(
+    "regex-basics", "Regex reference: anchors and characters",
+    lambda t: tbl(t, ["Syntax", "What it matches", "Pattern", "Matches in the sample"],
+                  [[mono("^"), "Start of the line", mono("^ready,"), "ready,4 and ready,7"],
+                   [mono("$"), "End of the line", mono(",7$"), "ready,7"],
+                   [mono("."), "Any one character on the line", mono("^d.ne,"), "done,2"],
+                   [mono("[abc]"), "One of the listed characters", mono(",[47]$"), "ready,4 and ready,7"],
+                   [mono("[a-z]"), "One character in a range", mono("^[d-f]"), "done,2"],
+                   [mono("[^abc]"), "One character outside the set", mono(",[^47]$"), "done,2 and ready-late,9"],
+                   [mono("*"), "Zero or more of the preceding item", mono("^re*ady,"), "ready,4 and ready,7"],
+                   [mono(r"\."), "A literal dot", mono(r"\.txt$"), "lab4.txt in a filename list"]],
+                  [3, 7, 5, 8]),
+)
+
+d.slide(
+    "regex-extended", "Regex reference: groups and repetition",
+    lambda t: tbl(t, ["Syntax with grep -E", "What it does", "Example pattern"],
+                  [[mono("(...)"), "Group a sequence into one item", mono("^(ready|done),")],
+                   [mono("|"), "Match either alternative", mono("^(ready|done),")],
+                   [mono("+"), "Repeat the preceding item one or more times", mono("[[:digit:]]+$")],
+                   [mono("?"), "Repeat the preceding item zero or one time", mono("^ready(-late)?,")],
+                   [mono("{n}"), "Repeat exactly n times", mono("[[:digit:]]{2}$")],
+                   [mono("{n,}"), "Repeat at least n times", mono("[[:digit:]]{2,}$")],
+                   [mono("{n,m}"), "Repeat between n and m times", mono("[[:digit:]]{1,3}$")]],
+                  [4, 8, 8]),
+    note="Use grep -E with the patterns on this slide. Add ^ or $ when the position of a match matters.",
+)
+
+d.slide(
+    "regex-special", "Regex reference: special character classes",
+    lambda t: tbl(t, ["Class or boundary", "What it matches", "Example"],
+                  [[mono("[[:digit:]]"), "A digit", mono(",[[:digit:]]$")],
+                   [mono("[[:alpha:]]"), "A letter", mono("^[[:alpha:]]")],
+                   [mono("[[:alnum:]]"), "A letter or digit", mono("[[:alnum:]]$")],
+                   [mono("[[:lower:]] / [[:upper:]]"), "A lowercase or uppercase letter", mono("^[[:upper:]]")],
+                   [mono("[[:space:]] / [[:blank:]]"), "Whitespace / horizontal blank", mono("^[[:space:]]*$")],
+                   [mono("[[:punct:]]"), "A punctuation character", mono("[[:punct:]]")],
+                   [mono(r"\b"), "A word boundary in GNU grep", mono(r"\bready\b")]],
+                  [6, 8, 7]),
+    note="Keep both pairs of brackets in [[:digit:]]. A hyphen creates a word boundary, so a word match for ready also finds ready-late.",
+)
+
+guide_step(
+    "example-regex", "Use regex and literal patterns",
+    [
+        "grep -E '^(ready|done),' events.csv",
+        ("out", "ready,4"),
+        ("out", "done,2"),
+        ("out", "ready,7"),
+        "grep -o '[[:digit:]]$' events.csv",
+        ("out", "4"),
+        ("out", "2"),
+        ("out", "9"),
+        ("out", "7"),
+        r"printf 'lab4.txt\nlab4Xtxt\n' | grep '\.txt$'",
+        ("out", "lab4.txt"),
+        r"printf 'lab4.txt\nlab4Xtxt\n' | grep -Fx 'lab4.txt'",
+        ("out", "lab4.txt"),
+    ],
+    [
+        "-E lets the parenthesized alternatives share the start anchor and trailing comma.",
+        "-o shows just the last digit on each matching line.",
+        "Escape the dot with a backslash in a regex. Use -Fx when you already know the exact whole line.",
+    ],
+    terminal_title=SAMPLE_TERMINAL,
+)
+
+d.slide(
+    "cut-syntax", "cut syntax and field lists",
+    lambda t: tbl(t, ["Syntax", "What it does", "Example"],
+                  [[mono("-d DELIM"), "Set the input field separator. The default is a tab.", mono("cut -d ',' -f 2 events.csv")],
+                   [mono("-f LIST"), "Select field numbers starting at 1", mono("cut -d, -f2 events.csv")],
+                   [mono("-f1,3"), "Select fields 1 and 3", mono("cut -d, -f1,3 people.txt")],
+                   [mono("-f2-3"), "Select fields 2 through 3", mono("cut -d, -f2-3 people.txt")],
+                   [mono("-f2-"), "Select from field 2 to the end", mono("cut -d, -f2- people.txt")],
+                   [mono("-s"), "Skip lines with no delimiter in field mode", mono("cut -s -d, -f2 people.txt")],
+                   [mono("-c LIST"), "Select character positions in ASCII text", mono("cut -c1-3 people.txt")]],
+                  [4, 8, 8]),
+    note="Syntax: cut -d DELIM -f LIST [FILE ...] or cut -c LIST [FILE ...]. Omit the file to read stdin. Use field mode for simple delimited text.",
+)
+
+guide_step(
+    "example-cut", "cut extracts a field",
+    [
+        "cut -d, -f1 events.csv",
+        ("out", "status"),
+        ("out", "ready"),
+        ("out", "done"),
+        ("out", "ready-late"),
+        ("out", "ready"),
         "grep '^ready,' events.csv | cut -d, -f2",
         ("out", "4"),
         ("out", "7"),
+    ],
+    [
+        "Use -d, for comma-separated fields and -f1 for the first field. cut also reads the header.",
+        "In the pipeline, grep selects the ready records first. Then -f2 extracts their quantities.",
+    ],
+    terminal_title=SAMPLE_TERMINAL,
+)
+
+guide_step(
+    "example-cut-lists", "Select multiple fields or character positions",
+    [
+        r"printf '101,Ada,KH\n102,Lina,SG\n' > people.txt",
+        "cut -d, -f1,3 people.txt",
+        ("out", "101,KH"),
+        ("out", "102,SG"),
+        "cut -d, -f2-3 people.txt",
+        ("out", "Ada,KH"),
+        ("out", "Lina,SG"),
+        "cut -c1-3 people.txt",
+        ("out", "101"),
+        ("out", "102"),
+        r"printf '101,Ada,KH\nmissing\n' | cut -s -d, -f2",
+        ("out", "Ada"),
+    ],
+    [
+        "A comma in the field list selects individual fields. A hyphen selects a range.",
+        "Here -c1-3 takes the first three character positions in each line.",
+        "-s skips the line missing because it contains no comma.",
+    ],
+    terminal_title=SAMPLE_TERMINAL,
+)
+
+guide_step(
+    "example-filter", "wc counts the selected lines",
+    [
         "grep '^ready,' events.csv | wc -l",
         ("out", "2"),
     ],
     [
-        "grep selects lines. The caret anchors the first field and the comma excludes ready-late.",
-        "cut -d, -f2 takes the second comma-separated field.",
-        "wc -l counts two records. The quantities are 4 and 7.",
+        "wc -l counts lines received through the pipe. Each selected line is one record.",
+        "The quantities 4 and 7 are fields on those two lines.",
     ],
+    terminal_title=SAMPLE_TERMINAL,
 )
 
 guide_step(
@@ -181,6 +356,7 @@ guide_step(
         "tee displays the selected rows and saves them. tee -a also keeps the existing lines.",
         "cp makes a copy. diff -u prints nothing when the files match.",
     ],
+    terminal_title=SAMPLE_TERMINAL,
 )
 
 guide_step(
@@ -202,6 +378,7 @@ guide_step(
         "The first cat leaves normal.txt empty and writes its diagnostic to errors.txt.",
         "The combined file receives both streams. In the pipeline, wc succeeds on empty input.",
     ],
+    terminal_title=SAMPLE_TERMINAL,
 )
 
 guide_step(
@@ -442,6 +619,65 @@ guide_step(
     ],
 )
 
+d.opener("extra-filters-open", "EXAMPLE", "More ways to process text",
+         "Optional examples for later study. Reuse the sample events.csv in ~/lab4-examples.")
+
+guide_step(
+    "example-awk", "awk matches fields and calculates a total",
+    [
+        """awk -F, '$1 == "ready" { print $2 }' events.csv""",
+        ("out", "4"),
+        ("out", "7"),
+        """awk -F, '$1 == "ready" { sum += $2 } END { print sum+0 }' events.csv""",
+        ("out", "11"),
+    ],
+    [
+        "Use -F, for comma-separated fields. $1 is the status and $2 is the quantity.",
+        "The first command prints the quantity for each exact ready match.",
+        "In the second command, += adds each quantity to sum. END prints the total, 11. There are still just 2 matching records.",
+    ],
+    terminal_title=SAMPLE_TERMINAL,
+)
+
+guide_step(
+    "example-sort", "sort orders text or numbers",
+    [
+        "printf '9\\n12\\n2\\n' | sort",
+        ("out", "12"),
+        ("out", "2"),
+        ("out", "9"),
+        "printf '9\\n12\\n2\\n' | sort -n",
+        ("out", "2"),
+        ("out", "9"),
+        ("out", "12"),
+    ],
+    [
+        "By default, sort compares lines as text. The line 12 starts with 1, so it comes before 2.",
+        "sort -n compares numeric values. Now 12 comes last.",
+    ],
+    terminal_title=SAMPLE_TERMINAL,
+)
+
+guide_step(
+    "example-uniq", "uniq collapses adjacent duplicates",
+    [
+        "printf 'ready\\n' > statuses.txt",
+        "printf 'done\\nready\\n' >> statuses.txt",
+        "uniq statuses.txt",
+        ("out", "ready"),
+        ("out", "done"),
+        ("out", "ready"),
+        "sort statuses.txt | uniq -c",
+        ("out", "      1 done"),
+        ("out", "      2 ready"),
+    ],
+    [
+        "The first uniq leaves both ready lines because done separates them.",
+        "sort brings matching lines together. uniq -c counts each group of equal lines.",
+    ],
+    terminal_title=SAMPLE_TERMINAL,
+)
+
 d.opener("ext-open", "BEYOND THE CORE", "Processes, jobs and signals", "For later study after the prerequisites in the extensions handout.")
 
 d.slide("ps-tools", "Looking at processes",
@@ -514,6 +750,7 @@ SECTIONS = {
     "s5": {"description": "Core 1 and Core 2: select, extract and count, then test changed inputs.", "start": "c1-open"},
     "s6": {"description": "The live checkpoint: why, the steps with oslab, and what it asks.", "start": "cp-open"},
     "s7": {"description": "Debrief, submission, grading, common mistakes.", "start": "end-open"},
+    "extra-filters": {"description": "Optional worked examples for awk, sort and uniq.", "start": "extra-filters-open"},
     "s8": {"description": "Beyond the core: processes, jobs and signals, then takeaways and the next lab.", "start": "ext-open"},
 }
 
