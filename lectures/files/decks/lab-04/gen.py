@@ -577,19 +577,19 @@ guide_step(
 
 d.opener('cp-open', 'LIVE CHECKPOINT', 'Select from fresh records', 'Wait for release. Work alone with AI tools closed.')
 
-guide_step(
+d.slide(
     'cp-steps', 'Checkpoint: 85–100 minutes',
-    [
-        'oslab checkpoint lab4',
-        'oslab check lab4',
-    ],
-    [
-        'Wait for release; close AI tools.',
-        'Answer questions about fresh records. Create the input with the supplied command.',
-        'Write your own exact-selection pipeline.',
-        'Save evidence/checkpoint-selected.txt and checkpoint.txt (record count).',
-        'Look for five passing milestones.',
-    ],
+    lambda t: row(
+        example(t, ['oslab checkpoint lab4', 'oslab check lab4']),
+        lst(t, [
+            'Read the new records and submit your answers.',
+            'Run the printed commands to enter lab4/ and create the checkpoint CSV.',
+            'Save the rows for your exact status to ./evidence/checkpoint-selected.txt.',
+            'Save the record count to ./checkpoint.txt, beside evidence/.',
+            'Run the check and look for PASS on the checkpoint line.',
+        ], ordered=True, size=30, flex=1),
+        gap=48, align='center',
+    ),
 )
 
 d.opener('end-open', 'DEBRIEF AND SUBMIT', 'Explain what each stage did', 'Use your saved observations to explain the results.')

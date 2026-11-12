@@ -421,21 +421,20 @@ def lab4_checkpoint(pick, v):
     rows = [(o, 4 + pick("o", 6)), (s, a), (s + "-late", 30 + pick("z", 60)), (s, b), ("not-" + s, 40 + pick("n", 50))]
     name = f"{word}.csv"
     cv = {"name": name, "rows": [list(r) for r in rows], "revision": "command-evidence-1"}
-    intro = [f"New data arrive as data/{name}. These are its records after the header:"]
+    intro = [f"Read these records for data/{name} before answering the checkpoint questions:"]
     intro += [f"    {n},{c}" for n, c in rows]
-    intro += ["Answer before you create it. No script is needed."]
+    intro += ["Submit your answers first. The commands to create the CSV will appear afterward."]
     qs = [question("lines", f"How many records does grep '^{s},' select?", "int", [2]),
           question("first", f"What is the first quantity printed by grep '^{s},' followed by cut -d, -f2?", "int", [a]),
           question("stream", "Which numbered stream carries cat's missing-file diagnostic?", "int", [2]),
           question("why", "One sentence: why is the record count different from a sum of quantities?", "text")]
     lines = " ".join(["'status,count'"] + [f"'{n},{c}'" for n, c in rows])
-    after = ["Create the new input in your lab4 folder:",
-             '  cd "$OSLAB_WORKSPACE/lab4"',
+    after = ["1. Go to your lab4 folder and create the checkpoint CSV:",
+             '  cd "${OSLAB_WORKSPACE:-$HOME/oslab-work}/lab4"',
              f"  printf '%s\\n' {lines} > data/{name}",
-             f"Write your own grep pipeline to select exactly {s} from data/{name}.",
-             "Save its selected lines to evidence/checkpoint-selected.txt.",
-             "Save their record count (wc -l) to checkpoint.txt.",
-             "Then run: oslab check lab4"]
+             f"2. Select rows whose first field is exactly {s}. Save the full rows to ./evidence/checkpoint-selected.txt.",
+             "3. Count those rows with wc -l. Save the count as one line in ./checkpoint.txt, beside evidence/.",
+             "4. Run oslab check lab4 to check the files you saved."]
     return cv, intro, qs, after
 
 
@@ -2263,7 +2262,7 @@ def check_lab4(target, values, extra):
             return [f"{name} must contain the command's exact output; rerun the instruction with your own status word"]
         return []
 
-    def counts(name, expected):
+    def counts(name, expected, hint="Use wc -l to count lines."):
         path = target / name
         try:
             tokens = read_text(path).splitlines()
@@ -2272,14 +2271,14 @@ def check_lab4(target, values, extra):
             valid = valid and [int(line) for line in tokens] == expected
         except (ValueError, OSError):
             valid = False
-        return [] if valid else [f"{name} must hold record counts {expected}; wc -l counts lines, not quantities; use >> for the second test"]
+        return [] if valid else [f"{name} must hold record counts {expected}. {hint}"]
 
     selection = exact("data/events.csv", lab4_csv(rows))
     selection += exact("evidence/selected.txt", "".join(f"{n},{c}\n" for n, c in selected))
     selection += exact("evidence/fields.txt", "".join(f"{c}\n" for _, c in selected))
     changed = exact("data/no-match.csv", lab4_csv([(other, 2)]))
     changed += exact("data/changed.csv", lab4_csv(rows + [(status, 7), (status + "-late", 99)]))
-    changed += counts("evidence/edge.txt", [0, 4])
+    changed += counts("evidence/edge.txt", [0, 4], "Use wc -l to count lines and >> to append the second count.")
     streams = exact("evidence/stdout.txt", "")
     error = target / "evidence/stderr.txt"
     if not error.is_file() or error.is_symlink() or "missing.csv" not in read_text(error):
@@ -2300,7 +2299,8 @@ def check_lab4(target, values, extra):
             new_rows = [tuple(row) for row in extra["rows"]]
             problems = exact("data/" + extra["name"], lab4_csv(new_rows))
             problems += exact("evidence/checkpoint-selected.txt", "".join(f"{n},{c}\n" for n, c in new_rows if n == status))
-            problems += counts("checkpoint.txt", [sum(n == status for n, _ in new_rows)])
+            problems += counts("checkpoint.txt", [sum(n == status for n, _ in new_rows)],
+                               "Save it as lab4/checkpoint.txt, beside the evidence/ folder.")
         results.append(("checkpoint: fresh input, exact selection and record count are saved", problems))
     return results
 

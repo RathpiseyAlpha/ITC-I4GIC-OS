@@ -341,19 +341,26 @@ Using only `cat`, redirection, a pipe and `tee`, display both `data/events.csv` 
 
 ## Live Checkpoint (85–100)
 
-Wait until the instructor releases it; close AI tools and work alone.
+Wait for the instructor to release the checkpoint. Close AI tools and work alone.
 
 ```bash
 oslab checkpoint lab4
 ```
 
-Answer the questions about new records. The helper prints a command to create a fresh file and tells you what evidence to save. You write the selection pipeline yourself: save matching lines to `evidence/checkpoint-selected.txt` and their record count to `checkpoint.txt`. Use your own status and the new filename. Do not reuse the Core result.
+1. **Answer first.** Read the records shown by `oslab checkpoint lab4` and submit your answers.
+2. **Create the input.** After submitting, run the commands printed by `oslab` to enter your `lab4` workspace and create the checkpoint CSV. Stay in `lab4/` for the remaining steps.
+3. **Save the matching rows.** Write your own pipeline using the checkpoint CSV and your personal status. Save the full rows whose first field exactly matches your status to `./evidence/checkpoint-selected.txt`.
+4. **Save the record count.** Use `wc -l` to count those rows. Save the count as one line in `./checkpoint.txt`, directly in `lab4/` beside the `evidence/` directory. The default path is `~/oslab-work/lab4/checkpoint.txt`.
+5. **Check your work.** Run `oslab check lab4`. Look for `PASS` on the checkpoint line.
 
-```bash
-oslab check lab4
+```text
+lab4/
+├── checkpoint.txt             # one line with the record count from wc -l
+└── evidence/
+    └── checkpoint-selected.txt  # the matching CSV rows
 ```
 
-The checkpoint adds a fifth milestone. The helper checks the fresh input, selected rows and count; it does not execute submitted commands or scripts.
+The fifth milestone checks the new CSV, the matching rows, and the record count.
 
 ## Debrief (100–110)
 

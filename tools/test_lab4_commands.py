@@ -85,6 +85,9 @@ class Lab4Commands(unittest.TestCase):
         self.assertTrue(self.results(extra)[4][1])
         self.write('evidence/checkpoint-selected.txt', ''.join(
             f'{name},{count}\n' for name, count in extra['rows'] if name == self.status))
+        (self.root / 'checkpoint.txt').rename(self.root / 'evidence/checkpoint.txt')
+        self.assertIn('lab4/checkpoint.txt', self.results(extra)[4][1][0])
+        self.write('checkpoint.txt', '2\n')
         self.assertFalse(self.results(extra)[4][1])
         self.write('checkpoint.txt', '3\n')
         self.assertTrue(self.results(extra)[4][1])
