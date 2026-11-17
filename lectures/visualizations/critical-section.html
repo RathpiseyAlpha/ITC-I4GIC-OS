@@ -122,7 +122,7 @@
   .focus{margin:0 0 14px;padding:10px 14px;border-radius:12px;background:var(--s3);border-left:4px solid var(--accent);font-size:14px;line-height:1.55}
   .focus b.t{color:var(--accent)}
   .focus{margin-bottom:10px;padding:8px 14px}
-  .s-rem{padding:2px 0} .ln .rname{margin-left:auto;font:700 10.5px/1.4 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .s-rem{padding:2px 0} .ln .rc{margin-left:2ch}
   .sect{margin:5px 8px} .sect .sl{padding:5px 10px 2px}
   .memrow{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;margin:0 0 10px} .memrow .blockTitle{margin:0}
   .memrow .vars{margin:0;gap:8px} .memrow .var{display:flex;align-items:baseline;gap:8px;padding:4px 12px;min-width:0} .memrow .var .v{font-size:18px}
@@ -330,10 +330,11 @@ function render(){
       const idx=prog.map((p,x)=>x).filter(x=>prog[x].k===k);
       let lines=idx.map(x=>{ const ins=prog[x];
         return '<div class="ln'+(ins.t?' '+ins.t:'')+(st.pc[i]===x?' pc':'')+'"><span class="src">'+hlCode(ins.s)+'</span>'+(ins.n?'<span class="tag">'+ins.n+'</span>':'')+'</div>'; }).join('');
-      if(!idx.length) lines=k==='entry'?'<div class="ln flaw"><span class="src"><span class="c">(empty)</span></span><span class="tag">nothing stops the other thread</span></div>'
-                                       :'<div class="ln"><span class="src"><span class="c">(empty)</span></span></div>';
-      if(k==='rem') return '<div class="sect s-rem">'+lines.replace('</span></div>','</span><span class="rname">remainder section</span></div>')+'</div>';
-      return '<div class="sect s-'+k+(k==='cs'&&clash?' clash':'')+'"><div class="sl">'+SECT[k][0]+' <small>· '+SECT[k][1]+'</small></div>'+lines+'</div>';
+      if(!idx.length) lines=k==='entry'?'<div class="ln flaw"><span class="src"><span class="c">// (no code here)</span></span><span class="tag">nothing stops the other thread</span></div>'
+                                       :'<div class="ln"><span class="src"><span class="c">// (no code here)</span></span></div>';
+      // section names are written as code comments, so they are not mistaken for something else
+      if(k==='rem') return '<div class="sect s-rem">'+lines.replace('</span></div>','</span><span class="c rc">// remainder section</span></div>')+'</div>';
+      return '<div class="sect s-'+k+(k==='cs'&&clash?' clash':'')+'"><div class="ln"><span class="src"><span class="c">// '+SECT[k][0]+': '+SECT[k][1]+'</span></span></div>'+lines+'</div>';
     }).join('');
     const where=finished(st,i)?'finished':inCS(st,i)?'in critical section':prog[st.pc[i]].k+' section';
     return '<div class="thr'+(clash?' clash':inCS(st,i)?' incs':'')+'"><h4><span><span style="color:'+COL[i]+'">●</span> Thread T'+i+' <small>(i = '+i+', j = '+(1-i)+')</small></span><small>'+where+' · loop '+Math.min(st.it[i]+1,iters[i])+'/'+iters[i]+' · <code>reg</code> = <b style="color:var(--ink)">'+st.reg[i]+'</b></small></h4><div class="code">'+h+
