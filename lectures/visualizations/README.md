@@ -1,6 +1,6 @@
 # 🎬 Interactive Visualizations
 
-Step-through, animated explanations of OS concepts. Each file is **self-contained HTML** (no dependencies, works offline). Controls: **Next / Prev / Play / Reset**, or keyboard **→ ← Space**.
+Step-through, animated explanations of OS concepts. Each file is **self-contained HTML** plus the shared [os-theme.css](os-theme.css), which gives every page the palette and fonts of the lecture slides (Newsreader titles, DM Sans text, IBM Plex Mono code; light by default, with a dark switch). Offline, the pages still work and fall back to system fonts. Controls: **Next / Prev / Play / Reset**, or keyboard **→ ← Space**.
 
 | Visualization | Topic | Activity |
 |---------------|-------|----------|
@@ -13,7 +13,7 @@ Step-through, animated explanations of OS concepts. Each file is **self-containe
 | [amdahls-law.html](amdahls-law.html) | Amdahl's law: how the serial fraction limits the speedup from more cores | Week 4 (Ch 4) |
 | [cpu-scheduling.html](cpu-scheduling.html) | FCFS, SJF, SRTF, Round Robin and Priority on the same processes, one time unit at a time, with waiting-time comparison | Weeks 5–6 (Ch 5–6) |
 | [mlfq.html](mlfq.html) | Multilevel feedback queue: demotion after a full quantum, staying up after early I/O, and the priority boost | Week 6 (Ch 6) |
-| [critical-section.html](critical-section.html) | Race conditions: you choose which thread runs each instruction and test six attempts at mutual exclusion, from no lock to Peterson and test-and-set | Week 7 (Ch 7) |
+| [critical-section.html](critical-section.html) | Race conditions: you choose which thread runs each instruction and test six attempts at mutual exclusion, from no lock to Peterson and test-and-set. Two robots act out each step (door, room, shared counter, lock, turn and flags), and the lines that make each attempt work or fail are tagged in the code | Week 7 (Ch 7) |
 | [producer-consumer.html](producer-consumer.html) | Semaphores & producer/consumer (bounded buffer): why FIFO buffering, precedence with a semaphore = 0, counting semaphores (`chars`/`space`), and `lock = 1` as a mutex for two producers — each shown broken ✗ then fixed ✓ | Week 8 (Ch 8) |
 | [pc-sandbox.html](pc-sandbox.html) | Semaphore sandbox: place `wait()` and `signal()` yourself, interleave producer and consumer, and see data loss, races or deadlock reported live | Week 8 (Ch 8) |
 | [dining-philosophers.html](dining-philosophers.html) | Dining philosophers: find the schedule that deadlocks the table, then try three fixes | Week 8 (Ch 8) |

@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<script>try{var t=localStorage.getItem('os-theme')||'light';if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Effective Access Time (EAT) &amp; the TLB</title>
@@ -26,7 +26,7 @@
 
     body {
       margin: 0;
-      font-family: "Segoe UI", system-ui, sans-serif;
+      font-family: var(--sans);
       background: var(--bg);
       color: var(--ink);
       display: flex;
@@ -244,7 +244,7 @@
     }
 
     .formula {
-      font-family: "Consolas", monospace;
+      font-family: var(--mono);
       font-size: 13px;
       background: var(--s1,#0c141d);
       border: 1px solid var(--border);
@@ -512,7 +512,7 @@
       border-radius: 7px;
       padding: 9px;
       font-size: 14px;
-      font-family: Consolas, monospace;
+      font-family: var(--mono);
       margin-bottom: 8px
     }
 
@@ -544,7 +544,7 @@
     }
 
     .seqline .seqrefs {
-      font-family: Consolas, monospace;
+      font-family: var(--mono);
       font-size: 13px;
       margin-top: 4px;
       word-spacing: 2px
@@ -793,13 +793,13 @@
       fill: var(--s10,#0c1722);
       font-weight: 700;
       font-size: 15px;
-      font-family: Consolas, monospace
+      font-family: var(--mono)
     }
 
     #paging .lbl {
       fill: #8aa0b6;
       font-size: 12px;
-      font-family: "Segoe UI", sans-serif
+      font-family: var(--sans)
     }
 
     #paging .lbl.dark {
@@ -867,7 +867,7 @@
     /* table entries */
     #paging .ent {
       fill: #dbe9fb;
-      font-family: Consolas, monospace;
+      font-family: var(--mono);
       font-size: 13px;
       font-weight: 600
     }
@@ -911,13 +911,13 @@
     }
 
     #paging .flag {
-      font-family: Consolas, monospace;
+      font-family: var(--mono);
       font-size: 10px;
       fill: #8aa0b6
     }
 
     #paging .costlbl {
-      font-family: Consolas, monospace;
+      font-family: var(--mono);
       font-size: 11px;
       font-weight: 700;
       fill: #fbbf24;
@@ -936,7 +936,7 @@
     }
 
     #paging .arrlbl {
-      font-family: "Segoe UI", sans-serif;
+      font-family: var(--sans);
       font-size: 10px;
       font-weight: 700;
       fill: #dbe9fb;
@@ -978,14 +978,14 @@
       fill: var(--t2,#c3d4e6);
       font-size: 12.5px;
       font-weight: 700;
-      font-family: "Segoe UI", sans-serif
+      font-family: var(--sans)
     }
 
     .ramnote {
       fill: #86c9a3;
       font-size: 10.5px;
       font-style: italic;
-      font-family: "Segoe UI", sans-serif
+      font-family: var(--sans)
     }
 
     /* info section at bottom */
@@ -1051,11 +1051,12 @@ html[data-theme=light]{
 }
 html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 .themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
-  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 var(--sans);
   cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
 .themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
 .themeBtn .ic{font-size:15px;line-height:1}
 </style>
+<link rel="stylesheet" href="os-theme.css">
 </head>
 
 <body>

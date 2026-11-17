@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<script>try{var t=localStorage.getItem('os-theme')||'light';if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Multi-Instance Deadlock Detection</title>
@@ -13,7 +13,7 @@
     --row:var(--s7,#1b2735); --rowhi:#243b27; --rowtest:#3a3320; --rowdead:#3a1f1f; --border:#233042;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink)}
   header{padding:18px 24px;border-bottom:1px solid var(--border)}
   h1{margin:0;font-size:20px}
   .sub{color:var(--muted);font-size:13px;margin-top:4px}
@@ -124,11 +124,12 @@ html[data-theme=light]{
 }
 html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 .themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
-  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 var(--sans);
   cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
 .themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
 .themeBtn .ic{font-size:15px;line-height:1}
 </style>
+<link rel="stylesheet" href="os-theme.css">
 </head>
 <body>
 <header>

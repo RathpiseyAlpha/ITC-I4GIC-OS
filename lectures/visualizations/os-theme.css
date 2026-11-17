@@ -1,0 +1,58 @@
+/* Shared look of the visualization pages: the same palette, fonts and raised cards as the lecture slides
+   (GICI4OS decks, see .claude/deck-style.md). Each page links this file last in its <head>, so these tokens
+   override the page's own. Light is the default, as on the slides; the theme button still switches to dark.
+   Fonts: Newsreader for titles, DM Sans for text, IBM Plex Mono for code. Offline, the fallbacks are used. */
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400..700&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Newsreader:wght@400..600&display=swap");
+
+:root{
+  --sans:'DM Sans','Segoe UI',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',Consolas,'Cascadia Mono',monospace;
+  --serif:'Newsreader',Georgia,serif;
+  --radius:18px;
+  /* dark: the navy of the slide covers and title slides */
+  --bg:#0d1f3c; --panel:#142d54; --ink:#f1f4fa; --muted:#b6c4de; --border:#27457a; --accent:#7db4ff;
+  --ok:#4cc38a; --bad:#ff8a80; --pick:#f6b93b;
+  --s1:#0a1a33; --s2:#0f2342; --s3:#1a3a6b; --s4:#1b3762; --s5:#24467a; --s6:#2f5590;
+  --s7:#112a4f; --s8:#16325c; --s9:#163260; --s10:#132d55; --s11:#1d3d6e; --s12:#132c52; --s13:#2a4c80;
+  --t1:#dbe4f3; --t2:#b6c4de; --t3:#a9c9ff;
+  --c0:#4f8dff;
+  --shadow:0 10px 28px rgba(0,0,0,.28),0 2px 6px rgba(0,0,0,.2);
+  --on-accent:#0d1f3c;
+  color-scheme:dark;
+}
+html[data-theme=light]{
+  /* light: the content slides */
+  --bg:#f1f4fa; --panel:#ffffff; --ink:#0d1f3c; --muted:#4a5b7a; --border:#d3dcec; --accent:#1f5fd1;
+  --ok:#1d7a4f; --bad:#b3261e; --pick:#a15c00;
+  --s1:#f6f8fc; --s2:#f1f4fa; --s3:#e8f0ff; --s4:#e6ecf6; --s5:#d9e3f3; --s6:#c5d2e8;
+  --s7:#eef2f9; --s8:#e6ecf6; --s9:#eef3fc; --s10:#e9eef7; --s11:#dde7f6; --s12:#e9eef7; --s13:#cfdaec;
+  --t1:#26364f; --t2:#4a5b7a; --t3:#1f3f74;
+  --c0:#1f5fd1;
+  --shadow:0 10px 28px rgba(13,31,60,.08),0 2px 6px rgba(13,31,60,.06);
+  --on-accent:#ffffff;
+  color-scheme:light;
+}
+
+body{font-family:var(--sans)}
+code,kbd,samp,pre,.mono{font-family:var(--mono)}
+
+/* titles in Newsreader, as on the slides */
+header h1,.wrap > header h1,h1{font-family:var(--serif);font-weight:500;letter-spacing:-.005em;font-size:clamp(22px,3.1vh,32px)}
+
+/* raised cards */
+.stage,.caption,.legend,.builder,.panel,a.card,.idea,.cmp,.vmbox,.tabgroup{
+  border-radius:var(--radius);box-shadow:var(--shadow)}
+html[data-theme=light] .tabgroup{background:var(--panel)}
+a.card:hover{box-shadow:0 14px 34px rgba(13,31,60,.14),0 2px 6px rgba(13,31,60,.08)}
+.lobj{border-radius:14px}
+.caption .step,.builder h3,.blockTitle,.tag{letter-spacing:.1em}
+
+/* buttons: the slides' accent, white text on blue in the light theme */
+button{border-radius:10px}
+button.primary,.viewtoggle button.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.algos button.active{background:var(--accent);color:var(--on-accent);border-color:var(--accent);box-shadow:0 3px 10px rgba(31,95,209,.28)}
+.chip{border-radius:10px}
+.themeBtn{font-family:var(--sans)}
+
+/* index: the card area clips its overflow, so the cards there take a shorter shadow */
+.grid a.card{box-shadow:0 3px 12px rgba(13,31,60,.08)}

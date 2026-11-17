@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<script>try{var t=localStorage.getItem('os-theme')||'light';if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Critical Section Lab — race conditions and locks</title>
@@ -15,7 +15,7 @@
     --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink)}
   h1{margin:0}
   .sub{color:var(--muted);margin-top:4px}
   .wrap{display:flex;gap:20px;padding:20px 24px;flex-wrap:wrap}
@@ -58,7 +58,7 @@
   .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
   .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
   .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
-  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  code,.mono{font-family:var(--mono)}
   b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
   header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
          display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
@@ -82,7 +82,7 @@
   .thr.clash{border-color:var(--bad);box-shadow:0 0 0 2px var(--bad)}
   .thr h4{margin:0;padding:8px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
   .thr h4 small{font-weight:500;color:var(--muted)}
-  .code{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:13px;padding:6px 0}
+  .code{font-family:var(--mono);font-size:13px;padding:6px 0}
   .ln{padding:3px 10px 3px 30px;position:relative;white-space:pre-wrap;color:var(--t1)}
   .ln.cs{background:rgba(245,158,11,.10)}
   .ln.pc{background:rgba(96,165,250,.22);color:var(--ink);font-weight:700}
@@ -92,7 +92,7 @@
   .reg{font-size:12px;color:var(--muted)}
   .vars{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
   .var{border:1px solid var(--border);border-radius:9px;padding:8px 14px;background:var(--s7);text-align:center;min-width:86px}
-  .var .n{font-size:11px;color:var(--muted);font-family:Consolas,monospace}
+  .var .n{font-size:11px;color:var(--muted);font-family:var(--mono)}
   .var .v{font-size:22px;font-weight:800}
   .var.chg{border-color:var(--accent)}
   .hist{display:flex;gap:3px;flex-wrap:wrap;min-height:24px}
@@ -102,6 +102,73 @@
   .req .ic{font-size:16px;flex:0 0 22px}
   .req button{margin-top:6px}
   @media (max-width:640px){ .threads{grid-template-columns:1fr} }
+
+  /* ---- code as section blocks, with the lines that matter tagged (added 2026-11-18) ---- */
+  :root{--fn:#c4a7ff;--lit:#5fd4e6;--amber:#f6b93b}
+  html[data-theme=light]{--fn:#7c3aed;--lit:#0e7490}
+  .code{font-size:14px;padding:4px 0 6px}
+  .sect{margin:6px 8px;border-radius:10px;padding:2px 0 6px;border:1px solid transparent}
+  .sect .sl{font:700 10.5px/1.4 var(--sans);letter-spacing:.08em;text-transform:uppercase;padding:6px 10px 3px;color:var(--muted)}
+  .sect .sl small{font-weight:500;letter-spacing:0;text-transform:none;font-size:11.5px}
+  .s-entry{background:rgba(31,95,209,.07);border-color:rgba(31,95,209,.22)} .s-entry .sl{color:var(--accent)}
+  .s-cs{background:rgba(246,185,59,.16);border:2px solid var(--amber)} .s-cs .sl{color:var(--pick)}
+  .s-cs.clash{border-color:var(--bad);background:rgba(179,38,30,.12)} .s-cs.clash .sl{color:var(--bad)}
+  .s-exit{background:rgba(46,158,106,.08);border-color:rgba(46,158,106,.25)} .s-exit .sl{color:var(--ok)}
+  .sect .ln{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:3px 10px 3px 30px}
+  .ln .tag{margin-left:auto;font:600 11.5px/1.3 var(--sans);padding:2px 9px;border-radius:999px;white-space:normal}
+  .ln.key{box-shadow:inset 3px 0 0 var(--accent)} .ln.key .tag{background:var(--accent);color:var(--on-accent,#fff)}
+  .ln.flaw{box-shadow:inset 3px 0 0 var(--bad)} .ln.flaw .tag{background:var(--bad);color:#fff}
+  .ln .k{color:var(--accent);font-weight:700} .ln .f{color:var(--fn);font-weight:700} .ln .l{color:var(--lit)} .ln .c{color:var(--muted);font-style:italic}
+  .focus{margin:0 0 14px;padding:10px 14px;border-radius:12px;background:var(--s3);border-left:4px solid var(--accent);font-size:14px;line-height:1.55}
+  .focus b.t{color:var(--accent)}
+  .focus{margin-bottom:10px;padding:8px 14px}
+  .s-rem{padding:2px 0} .ln .rname{margin-left:auto;font:700 10.5px/1.4 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .sect{margin:5px 8px} .sect .sl{padding:5px 10px 2px}
+  .memrow{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;margin:0 0 10px} .memrow .blockTitle{margin:0}
+  .memrow .vars{margin:0;gap:8px} .memrow .var{display:flex;align-items:baseline;gap:8px;padding:4px 12px;min-width:0} .memrow .var .v{font-size:18px}
+
+  /* ---- the scene: each thread is a robot; the critical section is a room holding the shared counter ---- */
+  .scene{position:relative;height:230px;border-radius:16px;border:1px solid var(--border);overflow:hidden;margin:0 0 14px;
+         background:linear-gradient(180deg,var(--s9),var(--s2))}
+  .ground{position:absolute;left:0;right:0;bottom:0;height:24px;background:var(--s4);border-top:1px solid var(--border)}
+  .zl{position:absolute;bottom:5px;transform:translateX(-50%);font:700 10.5px/1 var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  .room{position:absolute;left:30%;right:30%;top:10px;bottom:24px;border:2px dashed var(--amber);border-bottom:none;border-radius:18px 18px 0 0;
+        background:rgba(246,185,59,.11);transition:background .3s,border-color .3s}
+  .room.clash{border-color:var(--bad);border-style:solid;background:rgba(179,38,30,.14);animation:shake .35s 2}
+  .room .rl{position:absolute;top:8px;left:12px;width:calc(50% - 72px);font:800 10.5px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--pick)}
+  .room.clash .rl{color:var(--bad)}
+  .props{position:absolute;top:8px;right:10px;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .pad{display:flex;align-items:center;gap:5px;font:700 11.5px var(--mono);color:var(--muted)}
+  .pad .shackle{transition:transform .3s;transform:translateY(-5px)} .pad .lbody{fill:#c5d2e8;transition:fill .3s}
+  .pad.closed .shackle{transform:none} .pad.closed .lbody{fill:var(--amber)} .pad.closed{color:var(--ink)}
+  .turnSign{font:700 11.5px/1 var(--sans);padding:5px 10px;border-radius:999px;color:#fff;transition:background .3s}
+  .box{position:absolute;left:50%;top:8px;transform:translateX(-50%);display:flex;align-items:baseline;gap:8px;padding:5px 14px 6px;white-space:nowrap;background:var(--panel);border:2px solid var(--border);
+       border-radius:12px;text-align:center;box-shadow:var(--shadow)}
+  .box .n{font:600 12px var(--mono);color:var(--muted)} .box .v{font:700 26px/1.1 var(--mono);color:var(--ink)}
+  .box.bump{animation:bump .5s}
+  .lost{position:absolute;left:50%;top:60px;transform:translateX(-50%);background:var(--bad);color:#fff;font:700 12px var(--sans);padding:5px 11px;border-radius:999px;white-space:nowrap;animation:pop .3s}
+  .bot{position:absolute;bottom:24px;width:60px;margin-left:-30px;transition:left .6s cubic-bezier(.4,.1,.2,1);display:flex;flex-direction:column;align-items:center;z-index:2}
+  .bot svg.body{display:block}
+  .bot .nm{position:absolute;bottom:12px;font:800 11px var(--sans);color:#fff}
+  .bot.hop svg.body{animation:hop .45s}
+  .bot.spin svg.body{animation:wobble .5s}
+  .bub{position:absolute;bottom:98px;white-space:nowrap;font:600 12px var(--sans);background:var(--panel);color:var(--ink);border:1px solid var(--border);
+       border-radius:10px;padding:4px 9px;box-shadow:var(--shadow)}
+  .bub.wait{border-color:var(--pick);color:var(--pick)} .bub.done{border-color:var(--ok);color:var(--ok)}
+  .rcard{position:absolute;bottom:74px;font:700 12px var(--mono);background:#fff6dd;border:1.5px solid var(--amber);color:#7a5200;border-radius:6px;padding:2px 7px;white-space:nowrap;display:none}
+  .rcard.on{display:block;animation:pop .3s}
+  .flag{position:absolute;left:-14px;bottom:18px;transform-origin:3px 50px;transition:transform .35s,opacity .35s}
+  .flag.down{transform:rotate(-75deg);opacity:.35}
+  .fly{position:absolute;z-index:5;font:700 12px var(--mono);background:#fff6dd;border:1.5px solid var(--amber);color:#7a5200;border-radius:6px;padding:2px 7px;transform:translateX(-50%);pointer-events:none}
+  @keyframes hop{0%,100%{transform:translateY(0)}40%{transform:translateY(-12px)}}
+  @keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-9deg)}75%{transform:rotate(9deg)}}
+  @keyframes bump{50%{transform:translateX(-50%) scale(1.18)}}
+  @keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+  @keyframes pop{from{opacity:0;transform:translateX(-50%) scale(.6)}}
+  .rcard.on{animation:none}
+  @media (prefers-reduced-motion:reduce){ .bot,.room,.flag,.pad .shackle{transition:none} .bot svg.body,.box,.room,.lost{animation:none!important} }
+  @media (max-width:640px){ .bub{font-size:11px} .room .rl{display:none} }
+  .sect .ln.pc::before{top:4px}
 </style>
 <style id="os-theme-vars">
 html[data-theme=light]{
@@ -114,11 +181,12 @@ html[data-theme=light]{
 }
 html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 .themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
-  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 var(--sans);
   cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
 .themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
 .themeBtn .ic{font-size:15px;line-height:1}
 </style>
+<link rel="stylesheet" href="os-theme.css">
 </head>
 <body>
 <header>
@@ -129,8 +197,10 @@ html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 <details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Show, with a concrete interleaving, how <code>counter++</code> in two threads loses an update.</li><li>State the three requirements of a critical-section solution: mutual exclusion, progress and bounded waiting.</li><li>Explain why a simple lock variable, strict alternation and flags alone each fail, and which requirement each one breaks.</li><li>Trace Peterson's solution and test-and-set, and explain why they keep two threads out of the critical section together.</li></ul></details>
 <div class="wrap">
   <div class="stage">
-    <p class="blockTitle">Shared memory</p>
-    <div class="vars" id="vars"></div>
+    <p class="blockTitle">Watch it happen — each robot is a thread, the room is the critical section</p>
+    <div class="scene" id="scene" role="img" aria-label="Two robots stand for threads T0 and T1. Each walks from outside to the door (entry section), into the critical-section room where the shared counter is kept, and out again."></div>
+    <div class="focus" id="focus"></div>
+    <div class="memrow"><p class="blockTitle">Shared memory</p><div class="vars" id="vars"></div></div>
     <div class="threads" id="threads"></div>
     <p class="blockTitle" style="margin-top:16px">Your schedule so far — which thread ran each step</p>
     <div class="hist" id="hist"></div>
@@ -163,41 +233,54 @@ html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 <script>
 /* Each thread i runs: entry section → critical section (counter++ in 3 machine steps) → exit section, N times.
    An instruction is {k: section, s: source text, f(S,i): returns true if it advances, false if it must spin}. */
+/* t marks a line that matters for this algorithm: 'key' (it makes the solution work) or 'flaw' (where it breaks);
+   n is the tag shown on that line; b is what the robot says before it runs the line (its next action). */
 const CS=[
-  {k:'cs',s:'reg = counter;',        f:(S,i)=>{S.reg[i]=S.counter;return true;}},
-  {k:'cs',s:'reg = reg + 1;',        f:(S,i)=>{S.reg[i]++;return true;}},
-  {k:'cs',s:'counter = reg;',        f:(S,i)=>{S.counter=S.reg[i];return true;}},
+  {k:'cs',s:'reg = counter;', b:'read the counter',  f:(S,i)=>{S.reg[i]=S.counter;return true;}},
+  {k:'cs',s:'reg = reg + 1;', b:'add 1 on my card',  f:(S,i)=>{S.reg[i]++;return true;}},
+  {k:'cs',s:'counter = reg;', b:'write it back',     f:(S,i)=>{S.counter=S.reg[i];return true;}},
 ];
 const ALGOS=[
  {id:'none', name:'No lock', iters:[1,1], vars:[],
   about:'No protection at all. <code>counter++</code> is three machine instructions, and the scheduler can switch threads between any two of them.',
+  focus:'There is <b>no entry section</b>, so nothing stops the other thread. Watch the critical section: if the scheduler switches threads between <code>reg = counter</code> and <code>counter = reg</code>, one update is lost.',
   entry:[], exit:[]},
  {id:'lockvar', name:'Lock variable', iters:[1,1], vars:['lock'],
   about:'A shared <code>lock</code>: wait until it is 0, then set it to 1. The test and the set are <b>two separate steps</b>.',
-  entry:[{s:'while (lock == 1) ;',f:(S,i)=>S.lock===0},{s:'lock = 1;',f:(S,i)=>{S.lock=1;return true;}}],
-  exit:[{s:'lock = 0;',f:(S,i)=>{S.lock=0;return true;}}]},
+  focus:'Lines <b>①</b> and <b>②</b> are the weak spot: the test and the set are two separate steps. Switch threads between them and both robots walk into the room.',
+  entry:[{s:'while (lock == 1) ;',t:'flaw',n:'① test: is it free?',b:'is the lock free?',f:(S,i)=>S.lock===0},
+         {s:'lock = 1;',t:'flaw',n:'② then set: a separate step',b:'lock the door',f:(S,i)=>{S.lock=1;return true;}}],
+  exit:[{s:'lock = 0;',t:'key',n:'release',b:'unlock the door',f:(S,i)=>{S.lock=0;return true;}}]},
  {id:'turn', name:'Strict alternation', iters:[1,2], vars:['turn'],
   about:'A shared <code>turn</code> says whose turn it is. Each thread hands the turn to the other on the way out.',
-  entry:[{s:'while (turn != i) ;',f:(S,i)=>S.turn===i}],
-  exit:[{s:'turn = j;',f:(S,i)=>{S.turn=1-i;return true;}}]},
+  focus:'Mutual exclusion holds, but look at the <b>exit line</b>: it hands the turn over even if the other thread never comes back. Here T1 loops twice and T0 once, so T1 ends up waiting for a turn that T0 never gives.',
+  entry:[{s:'while (turn != i) ;',t:'key',n:'wait for my turn',b:'is it my turn?',f:(S,i)=>S.turn===i}],
+  exit:[{s:'turn = j;',t:'flaw',n:'forced hand-over',b:'give j the turn',f:(S,i)=>{S.turn=1-i;return true;}}]},
  {id:'flags', name:'Flags only', iters:[1,1], vars:['flag0','flag1'],
   about:'Each thread raises its own flag to say “I want in”, then waits while the other flag is up.',
-  entry:[{s:'flag[i] = true;',f:(S,i)=>{S.flag[i]=1;return true;}},{s:'while (flag[j]) ;',f:(S,i)=>!S.flag[1-i]}],
-  exit:[{s:'flag[i] = false;',f:(S,i)=>{S.flag[i]=0;return true;}}]},
+  focus:'Look at the <b>wait line</b>: if both robots raise their flags before either one tests, each waits for the other forever. That is a deadlock.',
+  entry:[{s:'flag[i] = true;',t:'key',n:'I want in',b:'raise my flag',f:(S,i)=>{S.flag[i]=1;return true;}},
+         {s:'while (flag[j]) ;',t:'flaw',n:'both flags up: both stuck',b:'is j’s flag down?',f:(S,i)=>!S.flag[1-i]}],
+  exit:[{s:'flag[i] = false;',t:'key',n:'flag down',b:'lower my flag',f:(S,i)=>{S.flag[i]=0;return true;}}]},
  {id:'peterson', name:'Peterson', iters:[2,2], vars:['flag0','flag1','turn'],
   about:'Peterson’s solution: raise your flag, then <b>give the turn away</b>. You wait only while the other thread wants in <i>and</i> it is its turn.',
-  entry:[{s:'flag[i] = true;',f:(S,i)=>{S.flag[i]=1;return true;}},{s:'turn = j;',f:(S,i)=>{S.turn=1-i;return true;}},{s:'while (flag[j] && turn == j) ;',f:(S,i)=>!(S.flag[1-i]&&S.turn===1-i)}],
-  exit:[{s:'flag[i] = false;',f:(S,i)=>{S.flag[i]=0;return true;}}]},
+  focus:'Follow <b>① → ② → ③</b>. Each robot raises its flag, then <b>offers the turn to the other</b>. If both want in, the one that offered last waits. That one rule keeps them out of the room together, and <b>④</b> lets the other one in.',
+  entry:[{s:'flag[i] = true;',t:'key',n:'① I want in',b:'raise my flag',f:(S,i)=>{S.flag[i]=1;return true;}},
+         {s:'turn = j;',t:'key',n:'② you go first',b:'offer j the turn',f:(S,i)=>{S.turn=1-i;return true;}},
+         {s:'while (flag[j] && turn == j) ;',t:'key',n:'③ wait only if j wants in and it is j’s turn',b:'may I go in?',f:(S,i)=>!(S.flag[1-i]&&S.turn===1-i)}],
+  exit:[{s:'flag[i] = false;',t:'key',n:'④ I am out',b:'lower my flag',f:(S,i)=>{S.flag[i]=0;return true;}}]},
  {id:'tas', name:'Test-and-set', iters:[2,2], vars:['lock'],
   about:'The hardware instruction <code>test_and_set</code> reads the old value of <code>lock</code> and sets it to 1 in <b>one atomic step</b>.',
-  entry:[{s:'while (test_and_set(&lock)) ;',f:(S,i)=>{const old=S.lock;S.lock=1;return old===0;}}],
-  exit:[{s:'lock = 0;',f:(S,i)=>{S.lock=0;return true;}}]},
+  focus:'The whole entry section is <b>one hardware instruction</b>: <code>test_and_set</code> reads the old value and locks the door in one step, so no thread can slip in between.',
+  entry:[{s:'while (test_and_set(&lock)) ;',t:'key',n:'test + set in one atomic step',b:'test-and-set the lock',f:(S,i)=>{const old=S.lock;S.lock=1;return old===0;}}],
+  exit:[{s:'lock = 0;',t:'key',n:'release',b:'unlock the door',f:(S,i)=>{S.lock=0;return true;}}]},
 ];
 const COL=['var(--c0)','var(--c1)'];
 const $=id=>document.getElementById(id);
 let A=ALGOS[0], prog=[], iters=[1,1], st=null, hist=[], stack=[], lastMsg='', analysis=null, replay=null, replayTimer=null;
 
-const REM={k:'rem',s:'/* other work */',f:()=>true};
+const REM={k:'rem',s:'/* other work */',b:'other work',f:()=>true};
+let lastStep=null;   // the step just taken, for the scene's animation: {i, moved, write, lost}
 function build(){ prog=[REM,...A.entry.map(x=>({...x,k:'entry'})), ...CS, ...A.exit.map(x=>({...x,k:'exit'}))]; }
 function init(){ return {pc:[0,0], it:[0,0], counter:0, lock:0, turn:0, flag:[0,0], reg:[0,0]}; }
 const clone=s=>({pc:s.pc.slice(),it:s.it.slice(),counter:s.counter,lock:s.lock,turn:s.turn,flag:s.flag.slice(),reg:s.reg.slice()});
@@ -241,13 +324,20 @@ function render(){
   $('vars').innerHTML=['counter',...A.vars].map(n=>'<div class="var"><div class="n">'+n.replace(/flag(\d)/,'flag[$1]')+'</div><div class="v">'+(n==='counter'?st.counter:showVar(n))+'</div></div>').join('')+
     '<div class="var" style="border-style:dashed"><div class="n">expected at the end</div><div class="v" style="color:var(--muted)">'+total+'</div></div>';
   const clash=inCS(st,0)&&inCS(st,1);
+  $('focus').innerHTML='<b class="t">What to look at.</b> '+A.focus;
   $('threads').innerHTML=[0,1].map(i=>{
-    let h='', last='';
-    prog.forEach((ins,x)=>{ if(ins.k!==last){ h+='<div class="ln sec">// '+({rem:'remainder section',entry:'entry section',cs:'critical section',exit:'exit section'})[ins.k]+'</div>'; last=ins.k; }
-      h+='<div class="ln'+(ins.k==='cs'?' cs':'')+(st.pc[i]===x?' pc':'')+'">'+ins.s.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>'; });
+    const h=['rem','entry','cs','exit'].map(k=>{
+      const idx=prog.map((p,x)=>x).filter(x=>prog[x].k===k);
+      let lines=idx.map(x=>{ const ins=prog[x];
+        return '<div class="ln'+(ins.t?' '+ins.t:'')+(st.pc[i]===x?' pc':'')+'"><span class="src">'+hlCode(ins.s)+'</span>'+(ins.n?'<span class="tag">'+ins.n+'</span>':'')+'</div>'; }).join('');
+      if(!idx.length) lines=k==='entry'?'<div class="ln flaw"><span class="src"><span class="c">(empty)</span></span><span class="tag">nothing stops the other thread</span></div>'
+                                       :'<div class="ln"><span class="src"><span class="c">(empty)</span></span></div>';
+      if(k==='rem') return '<div class="sect s-rem">'+lines.replace('</span></div>','</span><span class="rname">remainder section</span></div>')+'</div>';
+      return '<div class="sect s-'+k+(k==='cs'&&clash?' clash':'')+'"><div class="sl">'+SECT[k][0]+' <small>· '+SECT[k][1]+'</small></div>'+lines+'</div>';
+    }).join('');
     const where=finished(st,i)?'finished':inCS(st,i)?'in critical section':prog[st.pc[i]].k+' section';
-    return '<div class="thr'+(clash?' clash':inCS(st,i)?' incs':'')+'"><h4><span><span style="color:'+COL[i]+'">●</span> Thread T'+i+' <small>(i = '+i+', j = '+(1-i)+')</small></span><small>'+where+' · loop '+Math.min(st.it[i]+1,iters[i])+'/'+iters[i]+'</small></h4><div class="code">'+h+
-      '</div><div class="act"><span class="reg">private register <code>reg</code> = <b style="color:var(--ink)">'+st.reg[i]+'</b></span></div></div>'; }).join('');
+    return '<div class="thr'+(clash?' clash':inCS(st,i)?' incs':'')+'"><h4><span><span style="color:'+COL[i]+'">●</span> Thread T'+i+' <small>(i = '+i+', j = '+(1-i)+')</small></span><small>'+where+' · loop '+Math.min(st.it[i]+1,iters[i])+'/'+iters[i]+' · <code>reg</code> = <b style="color:var(--ink)">'+st.reg[i]+'</b></small></h4><div class="code">'+h+
+      '</div></div>'; }).join('');
   $('hist').innerHTML=hist.length?hist.map(i=>'<span style="background:'+COL[i]+'">T'+i+'</span>').join(''):'<span class="reg">nothing yet</span>';
   $('b0').disabled=finished(st,0)||!!replay; $('b1').disabled=finished(st,1)||!!replay; $('undoBtn').disabled=!stack.length||!!replay;
   $('stepLabel').textContent=A.name+' · step '+hist.length;
@@ -263,6 +353,66 @@ function render(){
     row(!an.stuck,'<b>'+(an.stuckKind==='progress'?'Progress.':'Progress (no deadlock).')+'</b> '+(!an.stuck?'From every reachable state both threads can still finish.':an.stuckKind==='progress'?'A thread can wait forever although the critical section is free and the other thread does not want it.':'Both threads can end up waiting for each other forever.'), an.stuck?'<br><button class="small" onclick="playTrace(\'stuck\')">▶ Show me that schedule ('+an.stuck.length+' steps)</button>':'')+
     row(an.finals.length===1&&an.finals[0]===total,'<b>Final value of counter.</b> Possible results: <b>'+(an.finals.length?an.finals.join(', '):'never finishes')+'</b> (expected '+total+').')+
     '<div class="hint">'+an.states+' reachable states explored.'+(A.id==='tas'?' Test-and-set gives mutual exclusion and progress, but <b>not bounded waiting</b>: an unlucky thread can lose the race for the lock again and again.':'')+(A.id==='peterson'?' Peterson also gives <b>bounded waiting</b>: a waiting thread gets in after at most one entry by the other. (It assumes the instructions run in program order, which modern CPUs do not promise without memory barriers.)':'')+'</div>';
+  updateScene();
+}
+
+/* ---------- code colouring and section names ---------- */
+const SECT={rem:['remainder section','other work'],entry:['entry section','ask to enter'],cs:['critical section','only one thread at a time'],exit:['exit section','let the other one in']};
+function hlCode(s){
+  const e=s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  if(s.startsWith('/*')) return '<span class="c">'+e+'</span>';
+  return e.replace(/\b(\d+)\b/g,'<span class="l">$1</span>').replace(/\b(while|true|false)\b/g,'<span class="k">$1</span>').replace(/\b(test_and_set)\b/g,'<span class="f">$1</span>');
+}
+
+/* ---------- the scene: robots for threads, a room for the critical section ---------- */
+const POS={rem:[9,91],entry:[21,79],cs:[41,59],exit:[34,66],done:[9,91]};   // left edge %, per thread
+const reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function botSVG(c){ const f='style="fill:'+c+'"';
+  return '<svg class="body" viewBox="0 0 60 70" width="60" height="70" aria-hidden="true">'+
+    '<line x1="30" y1="4" x2="30" y2="14" style="stroke:'+c+'" stroke-width="3" stroke-linecap="round"/><circle cx="30" cy="5" r="4" '+f+'/>'+
+    '<rect x="9" y="13" width="42" height="28" rx="10" '+f+'/><rect x="15" y="19" width="30" height="16" rx="8" fill="#ffffff"/>'+
+    '<circle cx="24" cy="27" r="3.4" fill="#0d1f3c"/><circle cx="36" cy="27" r="3.4" fill="#0d1f3c"/>'+
+    '<rect x="15" y="43" width="30" height="19" rx="6" '+f+'/><rect x="20" y="61" width="6" height="8" rx="2" '+f+'/><rect x="34" y="61" width="6" height="8" rx="2" '+f+'/></svg>'; }
+const flagSVG=c=>'<svg viewBox="0 0 24 52" width="24" height="52" aria-hidden="true"><line x1="3" y1="2" x2="3" y2="52" stroke="#8a97ad" stroke-width="2.5" stroke-linecap="round"/><path d="M4 3 L22 9.5 L4 16 Z" style="fill:'+c+'"/></svg>';
+const PADLOCK='<svg viewBox="0 0 30 34" width="24" height="28" aria-hidden="true"><path class="shackle" d="M8 16 V10 a7 7 0 0 1 14 0 V16" fill="none" stroke="#4a5b7a" stroke-width="3" stroke-linecap="round"/><rect class="lbody" x="4" y="15" width="22" height="17" rx="4"/><circle cx="15" cy="23" r="2.5" fill="#0d1f3c"/></svg>';
+
+function buildScene(){
+  const uses=n=>A.vars.includes(n);
+  const zl=(t,x)=>'<div class="zl" style="left:'+x+'%">'+t+'</div>';
+  $('scene').innerHTML='<div class="ground"></div>'+zl('remainder',9)+zl('entry',21)+zl('exit',34)+zl('exit',66)+zl('entry',79)+zl('remainder',91)+
+    '<div class="room" id="room"><div class="rl">Critical section<br>one at a time</div><div class="props">'+
+      (uses('lock')?'<div class="pad" id="pad">'+PADLOCK+'<span id="padv"></span></div>':'')+(uses('turn')?'<div class="turnSign" id="turnSign"></div>':'')+'</div>'+
+      '<div class="box" id="box"><div class="n">counter</div><div class="v" id="boxv">0</div></div><div id="lost"></div></div>'+
+    [0,1].map(i=>'<div class="bot" id="bot'+i+'"><div class="bub" id="bub'+i+'"></div><div class="rcard" id="card'+i+'"></div>'+
+      (uses('flag0')?'<div class="flag down" id="flag'+i+'">'+flagSVG(COL[i])+'</div>':'')+botSVG(COL[i])+'<div class="nm">T'+i+'</div></div>').join('');
+}
+function updateScene(){
+  if(!$('bot0')) return;
+  const csStart=prog.findIndex(p=>p.k==='cs');
+  [0,1].forEach(i=>{
+    const bot=$('bot'+i), bub=$('bub'+i), done=finished(st,i), ins=done?null:prog[st.pc[i]], k=done?'done':ins.k;
+    bot.style.left=POS[k][i]+'%';
+    const blocked=!done&&ins.s.startsWith('while')&&!stepState(st,i).moved;
+    bub.textContent=done?'✓ done':blocked?'blocked: I have to wait':'next: '+ins.b;
+    bub.className='bub'+(blocked?' wait':done?' done':'');
+    const card=$('card'+i), holding=inCS(st,i)&&st.pc[i]>csStart;
+    card.textContent='my card: '+st.reg[i]; card.className='rcard'+(holding?' on':'');
+    const fl=$('flag'+i); if(fl) fl.classList.toggle('down',!st.flag[i]);
+    bot.classList.remove('hop','spin');
+    if(lastStep&&lastStep.i===i&&!reduceMotion){ void bot.offsetWidth; bot.classList.add(lastStep.moved?'hop':'spin'); }
+  });
+  $('room').classList.toggle('clash',inCS(st,0)&&inCS(st,1));
+  $('room').querySelector('.rl').innerHTML=inCS(st,0)&&inCS(st,1)?'Both threads<br>are inside!':'Critical section<br>one at a time';
+  if($('pad')){ $('pad').classList.toggle('closed',st.lock===1); $('padv').textContent='lock = '+st.lock; }
+  if($('turnSign')){ const t=$('turnSign'); t.textContent=st.turn===0?'◀ turn = T0':'turn = T1 ▶'; t.style.background=COL[st.turn]; }
+  const box=$('box'); $('boxv').textContent=st.counter;
+  $('lost').innerHTML=lastStep&&lastStep.lost?'<div class="lost">T'+lastStep.i+' wrote over T'+(1-lastStep.i)+'’s update: one is lost</div>':'';
+  if(lastStep&&lastStep.write&&!reduceMotion){
+    box.classList.remove('bump'); void box.offsetWidth; box.classList.add('bump');
+    const fly=document.createElement('div'); fly.className='fly'; fly.textContent=st.counter; $('scene').appendChild(fly);
+    const a=fly.animate([{left:POS.cs[lastStep.i]+'%',top:'112px',opacity:1},{left:'50%',top:'14px',opacity:.15}],{duration:550,easing:'ease-in'});
+    a.onfinish=()=>fly.remove();
+  }
 }
 
 /* ---------- controls ---------- */
@@ -277,11 +427,14 @@ function describe(i,before,moved){
   if(inCS(st,0)&&inCS(st,1)) m+=' <b class="bad">Now both threads are in the critical section.</b>';
   return m;
 }
-function stepT(i,quiet){ if(finished(st,i)) return; stack.push({st,hist:hist.slice(),lastMsg}); const before=st, r=stepState(st,i); st=r.s; hist.push(i); lastMsg=describe(i,before,r.moved); if(!quiet) render(); }
-function undo(){ const p=stack.pop(); if(!p) return; st=p.st; hist=p.hist; lastMsg=p.lastMsg; render(); }
+function stepT(i,quiet){ if(finished(st,i)) return; stack.push({st,hist:hist.slice(),lastMsg}); const before=st, ins=prog[before.pc[i]], r=stepState(st,i); st=r.s; hist.push(i); lastMsg=describe(i,before,r.moved);
+  const write=r.moved&&ins.s.startsWith('counter = reg');
+  lastStep={i,moved:r.moved,write,lost:write&&before.counter!==before.reg[i]-1};
+  if(!quiet) render(); }
+function undo(){ const p=stack.pop(); if(!p) return; st=p.st; hist=p.hist; lastMsg=p.lastMsg; lastStep=null; render(); }
 function stopReplay(){ clearInterval(replayTimer); replay=null; }
-function reset(){ stopReplay(); st=init(); hist=[]; stack=[]; lastMsg=''; render(); }
-function setAlgo(id){ stopReplay(); A=ALGOS.find(a=>a.id===id); iters=A.iters.slice(); $('it0').value=iters[0]; $('it1').value=iters[1]; build(); analysis=analyse(); reset(); }
+function reset(){ stopReplay(); st=init(); hist=[]; stack=[]; lastMsg=''; lastStep=null; render(); }
+function setAlgo(id){ stopReplay(); A=ALGOS.find(a=>a.id===id); iters=A.iters.slice(); $('it0').value=iters[0]; $('it1').value=iters[1]; build(); buildScene(); analysis=analyse(); reset(); }
 function setIters(){ iters=[0,1].map(i=>Math.max(1,Math.min(3,parseInt($('it'+i).value)||1))); $('it0').value=iters[0]; $('it1').value=iters[1]; analysis=analyse(); reset(); }
 function randomRun(){ reset(); let n=0; while(!(finished(st,0)&&finished(st,1))&&n<120){ const c=[0,1].filter(i=>!finished(st,i)); stepT(c[Math.floor(Math.random()*c.length)],true); n++; if(inCS(st,0)&&inCS(st,1)) break; }
   if(n>=120) lastMsg+=' <b class="warn">Stopped after 120 steps: neither thread is getting anywhere.</b>'; render(); }

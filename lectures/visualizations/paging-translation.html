@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<script>try{var t=localStorage.getItem('os-theme')||'light';if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Paging &amp; Address Translation</title>
@@ -12,7 +12,7 @@
     --accent:#60a5fa; --border:#233042; --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink)}
   header{padding:18px 24px;border-bottom:1px solid var(--border)}
   h1{margin:0;font-size:20px}
   .sub{color:var(--muted);font-size:13px;margin-top:4px}
@@ -103,7 +103,7 @@
   .memcell.target .mlabel{color:#e6ccff}
   .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700}
   .pill.page{background:var(--s3,#13233f);color:#9cc2ff}
-  .calc{font-family:"Consolas",monospace;font-size:14px;background:var(--s1,#0c141d);border:1px solid var(--border);border-radius:8px;padding:10px;margin-top:10px;line-height:1.7;white-space:pre-wrap}
+  .calc{font-family:var(--mono);font-size:14px;background:var(--s1,#0c141d);border:1px solid var(--border);border-radius:8px;padding:10px;margin-top:10px;line-height:1.7;white-space:pre-wrap}
 /* fixed, responsive page header (matches the index page) */
   header{position:sticky;top:0;z-index:50;background:var(--bg);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px)}
   header h1{font-size:clamp(17px,2.5vh,24px)}
@@ -142,11 +142,12 @@ html[data-theme=light]{
 }
 html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 .themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
-  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 var(--sans);
   cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
 .themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
 .themeBtn .ic{font-size:15px;line-height:1}
 </style>
+<link rel="stylesheet" href="os-theme.css">
 </head>
 <body>
 <header>

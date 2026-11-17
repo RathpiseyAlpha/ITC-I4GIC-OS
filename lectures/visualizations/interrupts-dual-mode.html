@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<script>try{var t=localStorage.getItem('os-theme')||'light';if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Interrupts and Dual-Mode Operation</title>
@@ -15,7 +15,7 @@
     --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink)}
   h1{margin:0}
   .sub{color:var(--muted);margin-top:4px}
   .wrap{display:flex;gap:20px;padding:20px 24px 70px;flex-wrap:wrap}
@@ -59,7 +59,7 @@
   .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
   .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
   .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
-  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  code,.mono{font-family:var(--mono)}
   b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
   header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
          display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
@@ -81,13 +81,13 @@
   .part{border:1px solid var(--border);border-radius:10px;background:var(--s7);padding:10px 12px;transition:.25s}
   .part.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
   .part h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-  .kv{display:flex;justify-content:space-between;font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:12.5px;padding:3px 0;border-bottom:1px dashed var(--border)}
+  .kv{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12.5px;padding:3px 0;border-bottom:1px dashed var(--border)}
   .kv span:first-child{color:var(--muted)}
   .kv .chg{color:var(--pick);font-weight:700}
   .mode{margin-top:10px;border-radius:8px;padding:9px;text-align:center;font-weight:800;font-size:14px;color:#fff}
   .mode.user{background:var(--c0)} .mode.kernel{background:var(--c4)}
   .mode small{display:block;font-weight:500;font-size:11px;opacity:.9}
-  .mem{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:12px}
+  .mem{font-family:var(--mono);font-size:12px}
   .cell{padding:4px 8px;border:1px solid var(--border);border-radius:5px;margin-bottom:3px;display:flex;justify-content:space-between;gap:8px}
   .cell.k{background:rgba(236,72,153,.10)} .cell.u{background:rgba(59,130,246,.10)}
   .cell.on{outline:2px solid var(--pick);font-weight:700}
@@ -100,9 +100,9 @@
   .tl .seg{position:absolute;height:20px;border-radius:4px;transition:width .3s}
   .tl .sep{position:absolute;left:0;right:0;height:1px;background:var(--border)}
   .priv{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
-  .priv button{text-align:left;font-size:13px;padding:9px 11px;font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  .priv button{text-align:left;font-size:13px;padding:9px 11px;font-family:var(--mono)}
   .priv button.y{border-color:var(--bad)} .priv button.n{border-color:var(--ok)}
-  .priv button small{display:block;font-family:"Segoe UI",system-ui,sans-serif;font-size:11px;margin-top:3px;color:var(--muted)}
+  .priv button small{display:block;font-family:var(--sans);font-size:11px;margin-top:3px;color:var(--muted)}
   @media (max-width:900px){ .machine{grid-template-columns:1fr} }
 </style>
 <style id="os-theme-vars">
@@ -116,11 +116,12 @@ html[data-theme=light]{
 }
 html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 .themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
-  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 var(--sans);
   cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
 .themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
 .themeBtn .ic{font-size:15px;line-height:1}
 </style>
+<link rel="stylesheet" href="os-theme.css">
 </head>
 <body>
 <header>

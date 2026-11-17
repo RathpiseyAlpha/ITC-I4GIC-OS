@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<script>try{var t=localStorage.getItem('os-theme')||'light';if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Semaphores — Producer / Consumer (Bounded Buffer)</title>
@@ -13,7 +13,7 @@
     --p1:#f97316; --p2:#a855f7; --con:#22d3ee;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink)}
   header{padding:18px 24px;border-bottom:1px solid var(--border)}
   h1{margin:0;font-size:20px}
   .sub{color:var(--muted);font-size:13px;margin-top:4px}
@@ -49,7 +49,7 @@
 
   /* ---------- shared memory box ---------- */
   .blockTitle{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
-  .shared{background:#0d1f14;border:1px solid #1e5232;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-family:Consolas,"Cascadia Mono",monospace;font-size:13px;line-height:1.65;color:#bfe8cd}
+  .shared{background:#0d1f14;border:1px solid #1e5232;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-family:var(--mono);font-size:13px;line-height:1.65;color:#bfe8cd}
   .shared .cm{color:#6f9a80}
   .shared b{color:#7ce3a4}
 
@@ -68,7 +68,7 @@
   .badge.done{background:#123222;color:#7ce3a4}
   .badge.ready{background:var(--s7,#1a2735);color:#8aa0b6}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
-  .pcode{font-family:Consolas,"Cascadia Mono",monospace;font-size:12.5px;line-height:1.7;color:var(--t2,#9fb4cc)}
+  .pcode{font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--t2,#9fb4cc)}
   .pcode .ln{display:block;border-radius:5px;padding:0 7px;white-space:pre;border-left:3px solid transparent}
   .pcode .ln.cur{background:var(--s3,#13233f);color:#e7eef7;border-left-color:var(--accent)}
   .pcode .ln.zz{background:#2a1c00;color:#f6c873;border-left-color:var(--warn)}
@@ -79,7 +79,7 @@
   /* semaphores */
   .semrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   .sem{flex:1 1 90px;border:1px solid var(--border);border-radius:10px;background:var(--s1,#0c141d);padding:8px 10px;text-align:center;transition:box-shadow .2s}
-  .sem .sname{font-size:11px;color:var(--muted);font-family:Consolas,monospace}
+  .sem .sname{font-size:11px;color:var(--muted);font-family:var(--mono)}
   .sem .sval{font-size:26px;font-weight:800;color:var(--t3,#cfe0ff);font-variant-numeric:tabular-nums}
   .sem .squeue{font-size:10.5px;color:var(--warn);min-height:15px}
   .sem.flash{box-shadow:0 0 0 2px var(--accent)}
@@ -144,11 +144,12 @@ html[data-theme=light]{
 }
 html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 .themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
-  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 var(--sans);
   cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
 .themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
 .themeBtn .ic{font-size:15px;line-height:1}
 </style>
+<link rel="stylesheet" href="os-theme.css">
 </head>
 <body>
 <header>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<script>try{var t=localStorage.getItem('os-theme')||'light';if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Process States and the PCB</title>
@@ -15,7 +15,7 @@
     --c0:#3b82f6; --c1:#a855f7; --c2:#f59e0b; --c3:#22c55e; --c4:#ec4899; --c5:#14b8a6;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink)}
   h1{margin:0}
   .sub{color:var(--muted);margin-top:4px}
   .wrap{display:flex;gap:20px;padding:20px 24px 70px;flex-wrap:wrap}
@@ -59,7 +59,7 @@
   .legend{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;margin-bottom:14px}
   .legend .row{display:flex;align-items:center;gap:10px;margin:6px 0}
   .sq{width:18px;height:14px;border-radius:3px;flex:0 0 auto;border:1px solid var(--border)}
-  code,.mono{font-family:Consolas,"Cascadia Mono",Menlo,monospace}
+  code,.mono{font-family:var(--mono)}
   b.ok{color:var(--ok)} b.bad{color:var(--bad)} b.warn{color:var(--pick)}
   header{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);padding:clamp(10px,2.2vh,22px) clamp(16px,3vw,28px);
          display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:14px;row-gap:2px}
@@ -93,7 +93,7 @@
   .events{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
   .events button{text-align:left;font-size:13px;padding:9px 11px}
   .events button small{display:block;color:var(--muted);font-size:10.5px;margin-top:2px}
-  .pcb{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:12.5px;line-height:1.75}
+  .pcb{font-family:var(--mono);font-size:12.5px;line-height:1.75}
   .pcb .r{display:flex;justify-content:space-between;border-bottom:1px dashed var(--border)}
   .pcb .r span:first-child{color:var(--muted)}
   .pcb .chg{color:var(--pick);font-weight:700}
@@ -117,11 +117,12 @@ html[data-theme=light]{
 }
 html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 .themeBtn{position:fixed;right:16px;bottom:16px;z-index:120;background:var(--s4,#243446);color:var(--ink,#e7eef7);
-  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 "Segoe UI",system-ui,sans-serif;
+  border:1px solid var(--s6,#33485f);border-radius:999px;padding:9px 15px;font:600 13px/1 var(--sans);
   cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.32);display:inline-flex;align-items:center;gap:7px;transition:.15s}
 .themeBtn:hover{border-color:var(--accent);transform:translateY(-1px)}
 .themeBtn .ic{font-size:15px;line-height:1}
 </style>
+<link rel="stylesheet" href="os-theme.css">
 </head>
 <body>
 <header>
