@@ -70,12 +70,12 @@ const update = ['reg = counter;', 'reg = reg + 1;', 'counter = reg;'];
 const plans = {
   none: [remainder, ...update],
   lockvar: [remainder, 'while (lock == 1) ;', 'lock = 1;', ...update, 'lock = 0;'],
-  turn: [remainder, 'while (turn != i) ;', ...update, 'turn = j;'],
+  turn: [remainder, 'while (turn == j) ;', ...update, 'turn = j;'],
   flags: [remainder, 'flag[i] = true;', 'while (flag[j]) ;', ...update, 'flag[i] = false;'],
   peterson: [remainder, 'flag[i] = true;', 'turn = j;', 'while (flag[j] && turn == j) ;', ...update, 'flag[i] = false;'],
   tas: [remainder, 'while (test_and_set(&lock)) ;', ...update, 'lock = 0;'],
   cas: [remainder, 'while (compare_and_swap(&lock, 0, 1) != 0) ;', ...update, 'lock = 0;'],
-  atomic: [remainder, 'counter.fetch_add(1);'],
+  atomic: [remainder, 'temp = *v;', '} while (temp != compare_and_swap(v, temp, temp + 1));'],
   mutex: [remainder, 'acquire(lock);', ...update, 'release(lock);'],
 };
 
@@ -144,11 +144,13 @@ for (const id of Object.keys(plans)) {
 run("setAlgo('lockvar');stepT(0);stepT(0)");
 assert(el('captionText').innerHTML.includes('next entry instruction'));
 assert(!el('captionText').innerHTML.includes('enters the critical section'));
-for (const id of ['cas', 'mutex']) {
+for (const id of ['tas', 'cas', 'mutex']) {
   run(`setAlgo('${id}');stepT(0);stepT(0);stepT(1);stepT(1)`);
   assert(el('bub1').textContent.includes(id === 'mutex' ? 'will wait' : 'will spin'));
   assert(el('bub1').textContent.includes(plans[id][1]));
-  assert.equal(el('bot1').classList.contains('spin'), id === 'cas');
+  assert.equal(el('bot1').classList.contains('spin'), id !== 'mutex');
+  if (id === 'tas') assert.match(el('captionText').innerHTML, /previous value, true/);
+  if (id === 'cas') assert.match(el('captionText').innerHTML, /expected 0 and returned 1/);
   run('stepT(0);stepT(0);stepT(0)');
   assert.equal(run('st.lock'), 1);
   assert.equal(el('padv').textContent, 'lock = 1');
@@ -162,6 +164,61 @@ for (const id of ['cas', 'mutex']) {
   run('undo()');
   assert.deepEqual(plain(run('st')), beforeRelease);
   checkDisplay(id, beforeRelease);
+}
+
+run("setAlgo('atomic');iters=[1,1];stepT(0);stepT(0);stepT(1);stepT(1);stepT(0);stepT(1)");
+assert.equal(run('st.counter'), 1);
+assert.equal(run('st.pc[1]'), 1, 'failed CAS must return to the read');
+assert.match(el('captionText').innerHTML, /expected 0 and returned 1/);
+assert.equal(el('bot1').classList.contains('spin'), false);
+run('undo()');
+assert.equal(run('st.pc[1]'), 2, 'undo must restore the pending CAS');
+run('stepT(1);stepT(1);stepT(1)');
+assert.equal(run('st.counter'), 2);
+assert.match(el('captionText').innerHTML, /expected 1 and returned 1/);
+assert.match(el('lectureCode').innerHTML, /slide 25/);
+assert.match(el('lectureCode').innerHTML, /void increment\(atomic_int \*v\)/);
+run("setAlgo('mutex')");
+assert.match(el('lectureCode').innerHTML, /slide 28/);
+assert.match(el('lectureCode').innerHTML, /slide 30/);
+assert.match(el('lectureCode').innerHTML, /pthread_mutex_lock\(&amp;m\)/);
+
+run("setAlgo('turn')");
+assert.match(el('algos').innerHTML, />Turn only \(strict alternation\)<\/button><button[^>]+>Peterson/);
+assert.equal(run('analysis.stuckKind'), 'progress');
+
+for (const id of ['tas', 'cas', 'atomic']) {
+  run(`setAlgo('${id}');playTrace('calls')`);
+  const tick = () => { for (const callback of [...timers.values()]) callback(); };
+  const readySteps = id === 'atomic' ? 4 : 2;
+  for (let i = 0; i < readySteps; i++) tick();
+  const ready = el('callDetails').innerHTML;
+  assert.match(ready, /T0 next, line/);
+  assert.match(ready, /T1 next, line/);
+  assert.match(ready, id === 'tas' ? /target = &amp;lock/ : id === 'cas' ? /value = &amp;lock/ : /value = v.*shared <code>counter/);
+  tick();
+  const first = el('callDetails').innerHTML;
+  assert.match(first, /Arguments from T0.*Read the shared .*Return to T0/);
+  assert.match(first, id === 'tas' ? /lock false → true.*gives <code>false/ : /0 → 1.*gives <code>0/);
+  tick();
+  const second = el('callDetails').innerHTML;
+  assert.match(second, /class="call-flow play"/);
+  assert.match(second, id === 'tas' ? /class="wrote".*Wrote <code>true<\/code> again.*lock true → true/ : /class="skipped".*mismatch.*Skipped the write.*1 → 1.*gives <code>1/);
+  assert(el(id === 'atomic' ? 'box' : 'pad').classList.contains('call-target'));
+  while (timers.size) tick();
+  assert.equal(el('callDemo').disabled, false);
+  assert.equal(run('hist.length'), readySteps + 2, 'the replay must stop on the second caller’s failed attempt');
+  if (id === 'atomic') {
+    assert.equal(run('st.counter'), 1);
+    assert.equal(run('st.pc[1]'), 1);
+    run('stepT(1);stepT(1)');
+    assert.match(el('callDetails').innerHTML, /expected = 1.*new_value = 2.*counter 1 → 2/);
+    run('undo();undo()');
+  }
+  run('undo()');
+  assert.match(el('callDetails').innerHTML, new RegExp(`Last call · step ${readySteps + 1} · T0`));
+  run('reset()');
+  assert.doesNotMatch(el('callDetails').innerHTML, /Last call/);
 }
 
 // These are geometry calculations, not a browser-layout or screenshot check.

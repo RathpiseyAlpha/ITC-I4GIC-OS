@@ -46,6 +46,9 @@
   input[type=number]{width:64px}
   input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
   .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .lecture-code{margin:12px 0 0}
+  .lecture-code summary{cursor:pointer;color:var(--accent);font-weight:600}
+  .lecture-sample{margin:10px 0;max-width:100%;background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:10px;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.5 var(--mono)}
   .msg{font-size:12px;color:var(--pick);min-height:16px;margin-top:4px}
   label.lbl{font-size:13px;color:var(--muted)}
   table.t{border-collapse:collapse;width:100%;font-size:13px}
@@ -95,6 +98,16 @@
   .var .n{font-size:11px;color:var(--muted);font-family:var(--mono)}
   .var .v{font-size:22px;font-weight:800}
   .var.chg{border-color:var(--accent)}
+  .call-target{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+  .call-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:8px 0 12px;padding:0;list-style:none}
+  .call-flow li{min-width:0;padding:7px 9px;border:1px solid var(--border);border-radius:8px;background:var(--s1);font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+  .call-flow strong{display:block;margin-bottom:3px}
+  .call-flow .wrote{border-color:var(--ok)}
+  .call-flow .skipped{border-color:var(--pick)}
+  .call-flow.play li{animation:call-phase .23s ease-out both;animation-delay:calc(var(--phase) * .19s)}
+  @keyframes call-phase{0%{opacity:.55}45%{box-shadow:inset 0 0 0 2px var(--accent);background:var(--s3)}100%{opacity:1}}
+  @media(max-width:1100px){.call-flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(prefers-reduced-motion:reduce){.call-flow.play li{animation:none}}
   .hist{display:flex;gap:3px;flex-wrap:wrap;min-height:24px}
   .hist span{width:22px;height:22px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
   .req{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--border);font-size:13px;line-height:1.45}
@@ -137,7 +150,7 @@
   .room.clash{border-color:var(--bad);border-style:solid;background:rgba(179,38,30,.14);animation:shake .35s 2}
   .room .rl{position:absolute;top:8px;left:12px;width:calc(50% - 72px);font:800 10.5px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--pick)}
   .room.clash .rl{color:var(--bad)}
-  .props{position:absolute;top:8px;right:10px;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .props{position:absolute;top:18px;right:10px;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
   .pad{display:flex;align-items:center;gap:5px;font:700 11.5px var(--mono);color:var(--muted)}
   .pad .shackle{transition:transform .3s;transform:translateY(-5px)} .pad .lbody{fill:#c5d2e8;transition:fill .3s}
   .pad.closed .shackle{transform:none} .pad.closed .lbody{fill:var(--amber)} .pad.closed{color:var(--ink)}
@@ -194,7 +207,7 @@ html[data-theme=light] body{background:var(--bg);color:var(--ink)}
   <h1>Critical Section Lab — race conditions and locks</h1>
   <div class="sub">Week 6 — <b>you are the scheduler</b>: choose which thread runs each instruction, and compare nine ways to update shared data</div>
 </header>
-<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Show, with a concrete interleaving, how <code>counter++</code> in two threads loses an update.</li><li>State the three requirements of a critical-section solution: mutual exclusion, progress and bounded waiting.</li><li>Explain why a simple lock variable, strict alternation and flags alone each fail, and which requirement each one breaks.</li><li>Trace Peterson's solution, test-and-set, compare-and-swap and a mutex, and explain why they keep two threads out of the critical section together.</li><li>Compare a lock around three instructions with an atomic increment that updates one counter in a single step.</li></ul></details>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Show, with a concrete interleaving, how <code>counter++</code> in two threads loses an update.</li><li>State the three requirements of a critical-section solution: mutual exclusion, progress and bounded waiting.</li><li>Explain why a simple lock variable, strict alternation and flags alone each fail, and which requirement each one breaks.</li><li>Trace Peterson's solution, test-and-set, compare-and-swap and a mutex, and explain why they keep two threads out of the critical section together.</li><li>Compare a lock around three instructions with an increment that uses an atomic compare-and-swap and retries on a stale read.</li></ul></details>
 <div class="wrap">
   <div class="stage">
     <p class="blockTitle" id="sceneTitle">Watch it happen — each robot is a thread, the room is the critical section</p>
@@ -202,11 +215,21 @@ html[data-theme=light] body{background:var(--bg);color:var(--ink)}
     <p class="hint">Entry and exit share the doorway outside the room. Leaving the room does not release a lock or lower an intent flag; the exit instruction must do that. Atomic increment has no separate acquire or release.</p>
     <div class="focus" id="focus"></div>
     <div class="memrow"><p class="blockTitle">Shared memory</p><div class="vars" id="vars"></div></div>
+    <div class="builder" id="callPanel" hidden>
+      <h3>Follow the function call</h3>
+      <div id="callDetails" aria-live="polite"></div>
+      <button class="small" id="callDemo" type="button" onclick="playTrace('calls')">▶ Replay both threads’ calls</button>
+    </div>
+    <div class="builder" id="lessonBridge" hidden></div>
     <p class="blockTitle">Next instruction: the robot label and highlighted line number match</p>
     <p class="hint">Press Step to execute that line. The arrow and robot label then advance together to the next line; the caption records the line that just ran. Each loop starts with remainder work, then entry, the shared-data update and exit.</p>
     <div class="threads" id="threads"></div>
     <p class="blockTitle" style="margin-top:16px">Your schedule so far — which thread ran each step</p>
     <div class="hist" id="hist"></div>
+    <details class="builder lecture-code" open>
+      <summary>Week 6 code and walkthrough</summary>
+      <div id="lectureCode"></div>
+    </details>
   </div>
 
   <div class="side">
@@ -264,7 +287,7 @@ html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 
     <div class="req"><div>
       <b>Atomic increment</b><br>
-      <b>Flow:</b> call <code>counter.fetch_add(1)</code> → the counter update completes atomically. The page models the entire operation as one step.<br>
+      <b>Flow:</b> read the counter into a local variable, then try to replace that value with its successor using CAS. If the value changed, read it again and retry. The slide also shows <code>fetch_add(1)</code> as a library operation.<br>
       <b>Guarantee:</b> increments of this counter do not lose updates. There is no lock admission protocol to assess for mutual exclusion or bounded waiting.<br>
       <b>Drawbacks:</b> one atomic increment does not protect a separate check, several variables or a whole business operation. Even if <code>counter</code> is atomic, a separate load followed by a store is not one atomic increment. A real atomic operation may use hardware, a retry loop or an internal lock; atomic does not always mean lock-free.<br>
       <b>Why another approach?</b> Use a mutex for a sequence such as checking stock, reducing it and recording the sale in shared memory. For shared database data, use a suitable transaction.
@@ -291,7 +314,7 @@ html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 <script>
 /* Each thread i runs: remainder work → entry section → shared-data update → exit section, N times.
    The default update is counter++ in 3 steps; an algorithm may supply its own atomic update.
-   An instruction is {k: section, s: source text, f(S,i): returns true if it advances, false if it must spin}. */
+   Each instruction has an action f(S,i) or an atomic call. A false result waits or retries. */
 /* t marks a line that matters for this algorithm: 'key' (it makes the solution work) or 'flaw' (where it breaks);
    n is the tag shown on that line; b is its plain-language tooltip. The robot label uses s directly. */
 const CS=[
@@ -299,6 +322,112 @@ const CS=[
   {k:'cs',s:'reg = reg + 1;', b:'add 1 on my card',  f:(S,i)=>{S.reg[i]++;return true;}},
   {k:'cs',s:'counter = reg;', b:'write it back',     f:(S,i)=>{S.counter=S.reg[i];return true;}},
 ];
+const LECTURE={
+  none:{page:9,name:'process.c',code:`while (true) {
+
+    /* entry section    */
+
+    /* critical section */
+
+    /* exit section     */
+
+    /* remainder        */
+}`,notes:'The slide shows the four sections of a thread loop. In No lock, entry and exit are empty. Each robot reads the shared counter into its own register, adds 1, and writes it back. If both read 0 before either writes, both write 1 and the final counter is 1 instead of 2.'},
+  lockvar:{notes:'This is an extra simulator scenario. The test reads <code>lock</code> and advances when it sees 0. The following line sets <code>lock</code> to 1. If both threads read 0 before either writes 1, both may enter. Writing 0 releases the lock.'},
+  turn:{page:14,name:'turn.c',code:`int turn = 0;          /* shared */
+
+/* process i; the other is j */
+while (true) {
+    while (turn == j)
+        ;              /* wait */
+
+    /* critical section */
+
+    turn = j;
+    /* remainder */
+}`,notes:'<code>i</code> is this thread and <code>j</code> is the other thread. The empty loop waits while <code>turn == j</code>. On exit, <code>turn = j</code> passes the turn even if the other thread has finished.'},
+  flags:{notes:'This is an extra simulator scenario. <code>flag[i] = true</code> announces interest. <code>while (flag[j])</code> reads the other thread’s flag and waits if it is raised. Both threads can get stuck with their flags raised because neither reaches the exit line that clears its flag.'},
+  peterson:{page:15,name:'peterson.c',code:`int  turn;
+bool flag[2] = {false, false};
+
+/* process i; the other is j */
+while (true) {
+    flag[i] = true;
+    turn = j;
+    while (flag[j] && turn == j)
+        ;              /* wait */
+
+    /* critical section */
+
+    flag[i] = false;
+    /* remainder */
+}`,notes:'<code>flag[i] = true</code> announces interest and <code>turn = j</code> gives the other thread priority. The loop waits only when the other thread both wants to enter and has priority. If both want in, the last thread to set <code>turn</code> gives the other thread priority and waits. Clearing your flag on exit lets the other thread proceed.'},
+  tas:{page:21,name:'test_and_set.c',code:`/* executed atomically */
+bool test_and_set(bool *target) {
+    bool old = *target;
+    *target = true;
+    return old;
+}
+
+bool lock = false;     /* shared */
+
+while (test_and_set(&lock))
+    ;                  /* wait */
+/* critical section */
+lock = false;`,notes:'<code>&amp;lock</code> passes the address of the shared lock. The function reads the old value, sets the lock to true, and returns the old value in one atomic operation. A return of false means the lock was free and the caller enters. A return of true keeps the caller in the loop. The animation uses 0 for false and 1 for true.'},
+  cas:{page:22,name:'compare_and_swap.c',code:`/* executed atomically */
+int compare_and_swap(int *value,
+                     int expected, int new_value) {
+    int old = *value;
+    if (*value == expected)
+        *value = new_value;
+    return old;
+}
+
+int lock = 0;          /* shared */
+
+while (compare_and_swap(&lock, 0, 1) != 0)
+    ;                  /* wait */
+/* critical section */
+lock = 0;`,notes:'The arguments are the address, the expected value (0), and the proposed value (1). CAS replaces the value only when it matches the expectation. It always returns the value it read before the operation. Returning 0 means it changed the lock to 1 and the caller enters. Returning 1 leaves the lock unchanged and the caller retries.'},
+  atomic:{page:25,name:'increment.c',code:`void increment(atomic_int *v) {
+    int temp;
+    do {
+        temp = *v;
+    } while (temp !=
+             compare_and_swap(v, temp, temp + 1));
+}`,notes:'<code>v</code> points to the counter. Each thread saves its own <code>temp</code>, then asks CAS to write <code>temp + 1</code> only if the counter still equals <code>temp</code>. A matching return value ends the loop. A different returned value sends the thread back to the read. Try stepping both threads twice so both read 0, then step T0 and T1 once each. T0 writes 1 and T1 must reread before it can write 2.'},
+  mutex:{page:28,name:'mutex.c',code:`acquire() {
+    while (!available)
+        ;              /* busy wait */
+    available = false;
+}
+
+release() {
+    available = true;
+}
+
+acquire(lock);
+/* critical section */
+release(lock);`,notes:'The slide sketches a busy-wait mutex. A successful availability check and claim must be atomic, as the slide specifies. Running those two lines as separate unprotected operations would repeat the Lock variable race. The simulator uses a blocking library mutex. It leaves a waiting thread at <code>acquire(lock)</code> until the owner releases, then lets it try to acquire on a later step.',
+    example:{page:30,name:'withdraw.c',code:`pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+
+void withdraw(int amount) {
+    pthread_mutex_lock(&m);
+    if (balance >= amount)
+        balance = balance - amount;
+    pthread_mutex_unlock(&m);
+}`,notes:'This POSIX example acquires the same mutex before checking or changing the balance. Unlocking happens after the check, whether or not the withdrawal went through. The simulator uses a counter in place of the balance.'}},
+};
+function showLecture(id){
+  const reference=LECTURE[id];
+  const slide=sample=>'<p class="hint"><a href="../files/Converted%20Slides/Operating%20Systems%20%E2%80%94%20Week%206.pdf#page='+sample.page+'">Week 6, slide '+sample.page+'</a> · <code>'+sample.name+'</code></p>'+
+    '<pre class="lecture-sample"><code>'+escapeCode(sample.code)+'</code></pre>';
+  $('lectureCode').innerHTML=(reference.code?slide(reference):'')+'<p class="hint">'+reference.notes+'</p>'+
+    (reference.example?slide(reference.example)+'<p class="hint">'+reference.example.notes+'</p>':'')+
+    (['tas','cas'].includes(id)?'<p class="hint">The function body describes one atomic operation. The numbered animation runs the whole call in a single step.</p>':'')+
+    (['none','turn','peterson'].includes(id)?'<p class="hint">The slide puts remainder work last. The animation begins there, which is the same point between iterations of the loop.</p>':'');
+}
 const ALGOS=[
  {id:'none', name:'No lock', iters:[1,1], vars:[],
   about:'No protection at all. <code>counter++</code> is three machine instructions, and the scheduler can switch threads between any two of them.',
@@ -310,20 +439,20 @@ const ALGOS=[
   entry:[{s:'while (lock == 1) ;',t:'flaw',n:'① test: is it free?',b:'is the lock free?',f:(S,i)=>S.lock===0},
          {s:'lock = 1;',t:'flaw',n:'② then set: a separate step',b:'lock the door',f:(S,i)=>{S.lock=1;return true;}}],
   exit:[{s:'lock = 0;',t:'key',n:'release',b:'unlock the door',f:(S,i)=>{S.lock=0;return true;}}]},
- {id:'turn', name:'Strict alternation', iters:[1,2], vars:['turn'],
-  about:'A shared <code>turn</code> says whose turn it is. Each thread hands the turn to the other on the way out.',
-  focus:'Mutual exclusion holds, but look at the <b>exit line</b>: it hands the turn over even if the other thread never comes back. Here T1 loops twice and T0 once, so T1 ends up waiting for a turn that T0 never gives.',
-  entry:[{s:'while (turn != i) ;',t:'key',n:'wait for my turn',b:'is it my turn?',f:(S,i)=>S.turn===i}],
-  exit:[{s:'turn = j;',t:'flaw',n:'forced hand-over',b:'give j the turn',f:(S,i)=>{S.turn=1-i;return true;}}]},
  {id:'flags', name:'Flags only', iters:[1,1], vars:['flag0','flag1'],
   about:'Each thread raises its own flag to say “I want in”, then waits while the other flag is up.',
   focus:'Look at the <b>wait line</b>: if both robots raise their flags before either one tests, each waits for the other forever. That is a deadlock.',
   entry:[{s:'flag[i] = true;',t:'key',n:'I want in',b:'raise my flag',f:(S,i)=>{S.flag[i]=1;return true;}},
          {s:'while (flag[j]) ;',t:'flaw',n:'both flags up: both stuck',b:'is j’s flag down?',f:(S,i)=>!S.flag[1-i]}],
   exit:[{s:'flag[i] = false;',t:'key',n:'flag down',b:'lower my flag',f:(S,i)=>{S.flag[i]=0;return true;}}]},
+ {id:'turn', name:'Turn only (strict alternation)', iters:[1,2], vars:['turn'],
+  about:'A shared <code>turn</code> says whose turn it is. Each thread hands the turn to the other on the way out.',
+  focus:'This is the <b>turn-only</b> case from slide 14. The sign tells you who can enter. Try the progress counterexample with the default loop counts. T1 hands the turn to T0 after its first pass and gets stuck because T0 has finished.',
+  entry:[{s:'while (turn == j) ;',t:'key',n:'wait for my turn',b:'is it my turn?',f:(S,i)=>S.turn===i}],
+  exit:[{s:'turn = j;',t:'flaw',n:'forced hand-over',b:'give j the turn',f:(S,i)=>{S.turn=1-i;return true;}}]},
  {id:'peterson', name:'Peterson', iters:[2,2], vars:['flag0','flag1','turn'],
   about:'Peterson’s solution: raise your flag, then <b>give the turn away</b>. You wait only while the other thread wants in <i>and</i> it is its turn.',
-  focus:'Follow <b>① → ② → ③</b>. Each robot raises its flag, then <b>offers the turn to the other</b>. If both want in, the one that offered last waits. That one rule keeps them out of the room together, and <b>④</b> lets the other one in.',
+  focus:'Compare with <b>Turn only</b>. Peterson waits only when the other thread both has the turn and has raised its flag. If the other thread has finished and lowered its flag, the waiting thread can enter.',
   entry:[{s:'flag[i] = true;',t:'key',n:'① I want in',b:'raise my flag',f:(S,i)=>{S.flag[i]=1;return true;}},
          {s:'turn = j;',t:'key',n:'② you go first',b:'offer j the turn',f:(S,i)=>{S.turn=1-i;return true;}},
          {s:'while (flag[j] && turn == j) ;',t:'key',n:'③ wait only if j wants in and it is j’s turn',b:'may I go in?',f:(S,i)=>!(S.flag[1-i]&&S.turn===1-i)}],
@@ -331,18 +460,19 @@ const ALGOS=[
  {id:'tas', name:'Test-and-set', iters:[2,2], vars:['lock'],
   about:'The hardware instruction <code>test_and_set</code> reads the old value of <code>lock</code> and sets it to 1 in <b>one atomic step</b>.',
   focus:'The whole entry section is <b>one hardware instruction</b>: <code>test_and_set</code> reads the old value and locks the door in one step, so no thread can slip in between.',
-  entry:[{s:'while (test_and_set(&lock)) ;',t:'key',n:'test + set in one atomic step',b:'test-and-set the lock',f:(S,i)=>{const old=S.lock;S.lock=1;return old===0;}}],
+  entry:[{s:'while (test_and_set(&lock)) ;',t:'key',n:'test + set in one atomic step',b:'test-and-set the lock',call:'tas'}],
   exit:[{s:'lock = 0;',t:'key',n:'release',b:'unlock the door',f:(S,i)=>{S.lock=0;return true;}}]},
  {id:'cas', name:'Compare-and-swap', iters:[2,2], vars:['lock'],
   about:'<code>compare_and_swap(&lock, 0, 1)</code> returns the old lock value and changes it to 1 only if it was 0. The comparison and the write happen atomically.',
   focus:'Compare this with <b>Lock variable</b>: testing for 0 and replacing it with 1 are now <b>one step</b>. A return value of 0 means this thread acquired the lock; a return value of 1 means it must retry.',
-  entry:[{s:'while (compare_and_swap(&lock, 0, 1) != 0) ;',t:'key',n:'compare + swap in one atomic step',b:'try to change lock from 0 to 1',f:(S,i)=>{const old=S.lock;if(old===0) S.lock=1;return old===0;}}],
+  entry:[{s:'while (compare_and_swap(&lock, 0, 1) != 0) ;',t:'key',n:'compare + swap in one atomic step',b:'try to change lock from 0 to 1',call:'cas'}],
   exit:[{s:'lock = 0;',t:'key',n:'release',b:'unlock the door',f:(S,i)=>{S.lock=0;return true;}}]},
  {id:'atomic', name:'Atomic increment', iters:[2,2], vars:[],
-  about:'An atomic counter provides <code>counter.fetch_add(1)</code>: reading, adding and writing are one indivisible update. There is no separate lock to acquire.',
-  focus:'On the highlighted <code>fetch_add</code> line, the robot is ready at the counter. Press Step for that thread to update it in <b>one atomic step</b>. Both robots may be ready there, but each update runs as one indivisible step. This protects <b>one counter update</b>; checking stock and creating an order together still need a lock or transaction.',
+  about:'<code>increment()</code> reads the shared counter into a local <code>temp</code>, then uses compare-and-swap to commit the increment. A failed comparison sends the thread back to the read.',
+  focus:'Let both threads read the same value, then step each through CAS. The first succeeds. The second sees that its <code>temp</code> is stale and goes back to the read. Only the <b>compare and conditional write</b> run as one indivisible step.',
   entry:[],
-  cs:[{k:'cs',s:'counter.fetch_add(1);',t:'key',n:'read + add + write atomically',b:'increment the counter atomically',atomic:true,f:(S,i)=>{S.counter++;return true;}}],
+  cs:[{k:'cs',s:'temp = *v;',b:'read the counter into temp',f:(S,i)=>{S.reg[i]=S.counter;return true;}},
+      {k:'cs',s:'} while (temp != compare_and_swap(v, temp, temp + 1));',t:'key',n:'retry if the counter changed',b:'compare and conditionally increment',retry:true,call:'atomic'}],
   exit:[]},
  {id:'mutex', name:'Mutex lock', iters:[2,2], vars:['lock'],
   about:'A library mutex wraps the entire read, add and write sequence in <code>acquire(lock)</code> and <code>release(lock)</code>. Acquisition is atomic; the library implements it using hardware support.',
@@ -353,6 +483,17 @@ const ALGOS=[
 const COL=['var(--c0)','var(--c1)'];
 const $=id=>document.getElementById(id);
 let A=ALGOS[0], prog=[], iters=[1,1], st=null, hist=[], stack=[], lastMsg='', analysis=null, replay=null, replayTimer=null;
+let lastCall=null;
+const LOCK_CALLS=[0,1,0,1];
+const CALL_DEMOS={tas:LOCK_CALLS,cas:LOCK_CALLS,atomic:[0,0,1,1,0,1]};
+const LESSON_LINKS={
+  turn:{next:'peterson',note:'In the progress counterexample, the sign says T0 even after T0 finishes. T1 stays outside the empty room. Now ask how T1 could tell whether T0 wants to enter.'},
+  peterson:{next:'tas',note:'The flags tell us who actually wants to enter. The turn settles a tie. Now replace that software protocol with a single hardware operation on a shared lock.'},
+  tas:{next:'cas',note:'Replay until T1 finds the lock held. Test-and-set writes true again and returns true. Keep the same shared lock and ask whether we can skip that write.'},
+  cas:{next:'atomic',note:'Replay the same schedule. T1 reads 1, expects 0 and skips the write. Now aim the conditional write at the counter instead of the lock.'},
+  atomic:{next:'mutex',note:'The replay stops when T1’s proposal is stale. Step T1 twice more to reread 1 and write 2. Now consider a task that must protect a check and an update together.'},
+  mutex:{note:'Step one robot into the room, then try the other robot’s acquire call. The lock stays held across the read, add and write until the first robot executes release. In the slide’s withdrawal example, that protected interval covers both the balance check and the deduction.'},
+};
 
 const REM={k:'rem',s:'/* other work */',b:'other work',f:()=>true};
 let lastStep=null;   // the step just taken, for the scene's animation: {i, moved, write, lost}
@@ -361,13 +502,30 @@ function init(){ return {pc:[0,0], it:[0,0], counter:0, lock:0, turn:0, flag:[0,
 const clone=s=>({pc:s.pc.slice(),it:s.it.slice(),counter:s.counter,lock:s.lock,turn:s.turn,flag:s.flag.slice(),reg:s.reg.slice()});
 const END=()=>prog.length;
 const finished=(s,i)=>s.pc[i]===END();
-// A pending atomic operation is not an occupied critical section: it completes in one transition.
-const inCS=(s,i)=>!finished(s,i)&&prog[s.pc[i]].k==='cs'&&!prog[s.pc[i]].atomic;
+// Both threads can be in increment(); each CAS commit is atomic and uses no lock.
+const inCS=(s,i)=>A.id!=='atomic'&&!finished(s,i)&&prog[s.pc[i]].k==='cs';
+function callArguments(kind,s,i){
+  if(kind==='atomic') return {cell:'counter',pointer:'v',expected:s.reg[i],desired:s.reg[i]+1};
+  return {cell:'lock',pointer:'&lock',expected:0,desired:1};
+}
 function stepState(s,i){            // returns {s: new state, moved}
   if(finished(s,i)) return {s,moved:false};
-  const n=clone(s), ins=prog[n.pc[i]], ok=ins.f(n,i);
+  const n=clone(s), ins=prog[n.pc[i]];
+  let ok, call;
+  if(ins.call){
+    const args=callArguments(ins.call,n,i);
+    const old=n[args.cell];
+    ok=old===args.expected;
+    // Test-and-set writes on every call. CAS writes only if the comparison matches.
+    const wrote=ins.call==='tas'||ok;
+    if(wrote) n[args.cell]=args.desired;
+    call={...args,kind:ins.call,thread:i,line:s.pc[i]+1,old,wrote,after:n[args.cell]};
+  }else{
+    ok=ins.f(n,i);
+  }
   if(ok){ n.pc[i]++; if(n.pc[i]===prog.length){ n.it[i]++; n.reg[i]=0; if(n.it[i]<iters[i]) n.pc[i]=0; } }
-  return {s:n,moved:ok};
+  else if(ins.retry) n.pc[i]--; // The do-while condition sends the thread back to the read.
+  return {s:n,moved:ok,call};
 }
 const keyOf=s=>s.pc+'|'+s.it+'|'+s.counter+'|'+s.lock+'|'+s.turn+'|'+s.flag+'|'+s.reg;
 
@@ -403,12 +561,57 @@ function threadView(s,i){
   const wait=blocked?(ins.blocking?' · will wait':' · will spin'):'';
   return {done,ins,line,section:done?'done':ins.k,blocked,
     label:done?'T'+i+' · finished':'T'+i+' · next '+line+wait+'\n'+ins.s,
-    where:done?'finished':ins.atomic?'ready for atomic update':inCS(s,i)?'in critical section':ins.k==='rem'?'remainder section':ins.k+' section'};
+    where:done?'finished':A.id==='atomic'&&ins.k==='cs'?'in increment()':inCS(s,i)?'in critical section':ins.k==='rem'?'remainder section':ins.k+' section'};
+}
+function showCalls(){
+  const demo=CALL_DEMOS[A.id];
+  $('callPanel').hidden=!demo;
+  if(!demo) return;
+  $('callDemo').disabled=!!replay;
+  const isTas=A.id==='tas';
+  const param=isTas?'target':'value';
+  const cell=A.id==='atomic'?'counter':'lock';
+  const format=n=>isTas?String(!!n):String(n);
+  const binding=args=>'<code>'+param+' = '+escapeCode(args.pointer)+'</code> points to the shared <code>'+args.cell+'</code>'+
+    (isTas?'':' · <code>expected = '+args.expected+'</code> · <code>new_value = '+args.desired+'</code>');
+  const pending=[0,1].flatMap(i=>{
+    const ins=prog[st.pc[i]];
+    if(!ins?.call) return [];
+    return '<div class="hint"><b>T'+i+' next, line '+(st.pc[i]+1)+'</b> · '+binding(callArguments(ins.call,st,i))+'</div>';
+  }).join('');
+  const summary=A.id==='atomic'?'Both threads receive <code>v = &amp;counter</code>. Each calculates its own <code>expected</code> and <code>new_value</code> from its local <code>temp</code>.':
+    'T0 and T1 both pass <code>&amp;lock</code>. The parameter <code>'+param+'</code> is local to each call and both copies point to the same shared <code>lock</code> word.';
+  let result='<p class="hint">Run the replay or step a thread to see its call. The four panels show what happens inside one indivisible scheduler step.</p>';
+  if(lastCall){
+    const {thread,line,step,old,after,wrote}=lastCall;
+    const compare=isTas?'The write always runs.':
+      '<code>'+format(old)+(wrote?' == ':' != ')+lastCall.expected+'</code> · '+(wrote?'match':'mismatch');
+    const write=wrote?'Wrote <code>'+format(after)+'</code>'+(old===after?' again.':'.'):'Skipped the write.';
+    const phase=(index,title,body,outcome='')=>'<li class="'+outcome+'" style="--phase:'+index+'"><strong>'+title+'</strong>'+body+'</li>';
+    result='<p class="hint"><b>Last call · step '+step+' · T'+thread+', line '+line+'</b> · one atomic step</p>'+
+      '<ol class="call-flow'+(lastStep?.call?' play':'')+'">'+
+      phase(0,'Arguments from T'+thread,binding(lastCall))+
+      phase(1,'Read the shared '+cell,'<code>old = *'+param+'</code> reads <code>'+format(old)+'</code>.')+
+      phase(2,isTas?'Write true':'Compare and write',compare+'<br>'+write+'<br><code>'+cell+' '+format(old)+' → '+format(after)+'</code>',wrote?'wrote':'skipped')+
+      phase(3,'Return to T'+thread,'<code>return old</code> gives <code>'+format(old)+'</code> to T'+thread+'.')+
+      '</ol>';
+  }
+  $('callDetails').innerHTML='<p class="hint">'+summary+'</p>'+pending+result;
+}
+function showLessonBridge(id){
+  const bridge=$('lessonBridge');
+  const lesson=LESSON_LINKS[id];
+  bridge.hidden=!lesson;
+  if(!lesson) return;
+  const next=ALGOS.find(algo=>algo.id===lesson.next);
+  bridge.innerHTML='<h3>'+(next?'Connect to '+next.name:'What the mutex protects')+'</h3><p class="hint">'+lesson.note+'</p>'+
+    (next?'<button class="small" type="button" onclick="setAlgo(\''+next.id+'\')">Open '+next.name+' →</button>':'');
 }
 function render(){
   const total=iters[0]+iters[1];
-  $('vars').innerHTML=['counter',...A.vars].map(n=>'<div class="var"><div class="n">'+n.replace(/flag(\d)/,'flag[$1]')+'</div><div class="v">'+(n==='counter'?st.counter:showVar(n))+'</div></div>').join('')+
+  $('vars').innerHTML=['counter',...A.vars].map(n=>'<div class="var'+(lastCall?.cell===n?' chg':'')+'"><div class="n">'+n.replace(/flag(\d)/,'flag[$1]')+'</div><div class="v">'+(n==='counter'?st.counter:showVar(n))+'</div></div>').join('')+
     '<div class="var" style="border-style:dashed"><div class="n">expected at the end</div><div class="v" style="color:var(--muted)">'+total+'</div></div>';
+  showCalls();
   const clash=inCS(st,0)&&inCS(st,1);
   $('focus').innerHTML='<b class="t">What to look at.</b> '+A.focus;
   $('threads').innerHTML=[0,1].map(i=>{
@@ -420,11 +623,13 @@ function render(){
                                        :'<div class="ln"><span class="src"><span class="c">// (no code here)</span></span></div>';
       // section names are written as code comments, so they are not mistaken for something else
       if(k==='rem') return '<div class="sect s-rem">'+lines.replace('</span></div>','</span><span class="c rc">// remainder section</span></div>')+'</div>';
-      const section=k==='cs'&&A.id==='atomic'?['atomic update','one indivisible step']:SECT[k];
-      return '<div class="sect s-'+k+(k==='cs'&&clash?' clash':'')+'"><div class="ln"><span class="src"><span class="c">// '+section[0]+': '+section[1]+'</span></span></div>'+lines+'</div>';
+      const atomicLoop=k==='cs'&&A.id==='atomic';
+      const section=atomicLoop?['increment()','read and try CAS']:SECT[k];
+      return '<div class="sect s-'+k+(k==='cs'&&clash?' clash':'')+'"><div class="ln"><span class="src"><span class="c">// '+section[0]+': '+section[1]+'</span></span></div>'+(atomicLoop?'<div class="ln">do {</div>':'')+lines+'</div>';
     }).join('');
     const {where}=threadView(st,i);
-    return '<div class="thr'+(clash?' clash':inCS(st,i)?' incs':'')+'"><h4><span><span style="color:'+COL[i]+'">●</span> Thread T'+i+' <small>(i = '+i+', j = '+(1-i)+')</small></span><small>'+where+' · loop '+Math.min(st.it[i]+1,iters[i])+'/'+iters[i]+(A.id==='atomic'?'':' · <code>reg</code> = <b style="color:var(--ink)">'+st.reg[i]+'</b>')+'</small></h4><div class="code">'+h+
+    const local=A.id==='atomic'?(prog[st.pc[i]]?.retry?'temp':null):'reg';
+    return '<div class="thr'+(clash?' clash':inCS(st,i)?' incs':'')+'"><h4><span><span style="color:'+COL[i]+'">●</span> Thread T'+i+' <small>(i = '+i+', j = '+(1-i)+')</small></span><small>'+where+' · loop '+Math.min(st.it[i]+1,iters[i])+'/'+iters[i]+(local?' · <code>'+local+'</code> = <b style="color:var(--ink)">'+st.reg[i]+'</b>':'')+'</small></h4><div class="code">'+h+
       '</div></div>'; }).join('');
   $('hist').innerHTML=hist.length?hist.map(i=>'<span style="background:'+COL[i]+'">T'+i+'</span>').join(''):'<span class="reg">nothing yet</span>';
   $('b0').disabled=finished(st,0)||!!replay; $('b1').disabled=finished(st,1)||!!replay; $('undoBtn').disabled=!stack.length||!!replay;
@@ -437,17 +642,18 @@ function render(){
   $('algos').innerHTML=ALGOS.map(a=>'<button class="'+(a===A?'active':'')+'" onclick="setAlgo(\''+a.id+'\')">'+a.name+'</button>').join('');
   const an=analysis, row=(ok,t,btn)=>'<div class="req"><span class="ic">'+(ok?'✅':'❌')+'</span><div>'+t+(btn||'')+'</div></div>';
   $('analysis').innerHTML=
-    row(!an.clash,A.id==='atomic'?'<b>Atomic update.</b> Each increment completes in one step; there is no multi-step critical section to lock.':'<b>Mutual exclusion.</b> '+(an.clash?'There is a schedule that puts both threads in the critical section.':'No schedule ever puts both threads in the critical section.'), an.clash?'<br><button class="small" onclick="playTrace(\'clash\')">▶ Show me that schedule ('+an.clash.length+' steps)</button>':'')+
+    row(!an.clash,A.id==='atomic'?'<b>Atomic update.</b> Threads can interleave their reads and attempts. Only a matching CAS changes the counter.':'<b>Mutual exclusion.</b> '+(an.clash?'There is a schedule that puts both threads in the critical section.':'No schedule ever puts both threads in the critical section.'), an.clash?'<br><button class="small" onclick="playTrace(\'clash\')">▶ Show me that schedule ('+an.clash.length+' steps)</button>':'')+
     row(!an.stuck,'<b>'+(an.stuckKind==='progress'?'Progress.':'Progress (no deadlock).')+'</b> '+(!an.stuck?'From every reachable state both threads can still finish.':an.stuckKind==='progress'?'A thread can wait forever although the critical section is free and the other thread does not want it.':'Both threads can end up waiting for each other forever.'), an.stuck?'<br><button class="small" onclick="playTrace(\'stuck\')">▶ Show me that schedule ('+an.stuck.length+' steps)</button>':'')+
     row(an.finals.length===1&&an.finals[0]===total,'<b>Final value of counter.</b> Possible results: <b>'+(an.finals.length?an.finals.join(', '):'never finishes')+'</b> (expected '+total+').')+
-    '<div class="hint">'+an.states+' reachable states explored.'+(['tas','cas'].includes(A.id)?' This spinlock gives mutual exclusion and progress, but <b>not bounded waiting</b>: an unlucky thread can lose the race for the lock again and again.':'')+(A.id==='atomic'?' This model treats fetch_add as one indivisible operation. A real library may implement it with a compare-and-swap retry loop.':'')+(A.id==='mutex'?' This model does not promise a fair queue or bounded waiting. A blocking mutex waits without a user-code spin loop; a spinlock repeatedly tests the lock and uses CPU time.':'')+(A.id==='peterson'?' Peterson also gives <b>bounded waiting</b>: a waiting thread gets in after at most one entry by the other. (It assumes the instructions run in program order, which modern CPUs do not promise without memory barriers.)':'')+'</div>';
+    '<div class="hint">'+an.states+' reachable states explored.'+(['tas','cas'].includes(A.id)?' This spinlock gives mutual exclusion and progress, but <b>not bounded waiting</b>: an unlucky thread can lose the race for the lock again and again.':'')+(A.id==='mutex'?' This model does not promise a fair queue or bounded waiting. A blocking mutex waits without a user-code spin loop; a spinlock repeatedly tests the lock and uses CPU time.':'')+(A.id==='peterson'?' Peterson also gives <b>bounded waiting</b>: a waiting thread gets in after at most one entry by the other. (It assumes the instructions run in program order, which modern CPUs do not promise without memory barriers.)':'')+'</div>';
   updateScene();
 }
 
 /* ---------- code colouring and section names ---------- */
 const SECT={rem:['remainder section','other work'],entry:['entry section','ask to enter'],cs:['critical section','only one thread at a time'],exit:['exit section','let the other one in']};
+function escapeCode(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 function hlCode(s){
-  const e=s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const e=escapeCode(s);
   if(s.startsWith('/*')) return '<span class="c">'+e+'</span>';
   return e.replace(/\b(\d+)\b/g,'<span class="l">$1</span>').replace(/\b(while|true|false)\b/g,'<span class="k">$1</span>').replace(/\b(test_and_set|compare_and_swap|fetch_add|acquire|release)\b/g,'<span class="f">$1</span>');
 }
@@ -476,12 +682,13 @@ const PADLOCK='<svg viewBox="0 0 30 34" width="24" height="28" aria-hidden="true
 function buildScene(){
   const uses=n=>A.vars.includes(n);
   $('sceneTitle').textContent=A.id==='atomic'?'Watch it happen — each robot is a thread, the room holds the atomic counter':'Watch it happen — each robot is a thread, the room is the critical section';
-  $('scene').setAttribute('aria-label',A.id==='atomic'?'Two robots stand for threads T0 and T1. Their positions show the next instruction. Either robot may be ready at the counter, but each atomic increment completes in one indivisible step.':'Two robots stand for threads T0 and T1. Their positions show the next instruction: outside for other work, at a doorway outside the room for entry or exit, and in the room for the critical section. At exit, the thread keeps its lock or intent flag until it runs its release instruction.');
+  $('scene').setAttribute('aria-label',A.id==='atomic'?'Two robots stand for threads T0 and T1. Both can read the atomic counter and attempt a compare-and-swap. A failed comparison returns the thread to the read.':'Two robots stand for threads T0 and T1. Their positions show the next instruction: outside for other work, at a doorway outside the room for entry or exit, and in the room for the critical section. At exit, the thread keeps its lock or intent flag until it runs its release instruction.');
   const zl=i=>'<div class="zl" id="zone'+i+'" style="left:'+sceneX('entry',i)+'">entry<br>exit</div>';
   $('scene').innerHTML='<div class="ground"></div>'+zl(0)+zl(1)+
-    '<div class="room" id="room"><div class="rl">Critical section<br>one at a time</div><div class="props">'+
-      (uses('lock')?'<div class="pad" id="pad">'+PADLOCK+'<span id="padv"></span></div>':'')+(uses('turn')?'<div class="turnSign" id="turnSign"></div>':'')+'</div>'+
+    '<div class="room" id="room"><div class="rl">Critical section<br>one at a time</div>'+
       '<div class="box" id="box"><div class="n">counter</div><div class="v" id="boxv">0</div></div><div id="lost"></div></div>'+
+    '<div class="props">'+(uses('lock')?'<div class="pad" id="pad">'+PADLOCK+'<span id="padv"></span></div>':'')+
+      (uses('turn')?'<div class="turnSign" id="turnSign"></div>':'')+'</div>'+
     [0,1].map(i=>'<div class="bub" id="bub'+i+'"></div><div class="bot" id="bot'+i+'"><div class="rcard" id="card'+i+'"></div>'+
       (uses('flag0')?'<div class="flag down" id="flag'+i+'">'+flagSVG(COL[i])+'</div>':'')+botSVG(COL[i])+'<div class="nm">T'+i+'</div></div>').join('');
 }
@@ -501,8 +708,8 @@ function updateScene(){
     bub.style.left=Math.max(minLeft,Math.min(scenePoint(k,i,width)-bubbleWidth/2,maxLeft))+'px';
     $('zone'+i).style.left=sceneX('entry',i);
     bub.className='bub'+(blocked?' wait':done?' done':'');
-    const card=$('card'+i), holding=inCS(st,i)&&st.pc[i]>csStart;
-    card.textContent='my card: '+st.reg[i]; card.className='rcard'+(holding?' on':'');
+    const card=$('card'+i), holding=A.id==='atomic'?ins?.retry:inCS(st,i)&&st.pc[i]>csStart;
+    card.textContent=(A.id==='atomic'?'temp: ':'my card: ')+st.reg[i]; card.className='rcard'+(holding?' on':'');
     const fl=$('flag'+i); if(fl) fl.classList.toggle('down',!st.flag[i]);
     bot.classList.remove('hop','spin');
     if(lastStep&&lastStep.i===i&&!reduceMotion&&(lastStep.moved||!lastStep.blocking)){ void bot.offsetWidth; bot.classList.add(lastStep.moved?'hop':'spin'); }
@@ -511,10 +718,13 @@ function updateScene(){
   const labelHeight=Math.max($('bub0').offsetHeight||0,$('bub1').offsetHeight||0);
   $('scene').style.minHeight=Math.max(230,labelHeight+122+64)+'px';
   $('room').classList.toggle('clash',inCS(st,0)&&inCS(st,1));
-  $('room').querySelector('.rl').innerHTML=A.id==='atomic'?'Atomic counter<br>one-step updates':inCS(st,0)&&inCS(st,1)?'Both threads<br>are inside!':'Critical section<br>one at a time';
+  $('room').querySelector('.rl').innerHTML=A.id==='atomic'?'Atomic counter<br>read and try CAS':inCS(st,0)&&inCS(st,1)?'Both threads<br>are inside!':'Critical section<br>one at a time';
   if($('pad')){ $('pad').classList.toggle('closed',st.lock===1); $('padv').textContent='lock = '+st.lock; }
   if($('turnSign')){ const t=$('turnSign'); t.textContent=st.turn===0?'◀ turn = T0':'turn = T1 ▶'; t.style.background=COL[st.turn]; }
   const box=$('box'); $('boxv').textContent=st.counter;
+  const touched=lastCall?.step===hist.length?lastCall.cell:null;
+  box.classList.toggle('call-target',touched==='counter');
+  if($('pad')) $('pad').classList.toggle('call-target',touched==='lock');
   $('lost').innerHTML=lastStep&&lastStep.lost?'<div class="lost">T'+lastStep.i+' wrote over T'+(1-lastStep.i)+'’s update: one is lost</div>':'';
   if(lastStep&&lastStep.write&&!reduceMotion){
     box.classList.remove('bump'); void box.offsetWidth; box.classList.add('bump');
@@ -526,12 +736,25 @@ function updateScene(){
 }
 
 /* ---------- controls ---------- */
-function describe(i,before,moved){
+function describe(i,before,moved,call){
   const ins=prog[before.pc[i]], T='<b>T'+i+'</b>';
-  const action=T+' executes line '+(before.pc[i]+1)+': <code>'+ins.s.replace(/&/g,'&amp;')+'</code>';
+  const action=T+' executes line '+(before.pc[i]+1)+': <code>'+escapeCode(ins.s)+'</code>';
+  if(ins.retry){
+    const {expected,old:actual}=call;
+    const compared=' — CAS expected '+expected+' and returned '+actual+'. ';
+    return action+compared+(moved?'They match, so CAS wrote '+st.counter+' and the loop ends.':'The counter changed, so CAS writes nothing. The thread returns to the read and tries again.');
+  }
+  if(call?.kind==='tas'){
+    return action+' — <code>*target</code> writes true to the shared lock and the function returns its previous value, '+(call.old?'true':'false')+'. '+(moved?'The loop ends and the thread enters.':'The thread spins and tries the same line again.');
+  }
+  if(call?.kind==='cas'){
+    return action+' — CAS expected 0 and returned '+call.old+'. '+(moved?'It wrote 1 through <code>value</code>, so the thread enters.':'The comparison failed. The lock stays at 1 and the thread spins.');
+  }
+  if(A.id==='turn'&&ins.k==='entry') return action+' — it is T'+before.turn+'’s turn'+(moved?'. This thread enters.':'. This thread must wait, even if the room is empty.');
+  if(A.id==='turn'&&ins.k==='exit') return action+' — the shared <code>turn</code> changes to T'+st.turn+(finished(st,st.turn)?', which has already finished.':'.');
   if(!moved) return action+(ins.blocking?' — it is <b>waiting inside acquire(lock)</b>. The mutex is held by the other thread; it can acquire it after release. This is a blocked library call, not a user-code spin loop.':' — the condition is still true, so it <b>spins</b> (busy waiting) and stays on this line.');
   let m=action;
-  if(ins.atomic) m+=' — counter changes from '+before.counter+' to '+st.counter+' in one indivisible step. The other thread cannot run between the read and the write.';
+  if(ins.s==='temp = *v;') m+=' — it reads counter ('+before.counter+') into its own temp. The next CAS will use this value as its expectation.';
   else if(ins.blocking) m+=' — the mutex was free, so it acquires it atomically and enters the critical section.';
   else if(ins.s==='release(lock);') m+=' — the mutex is free; a waiting thread can now acquire it.';
   else if(ins.s.startsWith('reg = counter')) m+=' — it copies counter ('+before.counter+') into its own register.';
@@ -541,22 +764,23 @@ function describe(i,before,moved){
   if(inCS(st,0)&&inCS(st,1)) m+=' <b class="bad">Now both threads are in the critical section.</b>';
   return m;
 }
-function stepT(i,quiet){ if(finished(st,i)) return; stack.push({st,hist:hist.slice(),lastMsg}); const before=st, ins=prog[before.pc[i]], r=stepState(st,i); st=r.s; hist.push(i); lastMsg=describe(i,before,r.moved);
-  const write=r.moved&&(ins.atomic||ins.s.startsWith('counter = reg'));
-  lastStep={i,moved:r.moved,blocking:!!ins.blocking,write,lost:write&&!ins.atomic&&before.counter!==before.reg[i]-1};
+function stepT(i,quiet){ if(finished(st,i)) return; stack.push({st,hist:hist.slice(),lastMsg,lastCall}); const before=st, ins=prog[before.pc[i]], r=stepState(st,i); st=r.s; hist.push(i); lastMsg=describe(i,before,r.moved,r.call);
+  if(r.call) lastCall={...r.call,step:hist.length};
+  const write=r.moved&&(ins.retry||ins.s.startsWith('counter = reg'));
+  lastStep={i,call:r.call,moved:r.moved,blocking:!!(ins.blocking||ins.retry),write,lost:write&&!ins.retry&&before.counter!==before.reg[i]-1};
   if(!quiet) render(); }
-function undo(){ const p=stack.pop(); if(!p) return; st=p.st; hist=p.hist; lastMsg=p.lastMsg; lastStep=null; render(); }
+function undo(){ const p=stack.pop(); if(!p) return; st=p.st; hist=p.hist; lastMsg=p.lastMsg; lastCall=p.lastCall; lastStep=null; render(); }
 function stopReplay(){ clearInterval(replayTimer); replay=null; }
-function reset(){ stopReplay(); st=init(); hist=[]; stack=[]; lastMsg=''; lastStep=null; render(); }
-function setAlgo(id){ stopReplay(); A=ALGOS.find(a=>a.id===id); iters=A.iters.slice(); $('it0').value=iters[0]; $('it1').value=iters[1]; build(); buildScene(); analysis=analyse(); reset(); }
+function reset(){ stopReplay(); st=init(); hist=[]; stack=[]; lastMsg=''; lastCall=null; lastStep=null; render(); }
+function setAlgo(id){ stopReplay(); A=ALGOS.find(a=>a.id===id); iters=A.iters.slice(); $('it0').value=iters[0]; $('it1').value=iters[1]; build(); buildScene(); showLecture(id); showLessonBridge(id); analysis=analyse(); reset(); }
 function setIters(){ iters=[0,1].map(i=>Math.max(1,Math.min(3,parseInt($('it'+i).value)||1))); $('it0').value=iters[0]; $('it1').value=iters[1]; analysis=analyse(); reset(); }
 function randomRun(){ reset(); let n=0; while(!(finished(st,0)&&finished(st,1))&&n<120){ const c=[0,1].filter(i=>!finished(st,i)); stepT(c[Math.floor(Math.random()*c.length)],true); n++; if(inCS(st,0)&&inCS(st,1)) break; }
   if(n>=120) lastMsg+=' <b class="warn">Stopped after 120 steps: neither thread is getting anywhere.</b>'; render(); }
-function playTrace(which){ const tr=analysis[which]; if(!tr) return; reset(); replay=tr.slice(); render();
+function playTrace(which){ const tr=which==='calls'?CALL_DEMOS[A.id]:analysis[which]; if(!tr) return; reset(); replay=tr.slice(); render();
   replayTimer=setInterval(()=>{ if(!replay||!replay.length){ const kind=which; stopReplay();
       if(kind==='stuck') lastMsg+=' <b class="bad">'+(analysis.stuckKind==='progress'?'From here the waiting thread can never enter: the other thread has finished and will never change the variable it is waiting on.':'From here neither thread can ever enter: each one waits for the other. Keep pressing Step to check.')+'</b>';
       render(); return; }
-    stepT(replay.shift()); },650); }
+    stepT(replay.shift()); },which==='calls'?1100:650); }
 document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select'||replay) return;
   if(e.key==='ArrowLeft') stepT(0); else if(e.key==='ArrowRight') stepT(1); else if(e.key==='Backspace') undo(); });
 setAlgo('none');
