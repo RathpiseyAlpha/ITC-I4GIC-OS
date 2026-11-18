@@ -4,11 +4,15 @@ Run with the website dependencies installed: python3 tools/test_lab3_collection.
 No live student homes, class inbox, release or marks are touched.
 """
 import importlib.util
+import csv
+import io
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -47,8 +51,8 @@ class Lab3Collection(unittest.TestCase):
         self.assertEqual(result.returncode == 0, ok, result.stdout + result.stderr)
         return result.stdout + result.stderr
 
-    def teacher(self, command):
-        result = subprocess.run([sys.executable, str(ROOT / 'server/oslab_teach.py'), command, 'lab3'],
+    def teacher(self, command, *args):
+        result = subprocess.run([sys.executable, str(ROOT / 'server/oslab_teach.py'), command, 'lab3', *args],
                                 env=self.env, text=True, capture_output=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result.stdout
@@ -90,7 +94,7 @@ class Lab3Collection(unittest.TestCase):
         data.rename(moved)
         (box / 'links/first.txt').unlink()
         (box / 'links/first.txt').symlink_to(f"../{values['moved']}")
-        (self.lab / 'evidence/checkpoint.txt').write_text((values['content'] + '\n') * 2)
+        (self.lab / values.get('evidence', 'evidence/checkpoint.txt')).write_text((values['content'] + '\n') * 2)
 
     def test_values_are_personal_and_fixture_matches(self):
         other = oslab.lab_values('lab3', 'student-other')
@@ -172,6 +176,38 @@ class Lab3Collection(unittest.TestCase):
         self.assertTrue(oslab.check_lab3(self.lab, self.values)[0][1])
         (self.lab / 'evidence/links.txt').write_text('=== AFTER REPAIR ===\nstored target: x\n')
         self.assertTrue(oslab.check_lab3(self.lab, self.values)[4][1])
+
+    def test_retry_keeps_the_original_attempt_and_uses_separate_evidence(self):
+        from datetime import datetime, timedelta, timezone
+
+        self.teacher('release')
+        self.assertIn('not open', self.cli('checkpoint-retry', ok=False))
+        deadline = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        self.teacher('release-retry', '--until', deadline)
+        self.assertIn('complete the original', self.cli('checkpoint-retry', ok=False))
+        original = oslab.checkpoint_task('lab3', USER, (self.release / 'lab3.checkpoint').read_text().strip())[0]
+        self.cli('checkpoint', f"yes\nno\n../{original['moved']}\nyes\nOriginal sentence\n")
+        self.build_checkpoint(original)
+        record = self.base / '.records/lab3-checkpoint.json'
+        original_record = record.read_bytes()
+        config_path = self.release / 'lab3.checkpoint-retry'
+        config = json.loads(config_path.read_text())
+        retry = oslab.lab3_retry_task(USER, config['nonce'])[0]
+        self.assertNotEqual(retry['folder'], original['folder'])
+        self.cli('checkpoint-retry', f"yes\nno\n../{retry['moved']}\nyes\nRetry sentence\n")
+        self.assertIn('already saved', self.cli('checkpoint-retry', ok=False))
+        self.assertIn('TRY : Lab 3 checkpoint retry', self.cli('check'))
+        self.build_checkpoint(retry)
+        self.assertIn('PASS: Lab 3 checkpoint retry', self.cli('check'))
+        self.assertEqual(record.read_bytes(), original_record)
+        row = next(csv.DictReader(io.StringIO(self.teacher('export'))))
+        self.assertEqual(row['checkpoint_sentence'], 'Original sentence')
+        self.assertEqual(row['retry_checkpoint_sentence'], 'Retry sentence')
+        self.assertEqual(row['retry_checkpoint_answers'], '4/4')
+        self.assertEqual(row['retry_checkpoint_auto_points'], '2')
+        self.assertEqual(row['flag'], '')
+        config_path.write_text(json.dumps(dict(config, closes=int(time.time()) - 1)))
+        self.assertIn('not open', self.cli('checkpoint-retry', ok=False))
 
     def test_placeholders_and_old_values_do_not_pass(self):
         self.finish_core()

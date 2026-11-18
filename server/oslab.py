@@ -34,6 +34,7 @@ RECORDS = ".records"
 TERM_FILE = "/opt/itc-os-labs/term.conf"
 DEFAULT_INBOX = "/var/lib/itc-oslab/inbox"
 DEFAULT_RELEASE = "/var/lib/itc-oslab/release"
+CHECKPOINT_RETRY = "checkpoint_retry"
 LOCAL_SALT = "local-practice"
 TOKEN = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 
@@ -342,11 +343,14 @@ def lab3_predict(v):
             question("why", "One sentence: why do a hard link and a symbolic link behave differently when a new file takes the old name?", "text")]
 
 
-def lab3_checkpoint(pick, v):
+def lab3_checkpoint(pick, v, retry=False):
     folder, data = two_words(pick, "folder", "data")
     tag = LAB3_TAGS[pick("tag", len(LAB3_TAGS))]
-    box = f"cp-{folder}"
+    box = f"cp-retry-{folder}" if retry else f"cp-{folder}"
+    evidence = "evidence/checkpoint-retry.txt" if retry else "evidence/checkpoint.txt"
     cv = {"folder": box, "data": f"{data}.txt", "moved": f"{data}-{tag}.txt", "content": f"checkpoint {folder} {data}"}
+    if retry:
+        cv["evidence"] = evidence
     intro = [f"New case, in the folder lab3/{box}/. It holds the data file {cv['data']} and a folder links/.",
              f"links/hard.txt is a hard link to {cv['data']}. links/first.txt is a symbolic link that stores ../{cv['data']}.",
              "links/second.txt is a symbolic link that stores first.txt. Then you rename "
@@ -367,7 +371,7 @@ def lab3_checkpoint(pick, v):
              "  ln -s first.txt links/second.txt",
              f"  mv {cv['data']} {cv['moved']}",
              "  (repair links/first.txt: write the two commands yourself, with rm -- and ln -s)",
-             '  { ls -li . links; cat links/hard.txt links/second.txt; } | tee "$OSLAB_WORKSPACE/lab3/evidence/checkpoint.txt"',
+             f'  {{ ls -li . links; cat links/hard.txt links/second.txt; }} | tee "$OSLAB_WORKSPACE/lab3/{evidence}"',
              "Then run: oslab check lab3"]
     return cv, intro, qs, after
 
@@ -1347,6 +1351,10 @@ def checkpoint_task(lab, user, nonce):
     return CHECKPOINT[lab](picker(user, lab, nonce), lab_values(lab, user))
 
 
+def lab3_retry_task(user, nonce):
+    return lab3_checkpoint(picker(user, "lab3", nonce), lab_values("lab3", user), retry=True)
+
+
 def mark(kind, expect, answer):
     """True/False for a marked answer, None when a person must read it."""
     if expect is None:
@@ -1806,6 +1814,49 @@ def checkpoint(base, lab):
     print("\n" + "\n".join(after))
 
 
+def lab3_retry_release():
+    folder = Path(os.environ.get("OSLAB_RELEASE_DIR", DEFAULT_RELEASE))
+    path = folder / "lab3.checkpoint-retry"
+    if not path.is_file() or path.is_symlink():
+        return None
+    config = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(config, dict) or not TOKEN.fullmatch(str(config.get("nonce", ""))) or type(config.get("closes")) is not int:
+        raise ValueError("the Lab 3 checkpoint retry release file is damaged")
+    return config
+
+
+def lab3_checkpoint_retry(base):
+    config = lab3_retry_release()
+    if config is None or time.time() >= config["closes"]:
+        fail("the Lab 3 checkpoint retry is not open")
+    earlier = read_record(base, "lab3", "checkpoint")
+    if not earlier or earlier.get("practice") or not inbox():
+        fail("complete the original live checkpoint in this workspace before taking the retry")
+    if read_record(base, "lab3", CHECKPOINT_RETRY):
+        fail("your one checkpoint retry is already saved")
+    values, intro, items, after = lab3_retry_task(current_user(), config["nonce"])
+    print("Lab 3 checkpoint retry: your own work. Close AI tools; do not ask a neighbour.")
+    print("\n" + "\n".join(intro))
+    answers = ask_all(items, shell_env(base, lab_values("lab3", current_user())))
+    if lab3_retry_release() != config or time.time() >= config["closes"]:
+        fail("the Lab 3 checkpoint retry closed before you saved your answers")
+    path = record_path(base, "lab3", CHECKPOINT_RETRY)
+    retry = {"values": values, "answers": answers, "release": config["nonce"]}
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            json.dump(retry, handle, sort_keys=True)
+    except FileExistsError:
+        fail("your one checkpoint retry is already saved")
+    try:
+        if not submit("lab3", CHECKPOINT_RETRY, retry):
+            fail("could not send the retry to the class inbox; try again")
+    except (OSError, SystemExit):
+        path.unlink(missing_ok=True)
+        raise
+    print("Saved and sent to the instructor.")
+    print("\n" + "\n".join(after))
+
+
 def run_buy(script, arguments, delay="0"):
     env = dict(os.environ, BUY_DELAY=delay)
     return subprocess.Popen(["bash", str(script), *arguments], env=env, stdin=subprocess.DEVNULL,
@@ -2228,24 +2279,29 @@ def check_lab3(target, values, extra=None):
     # 5. the evidence of failure and repair
     results.append(("evidence/links.txt records the failure after the rename and the repaired link", lab3_evidence(target, values)[2]))
     if extra:
-        box = target / extra["folder"]
-        data, moved = box / extra["data"], box / extra["moved"]
-        first, second, hard_link = box / "links/first.txt", box / "links/second.txt", box / "links/hard.txt"
-        problems = []
-        if data.exists() or data.is_symlink():
-            problems.append(f"{extra['folder']}/{extra['data']} is still there: the data file was renamed to {extra['moved']}")
-        elif not moved.is_file() or moved.is_symlink() or read_text(moved) != extra["content"] + "\n":
-            problems.append(f"{extra['folder']}/{extra['moved']} must hold {extra['content']}: follow the commands printed by oslab checkpoint lab3")
-        elif not (hard_link.is_file() and not hard_link.is_symlink() and os.path.samefile(hard_link, moved)):
-            problems.append("links/hard.txt must be a hard link made before the rename (ls -li shows the same inode as the data file)")
-        elif not first.is_symlink() or os.readlink(first).startswith("/") or first.resolve() != moved.resolve():
-            problems.append(f"links/first.txt must store a relative target that reaches {extra['moved']}: it stores {os.readlink(first) if first.is_symlink() else 'nothing (not a link)'}")
-        elif not second.is_symlink() or os.readlink(second) != "first.txt":
-            problems.append("links/second.txt must still be a symbolic link that stores first.txt: repair only first.txt")
-        elif read_text(target / "evidence/checkpoint.txt").count(extra["content"]) < 2:
-            problems.append("evidence/checkpoint.txt must show the data read through hard.txt and through second.txt: use the tee line that oslab checkpoint printed")
-        results.append(("checkpoint: first.txt is repaired, second.txt follows it, hard.txt still reads, and the output is saved", problems))
+        results.append(("checkpoint: first.txt is repaired, second.txt follows it, hard.txt still reads, and the output is saved",
+                        lab3_checkpoint_problems(target, extra)))
     return results
+
+
+def lab3_checkpoint_problems(target, extra, evidence="evidence/checkpoint.txt"):
+    box = target / extra["folder"]
+    data, moved = box / extra["data"], box / extra["moved"]
+    first, second, hard_link = box / "links/first.txt", box / "links/second.txt", box / "links/hard.txt"
+    problems = []
+    if data.exists() or data.is_symlink():
+        problems.append(f"{extra['folder']}/{extra['data']} is still there: the data file was renamed to {extra['moved']}")
+    elif not moved.is_file() or moved.is_symlink() or read_text(moved) != extra["content"] + "\n":
+        problems.append(f"{extra['folder']}/{extra['moved']} must hold {extra['content']}: follow the commands printed by oslab checkpoint lab3")
+    elif not (hard_link.is_file() and not hard_link.is_symlink() and os.path.samefile(hard_link, moved)):
+        problems.append("links/hard.txt must be a hard link made before the rename (ls -li shows the same inode as the data file)")
+    elif not first.is_symlink() or os.readlink(first).startswith("/") or first.resolve() != moved.resolve():
+        problems.append(f"links/first.txt must store a relative target that reaches {extra['moved']}: it stores {os.readlink(first) if first.is_symlink() else 'nothing (not a link)'}")
+    elif not second.is_symlink() or os.readlink(second) != "first.txt":
+        problems.append("links/second.txt must still be a symbolic link that stores first.txt: repair only first.txt")
+    elif read_text(target / evidence).count(extra["content"]) < 2:
+        problems.append(f"{evidence} must show the data read through hard.txt and through second.txt: use the tee line that oslab printed")
+    return problems
 
 
 def check_lab4(target, values, extra):
@@ -2368,6 +2424,15 @@ def check(base, lab):
         print(f"milestones: {len(results) - len(failed)}/{len(results)}")
         if lab in CHECK_DETAILS:
             evidence.update(CHECK_DETAILS[lab](target, values))
+        if lab == "lab3":
+            retry = read_record(base, lab, CHECKPOINT_RETRY)
+            if retry:
+                extra = retry["values"]
+                problems = lab3_checkpoint_problems(target, extra, extra["evidence"])
+                print("TRY : Lab 3 checkpoint retry" if problems else "PASS: Lab 3 checkpoint retry")
+                for problem in problems:
+                    print(f"      why: {problem}")
+                evidence.update(checkpoint_retry={"release": retry["release"], "done": not problems})
         submit(lab, "check", dict(evidence, passed=len(results) - len(failed), total=len(results),
                                   failed=[text for text, _ in failed],
                                   reasons={text: [p[:200] for p in problems[:4]] for text, problems in failed},
@@ -2383,7 +2448,7 @@ def check(base, lab):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["doctor", "list", "start", "status", "values", "prelab", "predict",
-                                            "hint", "check", "checkpoint", "debrief", "reset", "clean"])
+                                            "hint", "check", "checkpoint", "checkpoint-retry", "debrief", "reset", "clean"])
     parser.add_argument("lab", nargs="?")
     parser.add_argument("level", nargs="?", type=int)
     args = parser.parse_args()
@@ -2440,6 +2505,10 @@ def main():
         predict(base, args.lab)
     elif args.command == "checkpoint":
         checkpoint(base, args.lab)
+    elif args.command == "checkpoint-retry":
+        if args.lab != "lab3":
+            fail("the checkpoint retry is available only for Lab 3")
+        lab3_checkpoint_retry(base)
     elif args.command == "debrief":
         debrief(base, args.lab)
     elif args.command == "hint":

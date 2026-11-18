@@ -15,8 +15,10 @@ import re
 import secrets
 import stat
 import sys
+import tempfile
 import time
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -104,8 +106,9 @@ def scan(lab):
     tmp = seen_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(seen), encoding="utf-8")
     os.replace(str(tmp), str(seen_path))
-    counts = Counter((item["user"], item["kind"]) for item in seen.values() if item["kind"] in ("predict", "checkpoint"))
-    removed = {item["user"] for name, item in seen.items() if name not in present and item["kind"] in ("predict", "checkpoint")}
+    tracked_kinds = ("predict", "checkpoint", oslab.CHECKPOINT_RETRY)
+    counts = Counter((item["user"], item["kind"]) for item in seen.values() if item["kind"] in tracked_kinds)
+    removed = {item["user"] for name, item in seen.items() if name not in present and item["kind"] in tracked_kinds}
     flagged = {user for (user, _), count in counts.items() if count > 1} | removed
     for kinds in users.values():
         for records in kinds.values():
@@ -221,6 +224,25 @@ def release(lab):
     print(f"{lab} checkpoint released. Students run: oslab checkpoint {lab}")
 
 
+def release_retry(lab, until):
+    if lab != "lab3" or not released(lab):
+        oslab.fail("release the original Lab 3 checkpoint before opening its retry")
+    closes = datetime.fromisoformat(until)
+    if closes.utcoffset() is None or closes.timestamp() <= time.time():
+        oslab.fail("use a future retry deadline with a time zone, for example 2026-11-20T23:59:26+07:00")
+    folder = release_dir()
+    path = folder / "lab3.checkpoint-retry"
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=folder) as handle:
+        json.dump({"nonce": secrets.token_hex(6), "closes": int(closes.timestamp())}, handle)
+        handle.flush()
+        os.fchmod(handle.fileno(), 0o644)
+        try:
+            os.link(handle.name, path)
+        except FileExistsError:
+            oslab.fail("the Lab 3 checkpoint retry was already released")
+    print(f"Lab 3 checkpoint retry open until {closes.isoformat()}. Students run: oslab checkpoint-retry lab3")
+
+
 def key(lab, names):
     if lab not in oslab.VALUES:
         oslab.fail(f"{lab} has no personal values")
@@ -244,28 +266,58 @@ def key(lab, names):
 
 
 def export(lab, names):
-    table, _ = rows(lab, names)
+    users, flagged = scan(lab)
+    nonce = released(lab)
+    retry = oslab.lab3_retry_release() if lab == "lab3" else None
     writer = csv.writer(sys.stdout)
-    writer.writerow(["user", "prelab_first_try", "started", "predict_correct", "milestones", "hints", "checkpoint_answers",
-                     "checkpoint_task", "checkpoint_auto_points", "debrief_correct", "flag", "predict_sentence", "checkpoint_sentence"])
-    for row in table:
-        writer.writerow([row["user"], row["prelab"], row["started"], row["predict"], row["checks"], row["hints"], row["checkpoint"],
-                         row["task"], row["auto_points"], row["debrief"], row["flag"], row["predict_answers"].get("why", ""),
-                         row["checkpoint_answers"].get("why", "")])
+    headers = ["user", "prelab_first_try", "started", "predict_correct", "milestones", "hints", "checkpoint_answers",
+               "checkpoint_task", "checkpoint_auto_points", "debrief_correct", "flag", "predict_sentence", "checkpoint_sentence"]
+    if retry:
+        headers += ["retry_checkpoint_answers", "retry_checkpoint_task", "retry_checkpoint_auto_points", "retry_checkpoint_sentence"]
+    writer.writerow(headers)
+    for user in names or sorted(users):
+        kinds = users.get(user, {})
+        row = summary(lab, user, kinds, nonce)
+        columns = [user, row["prelab"], row["started"], row["predict"], row["checks"], row["hints"], row["checkpoint"],
+                   row["task"], row["auto_points"], row["debrief"], "rewritten" if user in flagged else "",
+                   row["predict_answers"].get("why", ""), row["checkpoint_answers"].get("why", "")]
+        if retry:
+            columns += retry_export(user, kinds, retry)
+        writer.writerow(columns)
+
+
+def retry_export(user, kinds, retry):
+    nonce, closes = retry["nonce"], retry["closes"]
+    record = next((r for r in kinds.get(oslab.CHECKPOINT_RETRY, [])
+                   if r.get("release") == nonce and r["_when"] < closes), None)
+    if record is None:
+        return ["", "", "", ""]
+    _, _, questions, _ = oslab.lab3_retry_task(user, nonce)
+    answers = record.get("answers", {})
+    correct, total = marks(questions, answers)
+    done = any(record["_when"] <= c["_when"] < closes and
+               c.get("checkpoint_retry") == {"release": nonce, "done": True} for c in kinds.get("check", []))
+    points = (1 if correct == total else 0.5 if correct * 2 >= total else 0) + int(done)
+    return [f"{correct}/{total}", "done" if done else "no", points, answers.get("why", "")]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["board", "release", "key", "export"])
+    parser.add_argument("command", choices=["board", "release", "release-retry", "key", "export"])
     parser.add_argument("lab")
     parser.add_argument("--roster", help="file with one student account per line; default: accounts seen in the inbox")
     parser.add_argument("--watch", type=int, default=0, help="redraw the board every N seconds")
+    parser.add_argument("--until", help="retry submission deadline in ISO 8601 format, including time zone")
     args = parser.parse_args()
     if args.lab not in oslab.LABS:
         oslab.fail("choose lab1 through lab11")
     names = roster(args.roster)
     if args.command == "release":
         release(args.lab)
+    elif args.command == "release-retry":
+        if not args.until:
+            parser.error("release-retry requires --until")
+        release_retry(args.lab, args.until)
     elif args.command == "key":
         key(args.lab, names)
     elif args.command == "export":
