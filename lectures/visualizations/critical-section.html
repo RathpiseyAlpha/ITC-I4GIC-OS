@@ -152,8 +152,8 @@
   .bot .nm{position:absolute;bottom:12px;font:800 11px var(--sans);color:#fff}
   .bot.hop svg.body{animation:hop .45s}
   .bot.spin svg.body{animation:wobble .5s}
-  .bub{position:absolute;bottom:98px;white-space:nowrap;font:600 12px var(--sans);background:var(--panel);color:var(--ink);border:1px solid var(--border);
-       border-radius:10px;padding:4px 9px;box-shadow:var(--shadow)}
+  .bub{position:absolute;bottom:122px;white-space:pre-wrap;overflow-wrap:anywhere;font:600 12px/1.35 var(--sans);background:var(--panel);color:var(--ink);border:1px solid var(--border);
+       border-radius:10px;padding:4px 9px;box-shadow:var(--shadow);z-index:3;transition:left .6s cubic-bezier(.4,.1,.2,1)}
   .bub.wait{border-color:var(--pick);color:var(--pick)} .bub.done{border-color:var(--ok);color:var(--ok)}
   .rcard{position:absolute;bottom:74px;font:700 12px var(--mono);background:#fff6dd;border:1.5px solid var(--amber);color:#7a5200;border-radius:6px;padding:2px 7px;white-space:nowrap;display:none}
   .rcard.on{display:block;animation:pop .3s}
@@ -166,7 +166,7 @@
   @keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
   @keyframes pop{from{opacity:0;transform:translateX(-50%) scale(.6)}}
   .rcard.on{animation:none}
-  @media (prefers-reduced-motion:reduce){ .bot,.room,.flag,.pad .shackle{transition:none} .bot svg.body,.box,.room,.lost{animation:none!important} }
+  @media (prefers-reduced-motion:reduce){ .bot,.bub,.room,.flag,.pad .shackle{transition:none} .bot svg.body,.box,.room,.lost{animation:none!important} }
   @media (max-width:640px){ .bub{font-size:11px} .room .rl{display:none} }
   .sect .ln.pc::before{top:4px}
 </style>
@@ -192,15 +192,18 @@ html[data-theme=light] body{background:var(--bg);color:var(--ink)}
 <header>
   <a class="back" href="index.html">&larr; All visualizations</a>
   <h1>Critical Section Lab — race conditions and locks</h1>
-  <div class="sub">Week 7 — <b>you are the scheduler</b>: choose which thread runs each instruction, and try to break six attempts at mutual exclusion</div>
+  <div class="sub">Week 6 — <b>you are the scheduler</b>: choose which thread runs each instruction, and compare nine ways to update shared data</div>
 </header>
-<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Show, with a concrete interleaving, how <code>counter++</code> in two threads loses an update.</li><li>State the three requirements of a critical-section solution: mutual exclusion, progress and bounded waiting.</li><li>Explain why a simple lock variable, strict alternation and flags alone each fail, and which requirement each one breaks.</li><li>Trace Peterson's solution and test-and-set, and explain why they keep two threads out of the critical section together.</li></ul></details>
+<details open class="lobj"><summary>&#127919; Learning objectives <span>&mdash; what you should be able to do (click to minimize)</span></summary><ul><li>Show, with a concrete interleaving, how <code>counter++</code> in two threads loses an update.</li><li>State the three requirements of a critical-section solution: mutual exclusion, progress and bounded waiting.</li><li>Explain why a simple lock variable, strict alternation and flags alone each fail, and which requirement each one breaks.</li><li>Trace Peterson's solution, test-and-set, compare-and-swap and a mutex, and explain why they keep two threads out of the critical section together.</li><li>Compare a lock around three instructions with an atomic increment that updates one counter in a single step.</li></ul></details>
 <div class="wrap">
   <div class="stage">
-    <p class="blockTitle">Watch it happen — each robot is a thread, the room is the critical section</p>
+    <p class="blockTitle" id="sceneTitle">Watch it happen — each robot is a thread, the room is the critical section</p>
     <div class="scene" id="scene" role="img" aria-label="Two robots stand for threads T0 and T1. Each walks from outside to the door (entry section), into the critical-section room where the shared counter is kept, and out again."></div>
+    <p class="hint">Entry and exit share the doorway outside the room. Leaving the room does not release a lock or lower an intent flag; the exit instruction must do that. Atomic increment has no separate acquire or release.</p>
     <div class="focus" id="focus"></div>
     <div class="memrow"><p class="blockTitle">Shared memory</p><div class="vars" id="vars"></div></div>
+    <p class="blockTitle">Next instruction: the robot label and highlighted line number match</p>
+    <p class="hint">Press Step to execute that line. The arrow and robot label then advance together to the next line; the caption records the line that just ran. Each loop starts with remainder work, then entry, the shared-data update and exit.</p>
     <div class="threads" id="threads"></div>
     <p class="blockTitle" style="margin-top:16px">Your schedule so far — which thread ran each step</p>
     <div class="hist" id="hist"></div>
@@ -225,16 +228,72 @@ html[data-theme=light] body{background:var(--bg);color:var(--ink)}
       <div id="analysis"></div>
       <div class="brow" style="margin-top:10px"><label class="lbl">Loop iterations: T0</label><input type="number" id="it0" min="1" max="3" onchange="setIters()">
         <label class="lbl">T1</label><input type="number" id="it1" min="1" max="3" onchange="setIters()"></div>
-      <div class="hint">The page explores every interleaving of the two threads (a few hundred states), so a ✓ here is a proof for this program, not a lucky run.</div>
+      <div class="hint">The page explores every reachable state for the selected loop counts, with instructions executed in program order. The checks apply to this finite model; they do not prove bounded waiting or correctness on real hardware.</div>
     </div>
   </div>
 </div>
 
+<div class="wrap">
+  <section class="stage" aria-labelledby="comparisonTitle">
+    <h2 class="blockTitle" id="comparisonTitle">Compare the five approaches</h2>
+    <p class="hint">Read these alongside the scenarios above. Peterson is a software protocol; test-and-set and compare-and-swap are atomic building blocks; atomic increment is one complete update; a mutex is a library tool for protecting a whole section of code. They meet different needs, so there is no single replacement order.</p>
+
+    <div class="req"><div>
+      <b>Peterson's solution</b><br>
+      <b>Flow:</b> raise my flag → give the other thread the turn → wait while it wants in and has the turn → update the counter → lower my flag.<br>
+      <b>Guarantees:</b> mutual exclusion, progress and bounded waiting in the ideal two-thread model.<br>
+      <b>Drawbacks:</b> this version handles only two threads and uses busy waiting. Its proof assumes atomic shared accesses with the required ordering; ordinary shared variables in C or C++ are insufficient on real hardware.<br>
+      <b>Why another approach?</b> Hardware atomics support practical locks for more threads; a blocking mutex addresses prolonged spinning. Neither change automatically preserves Peterson's bounded-waiting guarantee.
+    </div></div>
+
+    <div class="req"><div>
+      <b>Test-and-set spinlock</b><br>
+      <b>Flow:</b> atomically read the old lock and set it to 1 → enter if the old value was 0, otherwise retry → update the counter → release the lock.<br>
+      <b>Guarantees:</b> mutual exclusion and progress, assuming the owner eventually releases the lock and runnable threads keep taking steps.<br>
+      <b>Drawbacks:</b> retries consume CPU time; bounded waiting is not guaranteed, so a thread may starve.<br>
+      <b>Why another approach?</b> Use a blocking mutex when waiting is long. Fairness requires an explicit turn-taking or queueing policy; simply replacing test-and-set with CAS does not provide it.
+    </div></div>
+
+    <div class="req"><div>
+      <b>Compare-and-swap (CAS)</b><br>
+      <b>Flow here:</b> atomically compare the lock with 0 and replace it with 1 only on a match → retry on failure → update the counter → release the lock.<br>
+      <b>Guarantees here:</b> the same mutual exclusion and progress as the test-and-set spinlock, under the same scheduling and release assumptions.<br>
+      <b>Drawbacks:</b> this CAS lock still spins and does not guarantee bounded waiting. In a general CAS update loop, concurrent changes can force repeated retries.<br>
+      <b>Why use CAS?</b> It can replace a value only if it still matches an expected value, making it useful beyond boolean locks. A CAS instruction alone does not make an entire algorithm lock-free. For a simple increment, <code>fetch_add(1)</code> expresses the job directly.
+    </div></div>
+
+    <div class="req"><div>
+      <b>Atomic increment</b><br>
+      <b>Flow:</b> call <code>counter.fetch_add(1)</code> → the counter update completes atomically. The page models the entire operation as one step.<br>
+      <b>Guarantee:</b> increments of this counter do not lose updates. There is no lock admission protocol to assess for mutual exclusion or bounded waiting.<br>
+      <b>Drawbacks:</b> one atomic increment does not protect a separate check, several variables or a whole business operation. Even if <code>counter</code> is atomic, a separate load followed by a store is not one atomic increment. A real atomic operation may use hardware, a retry loop or an internal lock; atomic does not always mean lock-free.<br>
+      <b>Why another approach?</b> Use a mutex for a sequence such as checking stock, reducing it and recording the sale in shared memory. For shared database data, use a suitable transaction.
+    </div></div>
+
+    <div class="req"><div>
+      <b>Mutex lock</b><br>
+      <b>Flow here:</b> acquire the mutex, waiting if another thread owns it → perform the entire read, add and write sequence → release it.<br>
+      <b>Guarantee:</b> one owner at a time, provided every access to the protected data follows the same locking rule. The scenario models a blocking mutex; real implementations may spin briefly before sleeping.<br>
+      <b>Drawbacks:</b> waiting and waking can add overhead. A missing release can stop progress; inconsistent ordering of multiple locks can deadlock. Ordinary mutex APIs need not guarantee bounded waiting, and a mutex in one server's memory does not protect another server.<br>
+      <b>Why another approach?</b> For just one counter update, an atomic increment can avoid an explicit critical-section lock. For very short waits, spinning may be useful. Correct lock ordering and reliable release address misuse; no single replacement removes every tradeoff.
+    </div></div>
+
+    <h3 class="blockTitle">Which limitation leads to which idea?</h3>
+    <div class="req"><div><b>A separate lock test and assignment can race.</b> Combine them in one atomic operation: test-and-set or CAS.</div></div>
+    <div class="req"><div><b>Spinning wastes CPU during a long wait.</b> A blocking mutex lets the thread wait without a user-code spin loop. Switching from test-and-set to a basic CAS spinlock does not solve this.</div></div>
+    <div class="req"><div><b>Only one counter needs incrementing.</b> Use an atomic increment. If several actions must stay together, protect the whole sequence instead.</div></div>
+    <div class="req"><div><b>A thread must not be overtaken indefinitely.</b> Look for a proven fairness policy, such as a ticket or queue lock. Peterson demonstrates bounded waiting for two threads under its assumptions; the simple hardware locks here and an unspecified mutex do not promise it.</div></div>
+    <p class="hint">The simulator checks finite schedules with program-order execution. It does not simulate real CPU cost, memory reordering, operating-system wakeups or infinite starvation. The drawbacks above explain limits that a successful counter run cannot reveal.</p>
+    <p class="hint">Sources: <a href="https://www.cs.yale.edu/homes/aspnes/pinewiki/MutualExclusion.html">Yale notes on mutual exclusion and fairness</a>; C++ working draft: <a href="https://eel.is/c++draft/atomics.flag">test-and-set</a>, <a href="https://eel.is/c++draft/atomics.types.operations">CAS and lock-free properties</a>, <a href="https://eel.is/c++draft/atomics.types.int">atomic arithmetic</a>, <a href="https://eel.is/c++draft/thread.mutex.requirements">mutex requirements</a>.</p>
+  </section>
+</div>
+
 <script>
-/* Each thread i runs: entry section → critical section (counter++ in 3 machine steps) → exit section, N times.
+/* Each thread i runs: remainder work → entry section → shared-data update → exit section, N times.
+   The default update is counter++ in 3 steps; an algorithm may supply its own atomic update.
    An instruction is {k: section, s: source text, f(S,i): returns true if it advances, false if it must spin}. */
 /* t marks a line that matters for this algorithm: 'key' (it makes the solution work) or 'flaw' (where it breaks);
-   n is the tag shown on that line; b is what the robot says before it runs the line (its next action). */
+   n is the tag shown on that line; b is its plain-language tooltip. The robot label uses s directly. */
 const CS=[
   {k:'cs',s:'reg = counter;', b:'read the counter',  f:(S,i)=>{S.reg[i]=S.counter;return true;}},
   {k:'cs',s:'reg = reg + 1;', b:'add 1 on my card',  f:(S,i)=>{S.reg[i]++;return true;}},
@@ -274,6 +333,22 @@ const ALGOS=[
   focus:'The whole entry section is <b>one hardware instruction</b>: <code>test_and_set</code> reads the old value and locks the door in one step, so no thread can slip in between.',
   entry:[{s:'while (test_and_set(&lock)) ;',t:'key',n:'test + set in one atomic step',b:'test-and-set the lock',f:(S,i)=>{const old=S.lock;S.lock=1;return old===0;}}],
   exit:[{s:'lock = 0;',t:'key',n:'release',b:'unlock the door',f:(S,i)=>{S.lock=0;return true;}}]},
+ {id:'cas', name:'Compare-and-swap', iters:[2,2], vars:['lock'],
+  about:'<code>compare_and_swap(&lock, 0, 1)</code> returns the old lock value and changes it to 1 only if it was 0. The comparison and the write happen atomically.',
+  focus:'Compare this with <b>Lock variable</b>: testing for 0 and replacing it with 1 are now <b>one step</b>. A return value of 0 means this thread acquired the lock; a return value of 1 means it must retry.',
+  entry:[{s:'while (compare_and_swap(&lock, 0, 1) != 0) ;',t:'key',n:'compare + swap in one atomic step',b:'try to change lock from 0 to 1',f:(S,i)=>{const old=S.lock;if(old===0) S.lock=1;return old===0;}}],
+  exit:[{s:'lock = 0;',t:'key',n:'release',b:'unlock the door',f:(S,i)=>{S.lock=0;return true;}}]},
+ {id:'atomic', name:'Atomic increment', iters:[2,2], vars:[],
+  about:'An atomic counter provides <code>counter.fetch_add(1)</code>: reading, adding and writing are one indivisible update. There is no separate lock to acquire.',
+  focus:'On the highlighted <code>fetch_add</code> line, the robot is ready at the counter. Press Step for that thread to update it in <b>one atomic step</b>. Both robots may be ready there, but each update runs as one indivisible step. This protects <b>one counter update</b>; checking stock and creating an order together still need a lock or transaction.',
+  entry:[],
+  cs:[{k:'cs',s:'counter.fetch_add(1);',t:'key',n:'read + add + write atomically',b:'increment the counter atomically',atomic:true,f:(S,i)=>{S.counter++;return true;}}],
+  exit:[]},
+ {id:'mutex', name:'Mutex lock', iters:[2,2], vars:['lock'],
+  about:'A library mutex wraps the entire read, add and write sequence in <code>acquire(lock)</code> and <code>release(lock)</code>. Acquisition is atomic; the library implements it using hardware support.',
+  focus:'The <b>whole three-instruction update</b> is protected. Here a contending thread waits inside <code>acquire</code> until the owner releases the mutex; this models a blocking mutex, rather than a user-code spin loop. A mutex shared by these threads protects only data in this process.',
+  entry:[{s:'acquire(lock);',t:'key',n:'acquire atomically or wait',b:'acquire the mutex',blocking:true,f:(S,i)=>{if(S.lock) return false;S.lock=1;return true;}}],
+  exit:[{s:'release(lock);',t:'key',n:'release the mutex',b:'release the mutex',f:(S,i)=>{S.lock=0;return true;}}]},
 ];
 const COL=['var(--c0)','var(--c1)'];
 const $=id=>document.getElementById(id);
@@ -281,12 +356,13 @@ let A=ALGOS[0], prog=[], iters=[1,1], st=null, hist=[], stack=[], lastMsg='', an
 
 const REM={k:'rem',s:'/* other work */',b:'other work',f:()=>true};
 let lastStep=null;   // the step just taken, for the scene's animation: {i, moved, write, lost}
-function build(){ prog=[REM,...A.entry.map(x=>({...x,k:'entry'})), ...CS, ...A.exit.map(x=>({...x,k:'exit'}))]; }
+function build(){ prog=[REM,...A.entry.map(x=>({...x,k:'entry'})), ...(A.cs||CS), ...A.exit.map(x=>({...x,k:'exit'}))]; }
 function init(){ return {pc:[0,0], it:[0,0], counter:0, lock:0, turn:0, flag:[0,0], reg:[0,0]}; }
 const clone=s=>({pc:s.pc.slice(),it:s.it.slice(),counter:s.counter,lock:s.lock,turn:s.turn,flag:s.flag.slice(),reg:s.reg.slice()});
 const END=()=>prog.length;
 const finished=(s,i)=>s.pc[i]===END();
-const inCS=(s,i)=>!finished(s,i)&&prog[s.pc[i]].k==='cs';
+// A pending atomic operation is not an occupied critical section: it completes in one transition.
+const inCS=(s,i)=>!finished(s,i)&&prog[s.pc[i]].k==='cs'&&!prog[s.pc[i]].atomic;
 function stepState(s,i){            // returns {s: new state, moved}
   if(finished(s,i)) return {s,moved:false};
   const n=clone(s), ins=prog[n.pc[i]], ok=ins.f(n,i);
@@ -319,6 +395,16 @@ function analyse(){
 
 /* ---------- render ---------- */
 function showVar(n){ return n==='lock'?st.lock : n==='turn'?st.turn : n==='flag0'?(st.flag[0]?'true':'false') : (st.flag[1]?'true':'false'); }
+// The code arrow and the scene describe the same next instruction, not the last executed one.
+function threadView(s,i){
+  const done=finished(s,i), ins=done?null:prog[s.pc[i]];
+  const blocked=!!ins&&(ins.blocking||ins.s.startsWith('while'))&&!stepState(s,i).moved;
+  const line=done?null:s.pc[i]+1;
+  const wait=blocked?(ins.blocking?' · will wait':' · will spin'):'';
+  return {done,ins,line,section:done?'done':ins.k,blocked,
+    label:done?'T'+i+' · finished':'T'+i+' · next '+line+wait+'\n'+ins.s,
+    where:done?'finished':ins.atomic?'ready for atomic update':inCS(s,i)?'in critical section':ins.k==='rem'?'remainder section':ins.k+' section'};
+}
 function render(){
   const total=iters[0]+iters[1];
   $('vars').innerHTML=['counter',...A.vars].map(n=>'<div class="var"><div class="n">'+n.replace(/flag(\d)/,'flag[$1]')+'</div><div class="v">'+(n==='counter'?st.counter:showVar(n))+'</div></div>').join('')+
@@ -329,19 +415,20 @@ function render(){
     const h=['rem','entry','cs','exit'].map(k=>{
       const idx=prog.map((p,x)=>x).filter(x=>prog[x].k===k);
       let lines=idx.map(x=>{ const ins=prog[x];
-        return '<div class="ln'+(ins.t?' '+ins.t:'')+(st.pc[i]===x?' pc':'')+'"><span class="src">'+hlCode(ins.s)+'</span>'+(ins.n?'<span class="tag">'+ins.n+'</span>':'')+'</div>'; }).join('');
-      if(!idx.length) lines=k==='entry'?'<div class="ln flaw"><span class="src"><span class="c">// (no code here)</span></span><span class="tag">nothing stops the other thread</span></div>'
+        return '<div data-line="'+(x+1)+'" class="ln'+(ins.t?' '+ins.t:'')+(st.pc[i]===x?' pc':'')+'"><span class="src"><span class="c">'+(x+1)+' </span>'+hlCode(ins.s)+'</span>'+(ins.n?'<span class="tag">'+ins.n+'</span>':'')+'</div>'; }).join('');
+      if(!idx.length) lines=k==='entry'&&A.id!=='atomic'?'<div class="ln flaw"><span class="src"><span class="c">// (no code here)</span></span><span class="tag">nothing stops the other thread</span></div>'
                                        :'<div class="ln"><span class="src"><span class="c">// (no code here)</span></span></div>';
       // section names are written as code comments, so they are not mistaken for something else
       if(k==='rem') return '<div class="sect s-rem">'+lines.replace('</span></div>','</span><span class="c rc">// remainder section</span></div>')+'</div>';
-      return '<div class="sect s-'+k+(k==='cs'&&clash?' clash':'')+'"><div class="ln"><span class="src"><span class="c">// '+SECT[k][0]+': '+SECT[k][1]+'</span></span></div>'+lines+'</div>';
+      const section=k==='cs'&&A.id==='atomic'?['atomic update','one indivisible step']:SECT[k];
+      return '<div class="sect s-'+k+(k==='cs'&&clash?' clash':'')+'"><div class="ln"><span class="src"><span class="c">// '+section[0]+': '+section[1]+'</span></span></div>'+lines+'</div>';
     }).join('');
-    const where=finished(st,i)?'finished':inCS(st,i)?'in critical section':prog[st.pc[i]].k+' section';
-    return '<div class="thr'+(clash?' clash':inCS(st,i)?' incs':'')+'"><h4><span><span style="color:'+COL[i]+'">●</span> Thread T'+i+' <small>(i = '+i+', j = '+(1-i)+')</small></span><small>'+where+' · loop '+Math.min(st.it[i]+1,iters[i])+'/'+iters[i]+' · <code>reg</code> = <b style="color:var(--ink)">'+st.reg[i]+'</b></small></h4><div class="code">'+h+
+    const {where}=threadView(st,i);
+    return '<div class="thr'+(clash?' clash':inCS(st,i)?' incs':'')+'"><h4><span><span style="color:'+COL[i]+'">●</span> Thread T'+i+' <small>(i = '+i+', j = '+(1-i)+')</small></span><small>'+where+' · loop '+Math.min(st.it[i]+1,iters[i])+'/'+iters[i]+(A.id==='atomic'?'':' · <code>reg</code> = <b style="color:var(--ink)">'+st.reg[i]+'</b>')+'</small></h4><div class="code">'+h+
       '</div></div>'; }).join('');
   $('hist').innerHTML=hist.length?hist.map(i=>'<span style="background:'+COL[i]+'">T'+i+'</span>').join(''):'<span class="reg">nothing yet</span>';
   $('b0').disabled=finished(st,0)||!!replay; $('b1').disabled=finished(st,1)||!!replay; $('undoBtn').disabled=!stack.length||!!replay;
-  $('stepLabel').textContent=A.name+' · step '+hist.length;
+  $('stepLabel').textContent=A.name+' · step '+hist.length+(hist.length?' · last action':'');
   let v='', vc='';
   if(clash){ v='✗ Both threads are inside the critical section'; vc='bad'; }
   else if(finished(st,0)&&finished(st,1)){ if(st.counter===total){ v='✓ Finished: counter = '+total+', as expected'; vc='ok'; } else { v='✗ Finished: counter = '+st.counter+', expected '+total+' — an update was lost'; vc='bad'; } }
@@ -350,10 +437,10 @@ function render(){
   $('algos').innerHTML=ALGOS.map(a=>'<button class="'+(a===A?'active':'')+'" onclick="setAlgo(\''+a.id+'\')">'+a.name+'</button>').join('');
   const an=analysis, row=(ok,t,btn)=>'<div class="req"><span class="ic">'+(ok?'✅':'❌')+'</span><div>'+t+(btn||'')+'</div></div>';
   $('analysis').innerHTML=
-    row(!an.clash,'<b>Mutual exclusion.</b> '+(an.clash?'There is a schedule that puts both threads in the critical section.':'No schedule ever puts both threads in the critical section.'), an.clash?'<br><button class="small" onclick="playTrace(\'clash\')">▶ Show me that schedule ('+an.clash.length+' steps)</button>':'')+
+    row(!an.clash,A.id==='atomic'?'<b>Atomic update.</b> Each increment completes in one step; there is no multi-step critical section to lock.':'<b>Mutual exclusion.</b> '+(an.clash?'There is a schedule that puts both threads in the critical section.':'No schedule ever puts both threads in the critical section.'), an.clash?'<br><button class="small" onclick="playTrace(\'clash\')">▶ Show me that schedule ('+an.clash.length+' steps)</button>':'')+
     row(!an.stuck,'<b>'+(an.stuckKind==='progress'?'Progress.':'Progress (no deadlock).')+'</b> '+(!an.stuck?'From every reachable state both threads can still finish.':an.stuckKind==='progress'?'A thread can wait forever although the critical section is free and the other thread does not want it.':'Both threads can end up waiting for each other forever.'), an.stuck?'<br><button class="small" onclick="playTrace(\'stuck\')">▶ Show me that schedule ('+an.stuck.length+' steps)</button>':'')+
     row(an.finals.length===1&&an.finals[0]===total,'<b>Final value of counter.</b> Possible results: <b>'+(an.finals.length?an.finals.join(', '):'never finishes')+'</b> (expected '+total+').')+
-    '<div class="hint">'+an.states+' reachable states explored.'+(A.id==='tas'?' Test-and-set gives mutual exclusion and progress, but <b>not bounded waiting</b>: an unlucky thread can lose the race for the lock again and again.':'')+(A.id==='peterson'?' Peterson also gives <b>bounded waiting</b>: a waiting thread gets in after at most one entry by the other. (It assumes the instructions run in program order, which modern CPUs do not promise without memory barriers.)':'')+'</div>';
+    '<div class="hint">'+an.states+' reachable states explored.'+(['tas','cas'].includes(A.id)?' This spinlock gives mutual exclusion and progress, but <b>not bounded waiting</b>: an unlucky thread can lose the race for the lock again and again.':'')+(A.id==='atomic'?' This model treats fetch_add as one indivisible operation. A real library may implement it with a compare-and-swap retry loop.':'')+(A.id==='mutex'?' This model does not promise a fair queue or bounded waiting. A blocking mutex waits without a user-code spin loop; a spinlock repeatedly tests the lock and uses CPU time.':'')+(A.id==='peterson'?' Peterson also gives <b>bounded waiting</b>: a waiting thread gets in after at most one entry by the other. (It assumes the instructions run in program order, which modern CPUs do not promise without memory barriers.)':'')+'</div>';
   updateScene();
 }
 
@@ -362,11 +449,20 @@ const SECT={rem:['remainder section','other work'],entry:['entry section','ask t
 function hlCode(s){
   const e=s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
   if(s.startsWith('/*')) return '<span class="c">'+e+'</span>';
-  return e.replace(/\b(\d+)\b/g,'<span class="l">$1</span>').replace(/\b(while|true|false)\b/g,'<span class="k">$1</span>').replace(/\b(test_and_set)\b/g,'<span class="f">$1</span>');
+  return e.replace(/\b(\d+)\b/g,'<span class="l">$1</span>').replace(/\b(while|true|false)\b/g,'<span class="k">$1</span>').replace(/\b(test_and_set|compare_and_swap|fetch_add|acquire|release)\b/g,'<span class="f">$1</span>');
 }
 
 /* ---------- the scene: robots for threads, a room for the critical section ---------- */
-const POS={rem:[9,91],entry:[21,79],cs:[41,59],exit:[34,66],done:[9,91]};   // left edge %, per thread
+const POS={rem:[9,91],entry:[21,79],cs:[41,59],exit:[21,79],done:[9,91]};   // centre %, per thread
+function scenePoint(section,i,width){
+  // Keep the whole 60px robot outside the room (30%–70%), including on narrow screens.
+  if(section==='entry'||section==='exit') return i===0?Math.min(width*.21,width*.30-32):Math.max(width*.79,width*.70+32);
+  const x=width*POS[section][i]/100;
+  return section==='rem'||section==='done'?(i===0?Math.max(x,32):Math.min(x,width-32)):x;
+}
+function sceneX(section,i){
+  return scenePoint(section,i,$('scene').clientWidth)+'px';
+}
 const reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function botSVG(c){ const f='style="fill:'+c+'"';
   return '<svg class="body" viewBox="0 0 60 70" width="60" height="70" aria-hidden="true">'+
@@ -379,31 +475,43 @@ const PADLOCK='<svg viewBox="0 0 30 34" width="24" height="28" aria-hidden="true
 
 function buildScene(){
   const uses=n=>A.vars.includes(n);
-  const zl=(t,x)=>'<div class="zl" style="left:'+x+'%">'+t+'</div>';
-  $('scene').innerHTML='<div class="ground"></div>'+zl('remainder',9)+zl('entry',21)+zl('exit',34)+zl('exit',66)+zl('entry',79)+zl('remainder',91)+
+  $('sceneTitle').textContent=A.id==='atomic'?'Watch it happen — each robot is a thread, the room holds the atomic counter':'Watch it happen — each robot is a thread, the room is the critical section';
+  $('scene').setAttribute('aria-label',A.id==='atomic'?'Two robots stand for threads T0 and T1. Their positions show the next instruction. Either robot may be ready at the counter, but each atomic increment completes in one indivisible step.':'Two robots stand for threads T0 and T1. Their positions show the next instruction: outside for other work, at a doorway outside the room for entry or exit, and in the room for the critical section. At exit, the thread keeps its lock or intent flag until it runs its release instruction.');
+  const zl=i=>'<div class="zl" id="zone'+i+'" style="left:'+sceneX('entry',i)+'">entry<br>exit</div>';
+  $('scene').innerHTML='<div class="ground"></div>'+zl(0)+zl(1)+
     '<div class="room" id="room"><div class="rl">Critical section<br>one at a time</div><div class="props">'+
       (uses('lock')?'<div class="pad" id="pad">'+PADLOCK+'<span id="padv"></span></div>':'')+(uses('turn')?'<div class="turnSign" id="turnSign"></div>':'')+'</div>'+
       '<div class="box" id="box"><div class="n">counter</div><div class="v" id="boxv">0</div></div><div id="lost"></div></div>'+
-    [0,1].map(i=>'<div class="bot" id="bot'+i+'"><div class="bub" id="bub'+i+'"></div><div class="rcard" id="card'+i+'"></div>'+
+    [0,1].map(i=>'<div class="bub" id="bub'+i+'"></div><div class="bot" id="bot'+i+'"><div class="rcard" id="card'+i+'"></div>'+
       (uses('flag0')?'<div class="flag down" id="flag'+i+'">'+flagSVG(COL[i])+'</div>':'')+botSVG(COL[i])+'<div class="nm">T'+i+'</div></div>').join('');
 }
 function updateScene(){
   if(!$('bot0')) return;
   const csStart=prog.findIndex(p=>p.k==='cs');
+  const width=$('scene').clientWidth, bubbleWidth=Math.min(240,width/2-12);
   [0,1].forEach(i=>{
-    const bot=$('bot'+i), bub=$('bub'+i), done=finished(st,i), ins=done?null:prog[st.pc[i]], k=done?'done':ins.k;
-    bot.style.left=POS[k][i]+'%';
-    const blocked=!done&&ins.s.startsWith('while')&&!stepState(st,i).moved;
-    bub.textContent=done?'✓ done':blocked?'blocked: I have to wait':'next: '+ins.b;
+    const bot=$('bot'+i), bub=$('bub'+i), {done,ins,line,label,section:k,blocked}=threadView(st,i);
+    bot.style.left=sceneX(k,i);
+    bub.textContent=label;
+    bub.setAttribute('data-line',line===null?'':String(line));
+    bub.title=done?'This thread has finished all its loops.':ins.b;
+    bub.style.width=bubbleWidth+'px';
+    // Each label stays in its thread's half of the scene, even for long CAS/Peterson lines.
+    const minLeft=i===0?8:width/2+4, maxLeft=i===0?width/2-bubbleWidth-4:width-bubbleWidth-8;
+    bub.style.left=Math.max(minLeft,Math.min(scenePoint(k,i,width)-bubbleWidth/2,maxLeft))+'px';
+    $('zone'+i).style.left=sceneX('entry',i);
     bub.className='bub'+(blocked?' wait':done?' done':'');
     const card=$('card'+i), holding=inCS(st,i)&&st.pc[i]>csStart;
     card.textContent='my card: '+st.reg[i]; card.className='rcard'+(holding?' on':'');
     const fl=$('flag'+i); if(fl) fl.classList.toggle('down',!st.flag[i]);
     bot.classList.remove('hop','spin');
-    if(lastStep&&lastStep.i===i&&!reduceMotion){ void bot.offsetWidth; bot.classList.add(lastStep.moved?'hop':'spin'); }
+    if(lastStep&&lastStep.i===i&&!reduceMotion&&(lastStep.moved||!lastStep.blocking)){ void bot.offsetWidth; bot.classList.add(lastStep.moved?'hop':'spin'); }
   });
+  // Wrapped instructions must stay below the counter rather than covering it on a phone.
+  const labelHeight=Math.max($('bub0').offsetHeight||0,$('bub1').offsetHeight||0);
+  $('scene').style.minHeight=Math.max(230,labelHeight+122+64)+'px';
   $('room').classList.toggle('clash',inCS(st,0)&&inCS(st,1));
-  $('room').querySelector('.rl').innerHTML=inCS(st,0)&&inCS(st,1)?'Both threads<br>are inside!':'Critical section<br>one at a time';
+  $('room').querySelector('.rl').innerHTML=A.id==='atomic'?'Atomic counter<br>one-step updates':inCS(st,0)&&inCS(st,1)?'Both threads<br>are inside!':'Critical section<br>one at a time';
   if($('pad')){ $('pad').classList.toggle('closed',st.lock===1); $('padv').textContent='lock = '+st.lock; }
   if($('turnSign')){ const t=$('turnSign'); t.textContent=st.turn===0?'◀ turn = T0':'turn = T1 ▶'; t.style.background=COL[st.turn]; }
   const box=$('box'); $('boxv').textContent=st.counter;
@@ -414,23 +522,28 @@ function updateScene(){
     const a=fly.animate([{left:POS.cs[lastStep.i]+'%',top:'112px',opacity:1},{left:'50%',top:'14px',opacity:.15}],{duration:550,easing:'ease-in'});
     a.onfinish=()=>fly.remove();
   }
+  lastStep=null; // A later render must not replay a previous instruction's animation.
 }
 
 /* ---------- controls ---------- */
 function describe(i,before,moved){
   const ins=prog[before.pc[i]], T='<b>T'+i+'</b>';
-  if(!moved) return T+' tests <code>'+ins.s.replace(/&/g,'&amp;')+'</code> — the condition is still true, so it <b>spins</b> (busy waiting) and stays on this line.';
-  let m=T+' runs <code>'+ins.s.replace(/&/g,'&amp;')+'</code>';
-  if(ins.s.startsWith('reg = counter')) m+=' — it copies counter ('+before.counter+') into its own register.';
+  const action=T+' executes line '+(before.pc[i]+1)+': <code>'+ins.s.replace(/&/g,'&amp;')+'</code>';
+  if(!moved) return action+(ins.blocking?' — it is <b>waiting inside acquire(lock)</b>. The mutex is held by the other thread; it can acquire it after release. This is a blocked library call, not a user-code spin loop.':' — the condition is still true, so it <b>spins</b> (busy waiting) and stays on this line.');
+  let m=action;
+  if(ins.atomic) m+=' — counter changes from '+before.counter+' to '+st.counter+' in one indivisible step. The other thread cannot run between the read and the write.';
+  else if(ins.blocking) m+=' — the mutex was free, so it acquires it atomically and enters the critical section.';
+  else if(ins.s==='release(lock);') m+=' — the mutex is free; a waiting thread can now acquire it.';
+  else if(ins.s.startsWith('reg = counter')) m+=' — it copies counter ('+before.counter+') into its own register.';
   else if(ins.s.startsWith('counter = reg')) m+=' — it writes '+st.counter+' back. '+(before.counter!==before.reg[i]-1?'<b class="bad">The other thread had already changed counter to '+before.counter+'; that update is now overwritten.</b>':'');
-  else if(ins.s.startsWith('while')) m+=' — the wait is over, so it <b>enters the critical section</b>.';
+  else if(ins.s.startsWith('while')) m+=inCS(st,i)?' — the wait is over, so it <b>enters the critical section</b>.':' — the condition is false, so it advances to the next entry instruction. It has not entered the critical section yet.';
   else m+='.';
   if(inCS(st,0)&&inCS(st,1)) m+=' <b class="bad">Now both threads are in the critical section.</b>';
   return m;
 }
 function stepT(i,quiet){ if(finished(st,i)) return; stack.push({st,hist:hist.slice(),lastMsg}); const before=st, ins=prog[before.pc[i]], r=stepState(st,i); st=r.s; hist.push(i); lastMsg=describe(i,before,r.moved);
-  const write=r.moved&&ins.s.startsWith('counter = reg');
-  lastStep={i,moved:r.moved,write,lost:write&&before.counter!==before.reg[i]-1};
+  const write=r.moved&&(ins.atomic||ins.s.startsWith('counter = reg'));
+  lastStep={i,moved:r.moved,blocking:!!ins.blocking,write,lost:write&&!ins.atomic&&before.counter!==before.reg[i]-1};
   if(!quiet) render(); }
 function undo(){ const p=stack.pop(); if(!p) return; st=p.st; hist=p.hist; lastMsg=p.lastMsg; lastStep=null; render(); }
 function stopReplay(){ clearInterval(replayTimer); replay=null; }
@@ -447,6 +560,7 @@ function playTrace(which){ const tr=analysis[which]; if(!tr) return; reset(); re
 document.addEventListener('keydown',e=>{ const tag=(e.target.tagName||'').toLowerCase(); if(tag==='input'||tag==='select'||replay) return;
   if(e.key==='ArrowLeft') stepT(0); else if(e.key==='ArrowRight') stepT(1); else if(e.key==='Backspace') undo(); });
 setAlgo('none');
+if(typeof ResizeObserver!=='undefined') new ResizeObserver(()=>updateScene()).observe($('scene'));
 </script>
 <script>(function(){function h(){var el=document.querySelector("header");document.documentElement.style.setProperty("--hh",(el?el.offsetHeight:92)+"px");}window.addEventListener("resize",h);h();})();</script>
 <script>(function(){
