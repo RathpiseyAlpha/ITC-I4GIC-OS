@@ -346,6 +346,13 @@ def test_sources():
     check("drillkit.py" in src and '"drills"' in src, "examctl install copies drillkit.py and drills/")
     check(not (HERE / "drills").exists() or all(p.name.startswith("_") or p.suffix == ".py" for p in (HERE / "drills").iterdir() if p.is_file()),
           "drills/ holds only .py files")
+    run_src = (HERE / "runner.py").read_text()
+    check('"runuser", "-u"' not in run_src and "[RUNUSER, " in run_src and '"/usr/sbin:/sbin' in run_src,
+          "the runner starts the collector with runuser by its full path (it lives in /usr/sbin, outside the clean PATH)")
+    sys.path.insert(0, str(HERE))
+    import runner
+    check(os.path.isabs(runner.RUNUSER) and ("/sbin/" in runner.RUNUSER or not os.path.exists("/usr/sbin/runuser")),
+          "RUNUSER is an absolute path (%s)" % runner.RUNUSER)
 
 
 def main():

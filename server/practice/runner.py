@@ -40,6 +40,9 @@ import practice  # noqa: E402
 log = logging.getLogger("practice-runner")
 COLLECT = HERE / "collect.py"
 SAFE_PATH = "/usr/local/bin:/usr/bin:/bin"
+# runuser lives in /usr/sbin on Ubuntu, which SAFE_PATH (the clean PATH of the student's process, and of systemd-run) does not have:
+# find it here by its full path, or the collector never starts ("collector did not start").
+RUNUSER = shutil.which("runuser", path="/usr/sbin:/sbin:/usr/bin:/bin") or "/usr/sbin/runuser"
 JOBS = threading.Semaphore(4)
 STAFF_GROUP, GW_USER = "itc-exam", "examgw"
 USER_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
@@ -117,7 +120,7 @@ class Runner:
             cmd = [py, "-I", "-S", str(COLLECT)]
             env = dict(e.split("=", 1) for e in env_list)
         else:
-            cmd = ["runuser", "-u", pw.pw_name, "--", "/usr/bin/env", "-i"] + env_list + [py, "-I", "-S", str(COLLECT)]
+            cmd = [RUNUSER, "-u", pw.pw_name, "--", "/usr/bin/env", "-i"] + env_list + [py, "-I", "-S", str(COLLECT)]
             if shutil.which("systemd-run") and not self.args.no_scope:
                 cmd = ["systemd-run", "--quiet", "--scope", "--collect", "-p", "MemoryMax=256M", "-p", "CPUQuota=50%",
                        "-p", "TasksMax=64", "-p", "RuntimeMaxSec=%d" % (timeout + 5)] + cmd
