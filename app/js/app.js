@@ -1896,7 +1896,7 @@
         return lines;
     }
 
-    // ── Leaderboard Tab ──
+    // ── Leaderboard Tab (ranked by published instructor marks) ──
     function fetchAdminLeaderboard(url) {
         var container = adminContent();
         if (!container) return;
@@ -1904,7 +1904,7 @@
 
         adminRequestJson(url + '/api/admin/leaderboard')
         .then(function (data) {
-            var board = data.leaderboard || [];
+            var board = data.marks || [];
             var labs = data.labs || [];
             var activities = data.activities || [];
 
@@ -1912,6 +1912,7 @@
                 + ' <span style="color:var(--cyan);cursor:pointer;font-size:11px;border-bottom:1px dashed var(--cyan);margin-left:12px;" onclick="switchAdminTab(\'leaderboard\')">&#x21BB; refresh</span>'
                 + adminSearchHtml('admin-search-leaderboard', '\uD83D\uDD0D Search students...')
                 + '</div>'
+                + '<div style="color:var(--comment);font-size:11px;margin-bottom:6px;">Ranked by published marks, the same board students see: the average of points/max over the works that have published marks, each counting the same, a missing one as 0. Marks that are not published are not counted.</div>'
                 + adminTableStart('admin-leaderboard-table', 'leaderboard-table')
                 + '<thead><tr><th class="pin-col pin-rank" onclick="adminSortTable(this)">#</th><th class="pin-col pin-id-after-rank" onclick="adminSortTable(this)">ID</th><th class="pin-col pin-name-after-rank" onclick="adminSortTable(this)">Name</th>';
             labs.forEach(function (l) { html += '<th onclick="adminSortTable(this)">' + escapeHtml(l) + '</th>'; });
@@ -1919,37 +1920,28 @@
                 var label = a.replace('activity', 'A');
                 html += '<th onclick="adminSortTable(this)">' + escapeHtml(label) + '</th>';
             });
-            html += '<th onclick="adminSortTable(this)">Late</th><th onclick="adminSortTable(this)">Total</th><th onclick="adminSortTable(this)">%</th></tr></thead><tbody>';
+            html += '<th onclick="adminSortTable(this)">Marked</th><th onclick="adminSortTable(this)">Score</th></tr></thead><tbody>';
 
             if (board.length === 0) {
-                html += '<tr><td colspan="' + (labs.length + activities.length + 6) + '" style="color:var(--comment);text-align:center;">No students found</td></tr>';
+                html += '<tr><td colspan="' + (labs.length + activities.length + 5) + '" style="color:var(--comment);text-align:center;">No marks have been published yet</td></tr>';
             } else {
                 board.forEach(function (s) {
-                    var rankIcon = s.rank === 1 ? '\uD83E\uDD47' : s.rank === 2 ? '\uD83E\uDD48' : s.rank === 3 ? '\uD83E\uDD49' : s.rank;
-                    var pctClass = gradeClass(s.totalPercentage || 0);
+                    var rankIcon = s.rank === 1 ? '\uD83E\uDD47' : s.rank === 2 ? '\uD83E\uDD48' : s.rank === 3 ? '\uD83E\uDD49' : escapeHtml(s.rank);
+                    var pctClass = gradeClass(s.percentage || 0);
                     html += '<tr>'
                         + '<td class="rank-cell pin-col pin-rank">' + rankIcon + '</td>'
                         + '<td class="admin-user pin-col pin-id-after-rank">' + escapeHtml(s.id || s.username) + '</td>'
                         + '<td class="pin-col pin-name-after-rank">' + escapeHtml(s.name || s.username) + '</td>';
-                    labs.forEach(function (l) {
-                        var labData = s.labs[l];
-                        if (labData) {
-                            html += '<td>' + renderScoreValue(labData) + (isLateGrade(labData) ? ' ' + renderLateBadge(labData) : '') + '</td>';
+                    labs.concat(activities).forEach(function (w) {
+                        var m = s.works ? s.works[w] : null;
+                        if (m) {
+                            html += '<td><span class="' + gradeClass(m.max ? (m.total / m.max) * 100 : 0) + '">' + formatScore(m.total) + '/' + formatScore(m.max) + '</span></td>';
                         } else {
                             html += '<td style="color:var(--comment);">\u2014</td>';
                         }
                     });
-                    activities.forEach(function (a) {
-                        var actData = s.activities ? s.activities[a] : null;
-                        if (actData) {
-                            html += '<td>' + renderScoreValue(actData) + (isLateGrade(actData) ? ' ' + renderLateBadge(actData) : '') + '</td>';
-                        } else {
-                            html += '<td style="color:var(--comment);">\u2014</td>';
-                        }
-                    });
-                    html += '<td>' + renderAggregateLate(s) + '</td>'
-                        + '<td>' + renderAggregateScore(s) + '</td>'
-                        + '<td><span class="' + pctClass + '">' + s.totalPercentage + '%</span></td>'
+                    html += '<td>' + escapeHtml(s.marked) + '/' + escapeHtml(s.of) + '</td>'
+                        + '<td><span class="' + pctClass + '">' + formatScore(s.percentage || 0) + '%</span></td>'
                         + '</tr>';
                 });
             }
@@ -2301,7 +2293,7 @@
 
             var html = '<div class="student-summary">'
                 + '<span class="student-summary-label">Overall Total:</span> '
-                + '<span class="' + summaryClass + '">' + formatScore(totalScore) + '/' + formatScore(totalPossible) + ' (' + totalPct + '%)</span>'
+                + '<span class="' + summaryClass + '">' + formatScore(totalScore) + '/' + formatScore(totalPossible) + '</span>'
                 + '<button class="deadline-refresh-btn" onclick="refreshStudentDeadlines()" title="Refresh deadlines">&#x1F504; Refresh</button>'
                 + '</div>';
 
@@ -2316,7 +2308,7 @@
             html += '<div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;">'
                 + '<div class="student-subtotal">'
                 + '<span style="color:var(--cyan);font-size:11px;">Labs:</span> '
-                + '<span class="' + (labPct >= 80 ? 'grade-a' : labPct >= 50 ? 'grade-b' : 'grade-c') + '">' + formatScore(labScore) + '/' + formatScore(labPossible) + ' (' + labPct + '%)</span>'
+                + '<span class="' + (labPct >= 80 ? 'grade-a' : labPct >= 50 ? 'grade-b' : 'grade-c') + '">' + formatScore(labScore) + '/' + formatScore(labPossible) + '</span>'
                 + '</div>'
                 + '<div class="student-subtotal">'
                 + '<span style="color:var(--cyan);font-size:11px;">Activities:</span> '
@@ -2329,13 +2321,12 @@
                 html += '<div style="color:var(--cyan);font-size:12px;margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:4px;">Labs</div>';
                 labGrades.forEach(function (g) {
                     var pct = g.finalPercentage !== undefined ? g.finalPercentage : scorePercent(actualScore(g), g.total || 0);
-                    var pctClass = gradeClass(pct);
                     var statusIcon = g.found ? (pct === 100 ? '\u2705' : '\u26A0\uFE0F') : '\u274C';
                     html += '<div class="student-lab-card" style="margin-bottom:6px;padding:6px 8px;">'
                         + '<div class="student-lab-header">'
                         + '<span class="student-lab-name">' + escapeHtml(g.lab) + '</span> '
                         + statusIcon + ' '
-                        + '<span class="' + pctClass + '">' + renderScoreValue(g) + ' (' + pct + '%)</span>'
+                        + renderScoreValue(g)
                         + ' <span class="admin-detail-btn" onclick="showStudentLabDetail(\'' + escapeHtml(g.lab) + '\')">view</span>'
                         + '</div></div>';
                 });
@@ -2367,6 +2358,26 @@
     }
 
     // ── Student Leaderboard Tab ──
+    // Ranked by published instructor marks. The server sends only rank, student ID,
+    // score (percent) and a "me" flag: no names, account names or file-completion figures.
+    function renderStudentBoardRows(board) {
+        if (!board.length) {
+            return '<tr><td colspan="3" style="color:var(--comment);text-align:center;">No marks have been published yet.</td></tr>';
+        }
+        var html = '';
+        board.forEach(function (s) {
+            var rankIcon = s.rank === 1 ? '\uD83E\uDD47' : s.rank === 2 ? '\uD83E\uDD48' : s.rank === 3 ? '\uD83E\uDD49' : escapeHtml(s.rank);
+            var pctClass = gradeClass(s.percentage || 0);
+            var displayId = escapeHtml(s.id || '\u2014') + (s.me ? ' \u2B50' : '');
+            html += '<tr' + (s.me ? ' class="leaderboard-me"' : '') + '>'
+                + '<td class="rank-cell pin-col pin-rank">' + rankIcon + '</td>'
+                + '<td class="admin-user pin-col pin-id-after-rank">' + displayId + '</td>'
+                + '<td><span class="' + pctClass + '">' + formatScore(s.percentage || 0) + '%</span></td>'
+                + '</tr>';
+        });
+        return html;
+    }
+
     function fetchStudentLeaderboard(url) {
         var container = studentContent();
         if (!container) return;
@@ -2379,30 +2390,13 @@
                 container.innerHTML = '<div class="error" style="padding:12px;">' + escapeHtml(data.error) + '</div>';
                 return;
             }
-            var board = data.leaderboard || [];
-
-            var html = adminTableStart('student-leaderboard-table', 'leaderboard-table')
+            var html = '<div style="color:var(--comment);font-size:11px;margin-bottom:6px;">Ranked by the marks your instructor has published: the average over the labs and class activities marked so far'
+                + (data.works ? ' (' + data.works + ')' : '') + ', each counting the same. A work without a published mark counts as 0.</div>'
+                + adminTableStart('student-leaderboard-table', 'leaderboard-table')
                 + '<thead><tr><th class="pin-col pin-rank" onclick="adminSortTable(this)">#</th><th class="pin-col pin-id-after-rank" onclick="adminSortTable(this)">ID</th>'
-                + '<th onclick="adminSortTable(this)">Total</th><th onclick="adminSortTable(this)">%</th></tr></thead><tbody>';
-
-            if (board.length === 0) {
-                html += '<tr><td colspan="4" style="color:var(--comment);text-align:center;">No students found</td></tr>';
-            } else {
-                board.forEach(function (s) {
-                    var rankIcon = s.rank === 1 ? '\uD83E\uDD47' : s.rank === 2 ? '\uD83E\uDD48' : s.rank === 3 ? '\uD83E\uDD49' : s.rank;
-                    var pctClass = gradeClass(s.totalPercentage || 0);
-                    var isMe = s.username === authUser;
-                    var displayId = escapeHtml(s.id || '\u2014') + (isMe ? ' \u2B50' : '');
-                    html += '<tr' + (isMe ? ' class="leaderboard-me"' : '') + '>'
-                        + '<td class="rank-cell pin-col pin-rank">' + rankIcon + '</td>'
-                        + '<td class="admin-user pin-col pin-id-after-rank">' + displayId + '</td>'
-                        + '<td>' + renderAggregateScore(s) + '</td>'
-                        + '<td><span class="' + pctClass + '">' + s.totalPercentage + '%</span></td>'
-                        + '</tr>';
-                });
-            }
-
-            html += '</tbody>' + adminTableEnd();
+                + '<th onclick="adminSortTable(this)">Score</th></tr></thead><tbody>'
+                + renderStudentBoardRows(data.leaderboard || [])
+                + '</tbody>' + adminTableEnd();
             container.innerHTML = html;
         })
         .catch(function (err) {
@@ -2431,13 +2425,12 @@
 
             var html = '<div class="student-summary">'
                 + '<span class="student-summary-label">Labs Overall:</span> '
-                + '<span class="' + summaryClass + '">' + formatScore(totalScore) + '/' + formatScore(totalPossible) + ' (' + totalPct + '%)</span>'
+                + '<span class="' + summaryClass + '">' + formatScore(totalScore) + '/' + formatScore(totalPossible) + '</span>'
                 + '<button class="deadline-refresh-btn" onclick="refreshStudentDeadlines()" title="Refresh deadlines">&#x1F504; Refresh</button>'
                 + '</div>';
 
             grades.forEach(function (g) {
                 var pct = g.finalPercentage !== undefined ? g.finalPercentage : scorePercent(actualScore(g), g.total || 0);
-                var pctClass = gradeClass(pct);
                 var statusIcon = g.found ? (pct === 100 ? '\u2705' : '\u26A0\uFE0F') : '\u274C';
 
                 // Deadline + submission date info
@@ -2495,7 +2488,7 @@
                     + '<div class="student-lab-header">'
                     + '<span class="student-lab-name">' + escapeHtml(g.lab) + '</span> '
                     + statusIcon + ' '
-                    + '<span class="' + pctClass + '">' + renderScoreValue(g) + ' (' + pct + '%)</span>'
+                    + renderScoreValue(g)
                     + ' <span class="admin-detail-btn" onclick="showStudentLabDetail(\'' + escapeHtml(g.lab) + '\')">view details</span>'
                     + '</div>';
                 html += renderStudentMark(g.mark, false);
@@ -2668,15 +2661,10 @@
                 return;
             }
 
-            var finalPct = g.finalPercentage !== undefined ? g.finalPercentage : scorePercent(actualScore(g), g.total || 0);
-            var pctClass = gradeClass(finalPct);
-            var scoreDisplay = renderScoreValue(g) + ' (' + finalPct + '%)';
-
             var html = '<div class="admin-section-header">'
                 + '<span class="admin-back-btn" onclick="switchStudentTab(\'my-labs\')">\u2190 back</span> '
                 + escapeHtml(lab)
-                + ' \u2014 <span class="' + pctClass + '">'
-                + scoreDisplay + '</span>'
+                + ' \u2014 ' + renderScoreValue(g)
                 + '</div>';
 
             if (g.labPath) {

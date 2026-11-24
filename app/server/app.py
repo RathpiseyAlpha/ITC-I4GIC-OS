@@ -1449,6 +1449,58 @@ def get_leaderboard():
     return board
 
 
+def get_marks_board():
+    """The course leaderboard: students ranked by their PUBLISHED instructor
+    marks (labs and class activities).
+
+    A work counts once at least one roster student has a published mark for
+    it. Inside a counted work a student with no published mark scores 0, so
+    every row is measured against the same set of works. Labs are out of 10
+    and activities out of 100, so the score is the mean of points/max over
+    the counted works (each work weighs the same), as a percentage; raw
+    points would let the activities swamp the labs. Equal scores share a
+    rank. A student with no published mark is not listed. Entries carry id,
+    username and name; callers decide what a student may see (see
+    route_my_leaderboard)."""
+    marks = _load_marks()
+    rubrics = {}
+    given = {}   # work -> {sid: (points, max)} for published marks only
+    for work in list(LAB_SPECS.keys()) + list(ACTIVITY_SPECS.keys()):
+        for user, entry in (marks.get(work) or {}).items():
+            sid = _USER_TO_SID.get(user)
+            if not sid or not isinstance(entry, dict) or not entry.get("published"):
+                continue
+            if work not in rubrics:
+                rubrics[work] = _rubric(work)
+            view = _mark_view(work, entry, rubrics[work])
+            if view["total"] is None or not view["max"]:
+                continue
+            given.setdefault(work, {})[sid] = (view["total"], view["max"])
+    works = list(given.keys())
+    sids = {sid for per_work in given.values() for sid in per_work}
+    board = []
+    for sid in sids:
+        ratios = [(given[w][sid][0] / given[w][sid][1]) if sid in given[w] else 0.0 for w in works]
+        score = sum(ratios) / len(works) if works else 0.0
+        board.append({
+            "id": sid, "username": STUDENTS.get(sid, {}).get("user", ""),
+            "name": STUDENTS.get(sid, {}).get("name", sid),
+            "works": {w: {"total": given[w][sid][0], "max": given[w][sid][1]} for w in works if sid in given[w]},
+            "marked": sum(1 for w in works if sid in given[w]),
+            "of": len(works),
+            "percentage": round(score * 100, 1),
+            "_score": round(score, 6),
+        })
+    board.sort(key=lambda r: (-r["_score"], r["id"]))
+    prev, rank = None, 0
+    for i, row in enumerate(board):
+        if row["_score"] != prev:
+            prev, rank = row["_score"], i + 1
+        row["rank"] = rank
+        del row["_score"]
+    return board
+
+
 def get_student_tree(username, lab_name):
     lab_root = _find_lab_root(username, lab_name)
     if not lab_root:
@@ -2044,8 +2096,11 @@ def route_admin_grades():
 @app.route("/api/admin/leaderboard")
 @admin_required
 def route_admin_leaderboard():
+    # "leaderboard" (file scores) feeds the Total tab; "marks" is the
+    # leaderboard proper, ranked by published instructor marks.
     return jsonify({
         "leaderboard": get_leaderboard(),
+        "marks": get_marks_board(),
         "labs": list(LAB_SPECS.keys()),
         "activities": list(ACTIVITY_SPECS.keys()),
     })
@@ -2307,11 +2362,16 @@ def route_my_tree():
 @app.route("/api/my/leaderboard")
 @auth_required
 def route_my_leaderboard():
-    return jsonify({
-        "leaderboard": get_leaderboard(),
-        "labs": list(LAB_SPECS.keys()),
-        "activities": list(ACTIVITY_SPECS.keys()),
-    })
+    """Ranked by published marks. A student sees only the rank, the student
+    ID (as before), the score and whether the row is their own: no names, account names, file scores or
+    per-lab marks of other students."""
+    me = request._session["username"]  # type: ignore
+    full = get_marks_board()
+    board = [{
+        "rank": r["rank"], "id": r["id"], "percentage": r["percentage"],
+        "me": r["username"] == me,
+    } for r in full]
+    return jsonify({"leaderboard": board, "works": full[0]["of"] if full else 0})
 
 
 @app.route("/api/my/activities")
