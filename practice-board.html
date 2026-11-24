@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice board · OS@itc</title>
+<script>try{var t=localStorage.getItem('os-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<link rel="stylesheet" href="app/vendor/xterm/xterm.css">
+<link rel="stylesheet" href="app/exam/exam.css?v=11">
+<link rel="stylesheet" href="app/practice/practice.css?v=6">
+</head>
+<body>
+<main id="screen" class="center hidden">
+  <section class="win card-screen">
+    <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title">bash — practice board</span></div>
+    <div class="win-body" id="screen-body"></div>
+  </section>
+</main>
+
+<div id="app" class="board hidden">
+  <section class="win">
+    <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title">bash — practice board</span></div>
+    <div class="win-body" style="display:grid;gap:14px">
+      <div class="board-head">
+      <div class="head-row"><a class="btn btn-tool" href="index.html#browse">← menu</a><p class="prompt head-title" id="head-title"><span class="p-user" id="me">instructor</span>@<span class="p-host">itc-os</span>:<span class="p-path">~</span>$ practice board</p>
+        <div class="head-actions"><label class="head-label" for="as-user">view as</label><select class="input small" id="as-user"></select>
+          <button class="btn btn-tool" type="button" id="as-go" aria-label="View the practice page as this student">View ▶</button>
+          <a class="btn btn-tool" href="exam-board.html" id="to-exam">exam board ▶</a></div></div>
+
+      <div class="tabs" role="tablist" aria-label="Practice board">
+        <button class="tab" role="tab" id="tab-live" aria-controls="live-view" aria-selected="true" data-tab="live">Live</button>
+        <button class="tab" role="tab" id="tab-scen" aria-controls="scen-view" aria-selected="false" data-tab="scen">Scenarios</button>
+        <button class="tab" role="tab" id="tab-road" aria-controls="road-view" aria-selected="false" data-tab="road">Roadmap</button>
+        <button class="tab" role="tab" id="tab-stud" aria-controls="stud-view" aria-selected="false" data-tab="stud">Students</button>
+        <button class="tab" role="tab" id="tab-set" aria-controls="set-view" aria-selected="false" data-tab="set">Settings</button>
+        <button class="tab" role="tab" id="tab-bonus" aria-controls="bonus-view" aria-selected="false" data-tab="bonus">Bonus</button>
+      </div>
+      </div>
+
+      <div class="cards">
+        <div class="card" id="c-room"><span class="label">room</span><span class="num" id="c-open">—</span><span class="muted" id="c-why"></span></div>
+        <div class="card"><span class="label">in practice now</span><span class="num" id="c-live">—</span><span class="muted" id="c-cap"></span></div>
+        <div class="card"><span class="label">students with XP</span><span class="num" id="c-xp">—</span><span class="muted" id="c-clears"></span></div>
+        <div class="card"><span class="label">runner</span><span class="num" id="c-runner">—</span><span class="muted" id="c-scen"></span></div>
+      </div>
+      <p class="note-off hidden" id="errors" role="alert"></p>
+
+      <div class="job hidden" id="job" role="status" aria-live="polite"></div>
+
+      <div id="live-view" role="tabpanel" aria-labelledby="tab-live" style="display:grid;gap:12px">
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Student</th><th>Scenario</th><th>Connection</th><th>Wait</th><th>Last command</th><th></th></tr></thead>
+          <tbody id="live-rows"></tbody></table></div>
+        <p class="comment"># students seen in the last hour. A wait ends by itself; "end the wait" ends it now. Refreshes every 5 s.</p>
+      </div>
+
+      <div id="scen-view" class="hidden" role="tabpanel" aria-labelledby="tab-scen" style="display:grid;gap:12px">
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Scenario</th><th>Level</th><th class="num">XP</th><th class="num">Min</th><th class="num">Started</th><th class="num">Cleared</th><th class="num">Median time</th><th class="num">Hints / clear</th><th class="num">With hint 3</th><th class="num">Checks / clear</th><th>Stuck on step</th><th></th></tr></thead>
+          <tbody id="scen-rows"></tbody></table></div>
+        <p class="comment"># a scenario most students clear only with hint 3 needs a smaller step. Times are minutes from Start to the first clear.</p>
+      </div>
+
+      <div id="road-view" class="hidden" role="tabpanel" aria-labelledby="tab-road" style="display:grid;gap:12px">
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Exercise</th><th>Kind</th><th class="num">XP</th><th class="num">Started</th><th class="num">Cleared</th><th class="num">Median time</th><th class="num">Hints / clear</th><th class="num">Checks / clear</th><th>Stuck on step</th><th></th></tr></thead>
+          <tbody id="road-rows"></tbody></table></div>
+        <p class="comment"># drills and quizzes of the Linux skill roadmap, by stage. "Stuck on step" counts students whose last Check left them on that step of a guided drill, so a step where many wait is a step to split. A quiz has no median time or checks.</p>
+      </div>
+
+      <div id="stud-view" class="hidden" role="tabpanel" aria-labelledby="tab-stud" style="display:grid;gap:12px">
+        <div class="row"><input class="input" id="st-filter" placeholder="filter by ID, name or nickname" aria-label="Filter students"><span class="grow"></span>
+          <a class="btn btn-tool" id="st-csv" href="#">Download CSV</a></div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Student</th><th>Nickname</th><th class="num">XP</th><th class="num">Week</th><th>Rank</th><th class="num">Cleared</th><th class="num">Super</th><th class="num">Skills</th><th>Last active</th><th class="num">Bonus</th><th></th></tr></thead>
+          <tbody id="stud-rows"></tbody></table></div>
+        <section class="panel" aria-labelledby="corr-h">
+          <h3 id="corr-h">XP corrections</h3>
+          <form class="inline" id="corr-form"><label for="corr-user">Student</label><select class="input small" id="corr-user" style="width:16em"></select>
+            <label for="corr-xp">XP</label><input class="input small" type="number" id="corr-xp" min="-2000" max="2000" step="1">
+            <label for="corr-why">Reason</label><input class="input" id="corr-why" maxlength="120" style="flex:1;min-width:14em">
+            <button class="btn btn-fill" type="submit">Add</button></form>
+          <p class="hint">Kept in the ledger with your name and the reason; totals are computed from the ledger.</p>
+          <div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>Student</th><th class="num">XP</th><th>Reason</th><th>By</th></tr></thead><tbody id="corr-rows"></tbody></table></div>
+        </section>
+      </div>
+
+      <div id="set-view" class="hidden" role="tabpanel" aria-labelledby="tab-set">
+        <form id="set-form" class="settings" autocomplete="off">
+          <fieldset>
+            <legend>The lock (no AI)</legend>
+            <p class="hint">The practice room is always in fullscreen with Keyboard Lock. A student who leaves waits: the first wait, then twice as long each time that day, up to the longest wait. Practice never uses codes.</p>
+            <label class="check"><input type="checkbox" id="p-lock-fs_exit"> Wait when a student leaves fullscreen, reloads, or opens it somewhere else</label>
+            <label class="check"><input type="checkbox" id="p-lock-panel"> Wait when a side panel opens (Gemini, Copilot, developer tools)</label>
+            <label class="check"><input type="checkbox" id="p-lock-leave"> Wait when a student leaves the page (Alt+Tab, another tab)</label>
+            <label class="inline" for="p-wait">First wait, seconds <input class="input small" type="number" id="p-wait" min="5" max="600"></label>
+            <label class="inline" for="p-wait-max">Longest wait, seconds <input class="input small" type="number" id="p-wait-max" min="10" max="1800"></label>
+          </fieldset>
+          <fieldset>
+            <legend>Capacity</legend>
+            <label class="inline" for="p-cap">Practice shells at once (the others queue) <input class="input small" type="number" id="p-cap" min="1" max="60"></label>
+            <label class="inline" for="p-idle">Disconnect after this many minutes without typing <input class="input small" type="number" id="p-idle" min="5" max="120"></label>
+            <p class="hint">The course server fits about 25 web shells at once, measured with loadtest.py. An exam that opens closes practice for everyone.</p>
+          </fieldset>
+          <div class="row"><button class="btn btn-fill" type="submit">Save settings</button><span class="muted" id="set-note"></span></div>
+        </form>
+      </div>
+
+      <div id="bonus-view" class="hidden" role="tabpanel" aria-labelledby="tab-bonus" style="display:grid;gap:14px">
+        <form id="bonus-form" class="settings" autocomplete="off">
+          <fieldset>
+            <legend>Bonus on the lab mark, by rank</legend>
+            <p class="hint">Empty means no bonus for that rank. The bonus comes from the rank held on the date below (empty: today), never from the leaderboard position, and never takes the lab component above its 30%.</p>
+            <div id="bonus-ranks" class="stack"></div>
+            <label class="inline" for="b-cap">Cap, marks on the course total (0 gives no bonus at all) <input class="input small" type="number" id="b-cap" min="0" max="10" step="0.25"></label>
+            <label class="inline" for="b-date">Read the ranks on <input class="input small" type="date" id="b-date" style="width:11em"></label>
+            <div class="row"><button class="btn btn-fill" type="submit">Save amounts</button><span class="muted" id="bonus-note"></span></div>
+          </fieldset>
+        </form>
+        <section class="panel" aria-labelledby="man-h">
+          <h3 id="man-h">Manual bonus</h3>
+          <form class="inline" id="man-form"><label for="man-user">Student</label><select class="input small" id="man-user" style="width:16em"></select>
+            <label for="man-amt">Amount</label><input class="input small" type="number" id="man-amt" min="-10" max="10" step="0.25">
+            <label for="man-why">Reason</label><input class="input" id="man-why" maxlength="120" style="flex:1;min-width:14em">
+            <button class="btn btn-fill" type="submit">Add</button></form>
+          <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Student</th><th class="num">Amount</th><th>Reason</th><th>By</th><th></th></tr></thead><tbody id="man-rows"></tbody></table></div>
+        </section>
+        <section class="panel" aria-labelledby="pub-h">
+          <h3 id="pub-h">Publish</h3>
+          <p class="hint" id="pub-state"></p>
+          <div class="row"><button class="btn btn-fill" type="button" id="pub-on">Publish the bonus</button><button class="btn btn-tool" type="button" id="pub-off">Hide it again</button></div>
+          <p class="hint">Until it is published, students see nothing about the bonus. The CSV on the Students tab always carries it.</p>
+        </section>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="ask" class="scrim hidden">
+  <div class="dialog calm" role="alertdialog" aria-modal="true" aria-labelledby="ask-h" aria-describedby="ask-p">
+    <h2 id="ask-h"></h2><p id="ask-p"></p>
+    <div class="row"><button class="btn btn-fill" type="button" id="ask-yes"></button><button class="btn btn-tool" type="button" id="ask-no">Cancel</button></div>
+  </div>
+</div>
+
+<script src="app/js/env.js"></script>
+<script src="app/js/config.js?v=22"></script>
+<script src="app/practice/practice-admin.js?v=7"></script>
+</body>
+</html>

@@ -42,6 +42,20 @@
         if (webSection) webSection.style.display = allowed ? '' : 'none';
         if (serverSection) serverSection.style.display = allowed ? '' : 'none';
         if (footer && !allowed) footer.textContent = '';
+        updateRoomNav();
+    }
+
+    // Sidebar links: a student gets the exam room and the practice room; the instructor gets their boards instead
+    // (each board has "view as student"). Each pair shows only while its switch in config.js (or env.js) is on.
+    function updateRoomNav() {
+        var f = (typeof CONFIG !== 'undefined' && CONFIG.features) || {};
+        var on = !!authToken, admin = on && authRole === 'admin';
+        [['exam-nav', f.examRoom && on && !admin], ['practice-nav', f.practice && on && !admin],
+         ['exam-board-nav', f.examRoom && admin], ['practice-board-nav', f.practice && admin],
+         ['profile-nav', on]].forEach(function (x) {
+            var el = document.getElementById(x[0]);
+            if (el) el.style.display = x[1] ? '' : 'none';
+        });
     }
 
     // ──────────────────────────────────────
@@ -121,7 +135,14 @@
         setTimeout(function () { bootScreen.style.display = 'none'; }, 800);
     }
 
-    runBoot();
+    var BOOTED = 'os-booted';
+    var bootedBefore = false;
+    try { bootedBefore = sessionStorage.getItem(BOOTED) === '1'; sessionStorage.setItem(BOOTED, '1'); } catch (e) {}
+    if (bootedBefore) {
+        bootScreen.style.display = 'none';   // back on the portal in the same visit: no boot animation again
+    } else {
+        runBoot();
+    }
 
     // ──────────────────────────────────────
     //  Presence Init (dual-mode)
@@ -382,8 +403,19 @@
         }
     };
 
+    // The exam room, the practice room and the two boards send a student without a login here with
+    // ?next=<page>; after a real login the portal sends them back. Only these pages are accepted.
+    function loginReturnPage() {
+        var next = new URLSearchParams(location.search).get('next') || '';
+        return /^(exam|practice|exam-board|practice-board)\.html(\?[^#]*)?$/.test(next) ? next : '';
+    }
+
     function finishLogin(name, authenticated) {
         var output = document.getElementById('login-output');
+        if (authenticated && loginReturnPage()) {
+            location.replace(loginReturnPage());
+            return;
+        }
         // Register presence
         Presence.login(name);
 
@@ -424,7 +456,13 @@
         ep.style.opacity = '1';
         ep.innerHTML = '<span class="prompt-symbol">$</span> Press <span style="color:var(--green)">Enter</span> or click here to explore the system <span class="cursor"></span>';
         ep.onclick = enterExplorer;
+        if (enterAfterLogin && authenticated) {   // came from "← portal" (index.html#browse): straight to the menu
+            enterAfterLogin = false;
+            window.enterExplorer();
+            handleHash();
+        }
     }
+    var enterAfterLogin = false;
 
     window.guestLogin = function () {
         window.performLogin('guest', '');
@@ -3091,6 +3129,7 @@
     }
 
     window.closeViewer = function () {
+        if (onePane()) { window.paneBack(); return; }   // one window: the red dot goes back to the folder
         document.getElementById('file-viewer').style.display = 'none';
         document.getElementById('file-viewer').innerHTML = '';
         document.getElementById('outline-content').style.display = 'none';
@@ -3397,13 +3436,114 @@
     // ──────────────────────────────────────
     //  Hash Router
     // ──────────────────────────────────────
+    // ──────────────────────────────────────
+    //  One panel or two
+    // ──────────────────────────────────────
+    // One panel (the default): a single window, like a terminal. A folder is listed with its path and `ls -la`;
+    // opening a file (or grades, the profile, the admin panel) shows it in the same window, with the clickable path
+    // and the command on the prompt line, and "back" (or the browser's Back) returns to the folder.
+    // Two panels: the list beside a preview, as before. The choice is kept in this browser.
+    var PANES_KEY = 'os-panes', lastBrowse = 'browse';
+    function onePane() { return document.body.classList.contains('one-pane'); }
+    function setPanes(n) {
+        document.body.classList.toggle('one-pane', n === 1);
+        try { sessionStorage.setItem(PANES_KEY, String(n)); } catch (e) {}
+        document.querySelectorAll('.pane-mode').forEach(function (b) {
+            b.innerHTML = n === 1 ? '<span class="icon">&#x25EB;</span> 2 panels' : '<span class="icon">&#x25A2;</span> 1 panel';
+            b.title = n === 1 ? 'Show the list beside a preview' : 'One window: the list, or the file you opened';
+        });
+    }
+    window.togglePanes = function () { setPanes(onePane() ? 2 : 1); };
+    (function () { var saved = ''; try { saved = sessionStorage.getItem(PANES_KEY) || ''; } catch (e) {} setPanes(saved === '2' ? 2 : 1); })();
+
+    // The window buttons, as on a Mac (their icons show when the pointer is on the title bar):
+    //   red    close      the file window: close the file, back to its folder; the explorer: back to the welcome screen
+    //   yellow minimize   fold the window up to its title bar (the other window gets the room); click the bar, or the
+    //                     yellow button again, to unfold it
+    //   green  full screen the explorer (one panel or both) fills the whole screen, in browser fullscreen too; the
+    //                     green button again, or Esc, gives the page back
+    function setMax(on) {
+        document.body.classList.toggle('win-max', on);
+        document.querySelectorAll('.split-pane .btn-max').forEach(function (b) {
+            b.title = on ? 'Exit full screen' : 'Full screen';
+            b.setAttribute('aria-label', b.title);
+        });
+        var fs = document.fullscreenElement;
+        if (on && !fs && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
+        if (!on && fs && document.exitFullscreen) document.exitFullscreen().catch(function () {});
+    }
+    function setMin(pane, on) {
+        pane.classList.toggle('win-min', on);
+        var b = pane.querySelector('.btn-min');
+        if (b) { b.title = on ? 'Unfold' : 'Minimize'; b.setAttribute('aria-label', on ? 'Unfold the window' : 'Minimize: fold the window up to its title bar'); }
+    }
+    document.addEventListener('click', function (e) {
+        var b = e.target.closest('.split-pane [data-win]');
+        var pane = e.target.closest('.pane-top, .pane-bottom');
+        if (!b) {   // a folded window unfolds when its title bar is clicked
+            if (pane && pane.classList.contains('win-min') && e.target.closest('.terminal-header') && !e.target.closest('button')) setMin(pane, false);
+            return;
+        }
+        var act = b.getAttribute('data-win');
+        if (act === 'max') setMax(!document.body.classList.contains('win-max'));
+        else if (act === 'min') setMin(pane, !pane.classList.contains('win-min'));
+        else if (act === 'close') {
+            setMin(pane, false);
+            if (pane.id === 'pane-bottom') window.closeViewer();
+            else { setMax(false); window.backToLanding(); }
+        }
+    });
+    document.addEventListener('fullscreenchange', function () {
+        if (!document.fullscreenElement && document.body.classList.contains('win-max')) setMax(false);
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && document.body.classList.contains('win-max') && !document.fullscreenElement) setMax(false);
+    });
+
+    window.paneBack = function () {
+        var h = window.location.hash.slice(1);
+        if (h.indexOf('view/') === 0) {
+            var dir = h.slice(5).split('/').slice(0, -1).join('/');
+            window.location.hash = dir ? 'browse/' + dir : 'browse';
+        } else {
+            window.location.hash = lastBrowse;
+        }
+    };
+
+    // The prompt line over an opened file: the path (each folder clickable) and the command.
+    function viewerPrompt(hash) {
+        var el = document.getElementById('viewer-prompt');
+        if (!el) return;
+        var who = '<span class="prompt-user">' + escapeHtml(authUser || 'student') + '</span><span class="prompt-symbol">@</span><span class="prompt-path">itc-os</span><span class="prompt-symbol">:</span>';
+        var cmd = { grades: 'cat grades', admin: 'sudo admin-panel', profile: 'whoami' }[hash];
+        if (hash.indexOf('view/') === 0) {
+            var parts = hash.slice(5).split('/'), file = parts.pop(), acc = '';
+            var path = '<a class="vp-dir" onclick="navigateTo(\'\')">~</a>' + parts.map(function (p) {
+                acc = acc ? acc + '/' + p : p;
+                return '<span class="prompt-symbol">/</span><a class="vp-dir" onclick="navigateTo(\'' + escapeHtml(acc).replace(/'/g, '&#39;') + '\')">' + escapeHtml(p) + '</a>';
+            }).join('');
+            el.innerHTML = who + path + '<span class="prompt-symbol">$ </span><span class="cmd">cat ' + escapeHtml(file) + '</span>';
+        } else if (cmd) {
+            el.innerHTML = who + '<a class="vp-dir" onclick="window.location.hash=lastBrowseHash()">~</a><span class="prompt-symbol">$ </span><span class="cmd">' + cmd + '</span>';
+        } else {
+            el.innerHTML = '';
+        }
+    }
+    window.lastBrowseHash = function () { return lastBrowse; };
+
     function handleHash() {
         var hash = window.location.hash.slice(1);
+        var isView = hash.indexOf('view/') === 0 || hash === 'grades' || hash === 'admin' || hash === 'profile';
+        document.body.setAttribute('data-pane', isView ? 'view' : 'list');
+        if (hash === 'browse' || hash.indexOf('browse/') === 0) lastBrowse = hash;
+        viewerPrompt(hash);
         document.body.classList.toggle('panel-wide', hash === 'admin' || hash === 'grades');
         if (hash === 'admin') {
             renderAdminPanel();
         } else if (hash === 'grades') {
             renderStudentGrades();
+        } else if (hash === 'profile') {
+            renderMyProfile();
         } else if (hash.startsWith('browse/') || hash === 'browse') {
             var path = hash === 'browse' ? '' : hash.slice(7);
             renderExplorer(path);
@@ -3416,6 +3556,55 @@
     }
 
     window.addEventListener('hashchange', handleHash);
+
+    // Sign out from anywhere (the sidebar, the profile page): end the session on the server, back to the login.
+    window.signOut = function () {
+        window.performLogout();
+        window.location.href = 'index.html';
+    };
+
+    // Profile: who is logged in, and the ways in (rooms for a student, boards for the instructor).
+    function renderMyProfile() {
+        var url = serverUrl();
+        if (!authToken || !url) { window.location.hash = ''; return; }
+        var viewerEl = document.getElementById('file-viewer');
+        document.getElementById('outline-content').style.display = 'none';
+        document.getElementById('viewer-placeholder').style.display = 'none';
+        document.getElementById('viewer-title').textContent = 'bash — profile';
+        document.getElementById('explorer-title').textContent = 'bash — profile';
+        document.getElementById('explorer-cmd').textContent = 'whoami';
+        viewerEl.style.display = 'flex';
+        viewerEl.innerHTML = '<div class="admin-panel"><div class="admin-loading">Loading...</div></div>';
+        fetch(url + '/api/my/profile', { mode: 'cors', headers: { 'Authorization': 'Bearer ' + authToken } })
+            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function (p) {
+                var f = (typeof CONFIG !== 'undefined' && CONFIG.features) || {};
+                var admin = p.role === 'admin';
+                var row = function (k, v) { return '<div class="profile-k">' + escapeHtml(k) + '</div><div class="profile-v">' + v + '</div>'; };
+                var html = '<div class="admin-header">// whoami</div><div class="profile-kv">' +
+                    row('account', '<span style="color:var(--green)">' + escapeHtml(p.user) + '</span>') +
+                    row('role', admin ? 'instructor' : 'student') +
+                    (p.id ? row('student ID', escapeHtml(p.id)) : '') + (p.name ? row('name', escapeHtml(p.name)) : '') +
+                    (p.practice ? row('practice', escapeHtml(p.practice.rank) + ', ' + escapeHtml(p.practice.xp) + ' XP, ' + escapeHtml(p.practice.clears) +
+                        ' cleared' + (p.practice.nick ? ' · nickname ' + escapeHtml(p.practice.nick) : '')) : '') + '</div>';
+                var links = [];
+                if (admin) {
+                    links.push(['admin panel', "window.location.hash='admin'"]);
+                    if (f.examRoom) links.push(['exam board', "window.location.href='exam-board.html'"]);
+                    if (f.practice) links.push(['practice board', "window.location.href='practice-board.html'"]);
+                } else {
+                    links.push(['my grades', "window.location.hash='grades'"]);
+                    if (f.practice) links.push(['practice', "window.location.href='practice.html'"]);
+                    if (f.examRoom) links.push(['exam room', "window.location.href='exam.html'"]);
+                }
+                html += '<div class="admin-header" style="margin-top:22px">// go to</div><div class="profile-links">' + links.map(function (l) {
+                    return '<span class="profile-btn" role="link" tabindex="0" onclick="' + l[1] + '">' + escapeHtml(l[0]) + ' &#x2192;</span>';
+                }).join('') + '</div>' +
+                    '<div class="admin-header" style="margin-top:22px">// session</div><span class="profile-btn danger" role="button" tabindex="0" onclick="signOut()">sign out &#x21A9;</span>';
+                viewerEl.innerHTML = '<div class="admin-panel">' + html + '</div>';
+            })
+            .catch(function (e) { viewerEl.innerHTML = '<div class="admin-panel"><div class="error">' + escapeHtml(e.message) + '</div></div>'; });
+    }
 
     // ──────────────────────────────────────
     //  Layout Toggle
@@ -3535,8 +3724,12 @@
     //  Init
     // ──────────────────────────────────────
     var hash = window.location.hash.slice(1);
-    if (hash.startsWith('browse') || hash.startsWith('view') || hash === 'readme') {
-        enterExplorer();
-        handleHash();
+    if (hash.startsWith('browse') || hash.startsWith('view') || hash === 'readme' || hash === 'grades' || hash === 'admin' || hash === 'profile') {
+        if (Presence.isLoggedIn()) {
+            enterExplorer();
+            handleHash();
+        } else {
+            enterAfterLogin = true;   // the login is still being restored: open the menu as soon as it is
+        }
     }
 })();

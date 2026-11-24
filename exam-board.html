@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam board · OS@itc</title>
+<script>try{var t=localStorage.getItem('os-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<link rel="stylesheet" href="app/vendor/xterm/xterm.css">
+<link rel="stylesheet" href="app/exam/exam.css?v=11">
+</head>
+<body>
+<main id="screen" class="center hidden">
+  <section class="win card-screen">
+    <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title">bash — exam board</span></div>
+    <div class="win-body" id="screen-body"></div>
+  </section>
+</main>
+
+<div id="app" class="board hidden">
+  <section class="win">
+    <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="win-title">bash — exam board</span></div>
+    <div class="win-body" style="display:grid;gap:14px">
+      <div class="board-head">
+      <div class="head-row"><a class="btn btn-tool" href="index.html#browse">← menu</a><p class="prompt head-title" id="head-title"><span class="p-user" id="me">instructor</span>@<span class="p-host">itc-os</span>:<span class="p-path">~</span>$ <span id="cmd">exam board</span></p>
+        <div class="head-actions"><label class="head-label" for="as-user">view as</label><select class="input small" id="as-user"></select>
+          <button class="btn btn-tool" type="button" id="as-go" aria-label="View the exam room as this student">View ▶</button>
+          <a class="btn btn-tool" href="practice-board.html" id="to-practice">practice board ▶</a></div></div>
+
+      <div class="tabs" role="tablist" aria-label="Exam board">
+        <button class="tab" role="tab" id="tab-live" aria-controls="live-view" aria-selected="true" data-tab="live">Live</button>
+        <button class="tab" role="tab" id="tab-exam" aria-controls="exam-view" aria-selected="false" data-tab="exam">Exam</button>
+        <button class="tab" role="tab" id="tab-paper" aria-controls="paper-view" aria-selected="false" data-tab="paper">Paper</button>
+        <button class="tab" role="tab" id="tab-settings" aria-controls="settings-view" aria-selected="false" data-tab="settings">Settings</button>
+        <button class="tab" role="tab" id="tab-security" aria-controls="security-view" aria-selected="false" data-tab="security">Security</button>
+        <button class="tab" role="tab" id="tab-results" aria-controls="results-view" aria-selected="false" data-tab="results">Results</button>
+      </div>
+      </div>
+
+      <p class="note-off hidden" id="wc-off" role="note">Web control is off on this server, so the buttons on these tabs are disabled. Run the same actions with <code>sudo examctl</code>, or install with <code>examctl install --web-control --roster ROSTER</code> (see the runbook).</p>
+      <div class="job hidden" id="job" role="status" aria-live="polite"></div>
+
+      <!-- Live: the board and the replay -->
+      <div id="live-view" role="tabpanel" aria-labelledby="tab-live">
+        <div id="board-view" style="display:grid;gap:14px">
+          <div class="cards">
+            <div class="card"><span class="label">time left</span><span class="num st-ok" id="c-time">—</span><span class="muted" id="c-phase"></span></div>
+            <div class="card ok"><span class="label">connected</span><span class="num" id="c-conn">—</span></div>
+            <div class="card bad"><span class="label">flags</span><span class="num"><span class="st-bad" id="c-high">0 high</span> <span class="st-partial" id="c-review">0 review</span> <span class="st-bad" id="c-locked"></span></span></div>
+            <div class="card"><span class="label">auto points, class average</span><span class="num" id="c-avg">—</span></div>
+          </div>
+          <div class="row">
+            <span class="chips"><button class="chip" aria-pressed="true" data-f="all">all</button><button class="chip" aria-pressed="false" data-f="flag">flagged</button><button class="chip" aria-pressed="false" data-f="off">not connected</button><button class="chip" aria-pressed="false" data-f="locked">locked</button></span>
+            <span class="grow" style="flex:1"></span>
+            <span class="muted" id="updated"></span>
+            <button class="btn btn-tool" id="refresh" type="button">↻ refresh</button>
+          </div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>Student</th><th>Connection</th><th>Flag</th><th class="num">Away</th><th class="num">Pastes</th><th class="num">Fullscreen</th><th>Screen</th><th>Progress</th><th class="num">Points</th><th>Last command</th><th></th></tr></thead>
+            <tbody id="rows"><tr><td colspan="11" class="muted">Loading…</td></tr></tbody>
+          </table></div>
+          <p class="comment"># flags are a reason to watch the replay, not a mark. Points are the automatic checks only; the written answers are marked by hand. Refreshes every 5 s.</p>
+        </div>
+
+        <div id="replay-view" class="hidden" style="display:grid;gap:12px">
+          <div class="row">
+            <button class="btn-link" type="button" id="back">← back to the board</button>
+            <span class="title" style="font-size:18px;margin:0" id="r-who"></span><span id="r-flag"></span>
+            <span style="flex:1"></span>
+            <span class="chips" id="speeds"><button class="chip" data-s="1" aria-pressed="true">1×</button><button class="chip" data-s="4" aria-pressed="false">4×</button><button class="chip" data-s="16" aria-pressed="false">16×</button></span>
+            <label class="muted"><input type="checkbox" id="skip" checked> skip idle</label>
+            <button class="btn btn-fill" id="play" type="button">▶ Play</button>
+          </div>
+          <div class="timeline" id="timeline" aria-label="Session timeline"><span class="played" id="played"></span><span class="head" id="head"></span></div>
+          <div class="legend"><span><span class="sw away"></span>away from the page</span><span><span class="sw paste"></span>large paste</span><span><span class="sw panel"></span>side panel open</span><span><span class="sw conn"></span>connect or disconnect</span><span id="r-pos"></span></div>
+          <div class="replay-grid">
+            <div id="replay-term"></div>
+            <div style="display:grid;gap:12px;align-content:start">
+              <div class="tbl-wrap" style="max-height:300px"><table class="tbl"><thead><tr><th>Time</th><th>Event</th><th></th></tr></thead><tbody id="r-events"></tbody></table></div>
+              <div class="tbl-wrap" style="max-height:300px"><table class="tbl"><thead><tr><th>Task</th><th>Check</th><th>Note</th></tr></thead><tbody id="r-checks"></tbody></table></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Exam: open, extend, close, unlock, history -->
+      <div id="exam-view" class="hidden" role="tabpanel" aria-labelledby="tab-exam" style="display:grid;gap:16px">
+        <div class="cards">
+          <div class="card"><span class="label">phase</span><span class="num" id="x-phase">—</span><span class="muted" id="x-times"></span></div>
+          <div class="card"><span class="label">time left</span><span class="num" id="x-left">—</span><span class="muted" id="x-ext"></span></div>
+          <div class="card"><span class="label">students</span><span class="num" id="x-students">—</span><span class="muted" id="x-exam"></span></div>
+          <div class="card bad"><span class="label">locked now</span><span class="num st-bad" id="x-locked">0</span><span class="muted">waiting for a code</span></div>
+        </div>
+        <section class="panel" aria-labelledby="x-h">
+          <h3 id="x-h">The exam</h3>
+          <div id="x-actions" class="stack"></div>
+        </section>
+        <section class="panel" aria-labelledby="h-h">
+          <h3 id="h-h">History</h3>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Result</th></tr></thead>
+            <tbody id="x-history"><tr><td colspan="4" class="muted"># nothing yet.</td></tr></tbody>
+          </table></div>
+        </section>
+      </div>
+
+      <!-- Paper: the scenario bank and the draw (the instructor's exam bank plan) -->
+      <div id="paper-view" class="hidden" role="tabpanel" aria-labelledby="tab-paper" style="display:grid;gap:16px">
+        <p class="note-off hidden" id="pp-err" role="alert"></p>
+        <section class="panel" aria-labelledby="pp-h">
+          <h3 id="pp-h">Scenarios in play</h3>
+          <p class="hint">Each part has a pool of scenarios and every student gets one per part, with their own names and numbers on top. Switch a scenario off to keep it out of the draw (a broken one, or one that leaked). The pool, the mode and the seed can change only <b>before the draw</b>.</p>
+          <p id="pp-state"></p>
+          <div id="pp-pool" class="stack"></div>
+          <div class="row">
+            <label class="inline" for="pp-mode">Draw
+              <select class="input small" id="pp-mode"><option value="balanced">balanced (each scenario used by almost the same number of students)</option><option value="random">random (a stable pick per student)</option></select></label>
+            <label class="inline" for="pp-seed">Seed <input class="input small" type="text" id="pp-seed" maxlength="40" placeholder="the exam id"></label>
+            <button class="btn btn-fill" type="button" id="pp-save">Save</button>
+          </div>
+        </section>
+        <section class="panel" aria-labelledby="pd-h">
+          <h3 id="pd-h">The draw</h3>
+          <p class="hint">Before the draw this is a <b>preview</b> of what Open will write. Draw now writes it today, so you can look at every paper before the exam; Open then keeps it. Once the exam has been opened the draw is final.</p>
+          <p class="muted" id="pd-counts"></p>
+          <div class="row">
+            <button class="btn btn-fill" type="button" id="pp-draw">Draw now</button>
+            <button class="btn btn-tool" type="button" id="pp-undraw">Discard the draw</button>
+            <button class="btn btn-tool" type="button" id="pp-csv">Download the draw (CSV)</button>
+          </div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th>ID</th><th>Name</th><th>A</th><th>B</th><th>C</th><th>D</th><th>State</th></tr></thead>
+            <tbody id="pd-rows"><tr><td colspan="7" class="muted"># loading…</td></tr></tbody>
+          </table></div>
+        </section>
+        <section class="panel" aria-labelledby="pn-h">
+          <h3 id="pn-h">Pin a scenario to a student</h3>
+          <p class="hint">For a student who must sit a particular scenario. A pinned student is left out of the balanced dealing for that part. Before the draw only.</p>
+          <div class="row">
+            <select class="input small" id="pn-user" aria-label="Student"></select>
+            <select class="input small" id="pn-part" aria-label="Part"></select>
+            <select class="input small" id="pn-sc" aria-label="Scenario"></select>
+            <button class="btn btn-tool" type="button" id="pn-add">Pin</button>
+          </div>
+          <ul class="status" id="pn-list"></ul>
+        </section>
+      </div>
+
+      <!-- Settings -->
+      <div id="settings-view" class="hidden" role="tabpanel" aria-labelledby="tab-settings">
+        <form id="s-form" class="settings" autocomplete="off">
+          <fieldset>
+            <legend>Preset</legend>
+            <p class="hint" id="s-profile">Current: exam.</p>
+            <div class="stack">
+              <button class="btn btn-tool" type="button" data-preset="exam">Exam (strict)</button>
+              <button class="btn btn-tool" type="button" data-preset="practice">Practice</button>
+            </div>
+            <p class="hint">A preset fills in the lock and the flags below; press Save to apply it. Exam: leaving fullscreen locks until you give a code. Practice: the room stays locked the same way, but the student waits for a countdown instead of asking for a code.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Exam lock</legend>
+            <label class="check"><input type="checkbox" id="s-lock-fs_exit"> Lock when a student leaves fullscreen, reloads, or opens the exam somewhere else</label>
+            <label class="check"><input type="checkbox" id="s-lock-panel"> Also lock when a side panel opens (Gemini, Copilot, developer tools)</label>
+            <label class="check"><input type="checkbox" id="s-lock-leave"> Also lock when a student leaves the page (Alt+Tab, another tab). More accidental locks</label>
+            <label class="inline" for="s-mode">How a locked student continues
+              <select class="input small" id="s-mode"><option value="code">with a code from you</option><option value="wait">after a wait</option></select></label>
+            <label class="inline" for="s-max">Wrong codes allowed per minute <input class="input small" type="number" id="s-max" min="1" max="10"></label>
+            <label class="inline" for="s-wait">First wait, in seconds (it doubles each time the student leaves again that day) <input class="input small" type="number" id="s-wait" min="5" max="600"></label>
+            <label class="inline" for="s-wait-max">Longest wait, in seconds <input class="input small" type="number" id="s-wait-max" min="10" max="1800"></label>
+            <p class="hint">Turning the lock off does not unlock students who are locked now: use “Unlock all” on the Exam tab.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Flags on the board</legend>
+            <label class="inline" for="s-second">A second screen <select class="input small" id="s-second"><option value="review">review</option><option value="high">high</option><option value="">no flag</option></select></label>
+            <label class="inline" for="s-side">A side panel opened <select class="input small" id="s-side"><option value="review">review</option><option value="high">high</option><option value="">no flag</option></select></label>
+            <label class="inline" for="s-away-review">Review after away in total, seconds <input class="input small" type="number" id="s-away-review" min="10" max="3600"></label>
+            <label class="inline" for="s-away-high">High after away in total, seconds <input class="input small" type="number" id="s-away-high" min="30" max="7200"></label>
+            <label class="inline" for="s-paste">A large paste is more than, characters <input class="input small" type="number" id="s-paste" min="50" max="5000"></label>
+            <label class="inline" for="s-pastes">High after this many large pastes <input class="input small" type="number" id="s-pastes" min="1" max="20"></label>
+            <label class="inline" for="s-offline">High after offline while open, seconds <input class="input small" type="number" id="s-offline" min="30" max="3600"></label>
+          </fieldset>
+          <fieldset>
+            <legend>Exam room</legend>
+            <label class="inline" for="s-title">Title <input class="input" type="text" id="s-title" maxlength="80"></label>
+            <label class="inline" for="s-duration">Length, minutes <input class="input small" type="number" id="s-duration" min="10" max="300"></label>
+            <label class="check"><input type="checkbox" id="s-seb"> Require Safe Exam Browser</label>
+            <label class="check"><input type="checkbox" id="s-rain"> Faint matrix rain behind the exam</label>
+            <p class="hint" id="s-fixed"></p>
+          </fieldset>
+          <div class="row">
+            <button class="btn btn-fill" type="submit" id="s-save">Save settings</button>
+            <button class="btn btn-tool" type="button" id="s-reset">Undo changes</button>
+            <span class="muted" id="s-dirty"></span>
+          </div>
+        </form>
+      </div>
+
+      <!-- Security -->
+      <div id="security-view" class="hidden" role="tabpanel" aria-labelledby="tab-security" style="display:grid;gap:16px">
+        <section class="panel" aria-labelledby="sec-h">
+          <h3 id="sec-h">Hardening</h3>
+          <p class="hint">While it is on: students cannot SSH in from outside (the exam page still works), their shells have no network, each student has memory and process limits, and <code>wall</code> and <code>write</code> are off. Turn it on just before opening the exam and off after closing it.</p>
+          <p id="sec-state"></p>
+          <div class="row" id="sec-actions"></div>
+        </section>
+        <section class="panel" aria-labelledby="acc-h">
+          <h3 id="acc-h">Student accounts</h3>
+          <p class="hint">Puts exactly the roster’s accounts in the class group and gives each one the gateway key, so the exam page can open their shell. Run it once after the roster changes, before the exam.</p>
+          <div class="row"><button class="btn btn-tool" type="button" id="acc-prepare">Prepare accounts from the roster</button></div>
+        </section>
+        <section class="panel" aria-labelledby="sys-h">
+          <h3 id="sys-h">Server</h3>
+          <ul class="status" id="sys-list"></ul>
+        </section>
+      </div>
+
+      <!-- Results -->
+      <div id="results-view" class="hidden" role="tabpanel" aria-labelledby="tab-results" style="display:grid;gap:16px">
+        <section class="panel" aria-labelledby="res-h">
+          <h3 id="res-h">Automatic points</h3>
+          <p class="hint">One row per student and one column per task, from the snapshot taken when the exam was closed (or from the live folder before that). The written answers are marked by hand from each student’s <code>answers.md</code>.</p>
+          <div class="row"><button class="btn btn-fill" type="button" id="res-csv">Download CSV</button><span class="muted" id="res-note"></span></div>
+        </section>
+        <section class="panel" aria-labelledby="rs-h">
+          <h3 id="rs-h">Per scenario</h3>
+          <p class="hint">How many students drew each scenario and how many got each slot right. A scenario whose slot most students missed may have a wrong check: correct it below.</p>
+          <div class="tbl-wrap" id="rs-table"><p class="muted"># loading…</p></div>
+        </section>
+        <section class="panel" aria-labelledby="cr-h">
+          <h3 id="cr-h">Corrections (regrade)</h3>
+          <p class="hint"><b>Give</b> awards the slot to every student who drew that scenario; <b>ignore</b> takes it out of their total (their total is then out of fewer marks). The CSV shows the corrected marks, the raw points and what was applied.</p>
+          <div class="row">
+            <select class="input small" id="cr-sc" aria-label="Scenario"></select>
+            <select class="input small" id="cr-slot" aria-label="Slot"></select>
+            <select class="input small" id="cr-mode" aria-label="What to do"><option value="give">give the marks</option><option value="ignore">ignore the slot</option><option value="clear">clear the correction</option></select>
+            <input class="input" type="text" id="cr-reason" maxlength="120" placeholder="reason (3 to 120 characters)" aria-label="Reason">
+            <button class="btn btn-tool" type="button" id="cr-apply">Apply</button>
+          </div>
+          <ul class="status" id="cr-list"></ul>
+        </section>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Confirmation for actions that change the exam for everyone -->
+<div id="confirm" class="scrim hidden">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="cf-h" aria-describedby="cf-p">
+    <h2 id="cf-h"></h2>
+    <p id="cf-p"></p>
+    <div class="row"><button class="btn btn-fill" type="button" id="cf-yes"></button><button class="btn btn-tool" type="button" id="cf-no">Cancel</button></div>
+  </div>
+</div>
+
+<script src="app/js/env.js"></script>
+<script src="app/js/config.js?v=22"></script>
+<script src="app/vendor/xterm/xterm.js"></script>
+<script src="app/vendor/xterm/addon-fit.js"></script>
+<script src="app/exam/board.js?v=11"></script>
+<script src="app/exam/control.js?v=4"></script>
+</body>
+</html>

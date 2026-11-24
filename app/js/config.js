@@ -22,6 +22,13 @@ const CONFIG = {
         pollInterval: 10000 // poll /api/users every 10 seconds
     },
 
+    // Exam room (exam.html and exam-board.html). Turn on to show the link in the sidebar while an exam is
+    // planned; the pages work by their address either way. See server/examroom/README.md.
+    features: {
+        examRoom: !!(window.__ENV && window.__ENV.examRoom),
+        practice: !!(window.__ENV && window.__ENV.practice)    // Practice Linux Commands (practice.html)
+    },
+
     // Firebase Realtime Database (for web visitor presence tracking)
     // Create a free project at https://console.firebase.google.com
     // 1. Create a new project → Add a Realtime Database

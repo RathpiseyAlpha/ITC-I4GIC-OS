@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ITC Operating Systems 2026</title>
     <script>try{var t=localStorage.getItem('os-theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
-    <link rel="stylesheet" href="app/css/styles.css?v=18">
+    <link rel="stylesheet" href="app/css/styles.css?v=24">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Firebase SDK (for web visitor presence — optional, enable in app/js/config.js) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -169,6 +169,11 @@
                         <li onclick="viewCourseOutline()">&#x1F4CB; course outline</li>
                         <li id="grades-nav" style="display:none" onclick="window.location.hash='grades'">&#x1F4CA; my grades</li>
                         <li id="admin-nav" style="display:none" onclick="window.location.hash='admin'">&#x1F512; admin panel</li>
+                        <li id="exam-nav" style="display:none" onclick="window.location.href='exam.html'">&#x1F5A5;&#xFE0F; exam room</li>
+                        <li id="practice-nav" style="display:none" onclick="window.location.href='practice.html'">&#x2328;&#xFE0F; practice</li>
+                        <li id="exam-board-nav" style="display:none" onclick="window.location.href='exam-board.html'">&#x1F4CB; exam board</li>
+                        <li id="practice-board-nav" style="display:none" onclick="window.location.href='practice-board.html'">&#x1F4CB; practice board</li>
+                        <li id="profile-nav" style="display:none" onclick="window.location.hash='profile'">&#x1F464; profile</li>
                     </ul>
                 </div>
                 <div class="sidebar-section">
@@ -229,21 +234,23 @@
                 <div class="pane-top" id="pane-top">
                     <div class="terminal" id="explorer-terminal">
                         <div class="terminal-header">
-                            <span class="terminal-btn btn-close"></span>
-                            <span class="terminal-btn btn-min"></span>
-                            <span class="terminal-btn btn-max"></span>
+                            <button class="terminal-btn btn-close" type="button" data-win="close" aria-label="Close: back to the welcome screen" title="Close: back to the welcome screen"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.6 3.6l4.8 4.8M8.4 3.6l-4.8 4.8"/></svg></button>
+                            <button class="terminal-btn btn-min" type="button" data-win="min" aria-label="Minimize: fold the window up to its title bar" title="Minimize"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 6h6"/></svg></button>
+                            <button class="terminal-btn btn-max" type="button" data-win="max" aria-label="Full screen" title="Full screen"><svg viewBox="0 0 12 12" aria-hidden="true"><path class="i-full" d="M3 3h4.3L3 7.3z M9 9H4.7L9 4.7z"/><path class="i-exit" d="M5.8 5.8H2.4L5.8 2.4z M6.2 6.2h3.4L6.2 9.6z"/></svg></button>
                             <span class="terminal-title" id="explorer-title">bash &#x2014; ls -la</span>
+                            <button class="layout-toggle pane-mode" onclick="togglePanes()" title="One window, or a list beside a preview"><span class="icon">&#x25A2;</span> 1 panel</button>
                             <button class="layout-toggle" id="layout-toggle" onclick="toggleLayout()" title="Toggle top/bottom view">
                                 <span class="icon">&#x2B0C;</span> split
                             </button>
                         </div>
                         <div class="terminal-body">
+                            <div class="explorer-head">
                             <div>
                                 <span class="prompt-user">student</span><span class="prompt-symbol">@</span><span class="prompt-path">itc-os</span><span class="prompt-symbol">:~$ </span>
                                 <span class="cmd" id="explorer-cmd">ls -la</span>
                             </div>
-                            <br>
                             <div id="explorer-breadcrumb" class="explorer-breadcrumb"></div>
+                            </div>
                             <ul class="file-list" id="file-list"></ul>
                         </div>
                     </div>
@@ -254,15 +261,18 @@
                 <div class="pane-bottom" id="pane-bottom">
                     <div class="terminal" id="viewer-terminal">
                         <div class="terminal-header">
-                            <span class="terminal-btn btn-close" id="viewer-close" onclick="closeViewer()" style="cursor:pointer" title="Close"></span>
-                            <span class="terminal-btn btn-min"></span>
-                            <span class="terminal-btn btn-max"></span>
+                            <button class="terminal-btn btn-close" type="button" data-win="close" aria-label="Close the file" title="Close the file"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.6 3.6l4.8 4.8M8.4 3.6l-4.8 4.8"/></svg></button>
+                            <button class="terminal-btn btn-min" type="button" data-win="min" aria-label="Minimize: fold the window up to its title bar" title="Minimize"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 6h6"/></svg></button>
+                            <button class="terminal-btn btn-max" type="button" data-win="max" aria-label="Full screen" title="Full screen"><svg viewBox="0 0 12 12" aria-hidden="true"><path class="i-full" d="M3 3h4.3L3 7.3z M9 9H4.7L9 4.7z"/><path class="i-exit" d="M5.8 5.8H2.4L5.8 2.4z M6.2 6.2h3.4L6.2 9.6z"/></svg></button>
                             <span class="terminal-title" id="viewer-title">bash &#x2014; preview</span>
+                            <button class="layout-toggle viewer-back" onclick="paneBack()" title="Back to the folder">&#x2190; back</button>
+                            <button class="layout-toggle pane-mode" onclick="togglePanes()" title="One window, or a list beside a preview"><span class="icon">&#x25A2;</span> 1 panel</button>
                             <button class="layout-toggle" onclick="toggleLayout()" title="Toggle top/bottom view">
                                 <span class="icon">&#x2B0C;</span> split
                             </button>
                         </div>
                         <div class="terminal-body" id="viewer-body">
+                            <div class="viewer-prompt" id="viewer-prompt"></div>
                             <div class="pane-placeholder" id="viewer-placeholder">
                                 <span>// select a file above to preview</span>
                             </div>
@@ -310,11 +320,12 @@
 
 <!-- Application Scripts -->
 <script src="app/js/env.js"></script>
-<script src="app/js/config.js?v=19"></script>
-<script>document.getElementById('repo-link').href = CONFIG.course.repoUrl;</script>
+<script src="app/js/config.js?v=22"></script>
+<script>document.getElementById('repo-link').href = CONFIG.course.repoUrl;
+</script>
 <script src="app/js/github.js?v=21"></script>
 <script src="app/js/presence.js"></script>
-<script src="app/js/app.js?v=19"></script>
+<script src="app/js/app.js?v=26"></script>
 
 </body>
 </html>

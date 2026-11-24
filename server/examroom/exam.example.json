@@ -1,0 +1,29 @@
+{
+ "id": "midterm-2026",
+ "kind": "midterm",
+ "title": "Midterm: Labs 1 to 4",
+ "duration_min": 60,
+ "parts": ["A", "B", "C", "D"],
+ "folder": "midterm",
+ "gateway_url": "wss://api-os.rathpisey.site/term",
+ "rain": false,
+ "show_progress": "presence",
+ "seb": {
+  "required": false,
+  "config_keys": [],
+  "public_api": "https://api-os.rathpisey.site"
+ },
+ "lock": {
+  "on": ["fs_exit"],
+  "max_attempts": 3
+ },
+ "flags": {
+  "review_away_s": 60,
+  "high_away_s": 300,
+  "large_paste_chars": 200,
+  "high_pastes": 3,
+  "high_offline_s": 120,
+  "second_screen": "review",
+  "side_panel": "review"
+ }
+}

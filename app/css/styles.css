@@ -1791,3 +1791,72 @@ body.panel-wide .student-lab-card { margin-bottom: 8px; padding: 8px 12px; }
 }
 html[data-theme="light"] .mark-row { border-top-color: rgba(15,40,25,0.12); }
 html[data-theme="light"] .mark-save:hover { color: #fff; }
+
+/* ─── Profile (#profile) ─── */
+.profile-kv { display: grid; grid-template-columns: 9em minmax(0, 1fr); gap: 8px 16px; font-size: 14px; }
+.profile-k { color: var(--comment); }
+.profile-v { color: var(--white); }
+.profile-links { display: flex; gap: 10px; flex-wrap: wrap; }
+.profile-btn { display: inline-block; padding: 6px 12px; border: 1px solid var(--cyan); border-radius: 4px; color: var(--cyan); cursor: pointer; font-size: 13px; }
+.profile-btn:hover, .profile-btn:focus-visible { background: rgba(0, 212, 255, 0.1); outline: none; }
+.profile-btn.danger { border-color: var(--red); color: var(--red); }
+.profile-btn.danger:hover, .profile-btn.danger:focus-visible { background: rgba(255, 62, 62, 0.1); }
+
+/* ─── One panel or two (body.one-pane, the default; data-pane = list | view) ─── */
+.terminal-header .pane-mode { margin-left: auto; }
+.terminal-header .pane-mode ~ .layout-toggle { margin-left: 6px; }
+.viewer-back, .viewer-prompt { display: none; }
+body.one-pane .pane-divider { display: none !important; }
+body.one-pane[data-pane="list"] .pane-bottom { display: none !important; }
+body.one-pane[data-pane="view"] .pane-top { display: none !important; }
+body.one-pane .pane-top, body.one-pane .pane-bottom { flex: 1 1 auto !important; max-height: none !important; min-height: 0 !important; width: auto !important; height: auto !important; }
+body.one-pane .layout-toggle:not(.pane-mode):not(.viewer-back) { display: none; }
+body.one-pane .viewer-back { display: inline-flex; margin-left: 8px; }
+body.one-pane .viewer-back ~ .pane-mode { margin-left: auto; }
+body.one-pane[data-pane="view"] .viewer-prompt:not(:empty) { display: block; padding: 6px 0 10px; margin-bottom: 8px; border-bottom: 1px dashed var(--border); font-size: 13px; }
+.viewer-prompt .vp-dir { color: var(--cyan); cursor: pointer; border-bottom: 1px dashed transparent; }
+.viewer-prompt .vp-dir:hover { border-bottom-color: var(--cyan); }
+.viewer-prompt .cmd { color: var(--white); }
+
+/* ─── The green window button: the explorer fills the screen (body.win-max) ─── */
+.split-pane .btn-max { cursor: pointer; }
+body.win-max .split-pane { position: fixed; inset: 0; z-index: 900; margin: 0 !important; background: var(--bg); }
+body.win-max .sidebar, body.win-max .mobile-sidebar-toggle, body.win-max .footer { display: none !important; }
+
+/* ─── Window buttons, as on a Mac: icons on hover of the title bar (button.terminal-btn only; the welcome
+   window's dots stay decorative) ─── */
+button.terminal-btn { border: 0; padding: 0; display: inline-grid; place-items: center; cursor: pointer; flex: none; }
+button.terminal-btn svg { width: 8px; height: 8px; opacity: 0; transition: opacity 120ms ease-out; }
+button.terminal-btn svg path { fill: none; stroke-width: 1.5; stroke-linecap: round; }
+button.btn-close svg path { stroke: #4d0000; }
+button.btn-min svg path { stroke: #7a4500; }
+button.btn-max svg path { fill: #004d00; stroke: none; }
+.terminal-header:hover button.terminal-btn svg, .terminal-header:focus-within button.terminal-btn svg { opacity: 1; }
+@media (hover: none) { button.terminal-btn svg { opacity: 1; } }
+button.terminal-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+button.btn-max .i-exit { display: none; }
+body.win-max button.btn-max .i-exit { display: inline; }
+body.win-max button.btn-max .i-full { display: none; }
+/* minimized: the window folds up to its title bar */
+.win-min .terminal-body { display: none !important; }
+.win-min .terminal-header { cursor: pointer; }
+.split-pane .pane-top.win-min, .split-pane .pane-bottom.win-min,
+body.one-pane .split-pane .pane-top.win-min, body.one-pane .split-pane .pane-bottom.win-min { flex: 0 0 auto !important; min-height: 0 !important; }
+.split-pane.side-view .pane-top.win-min, .split-pane.side-view .pane-bottom.win-min { flex: 0 0 260px !important; min-width: 0 !important; }
+.win-min .terminal { height: auto !important; }
+
+.win-min .layout-toggle { display: none !important; }
+.win-min .terminal-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.split-pane.side-view .pane-top.win-min, .split-pane.side-view .pane-bottom.win-min { flex-basis: 210px !important; background: var(--terminal-bg); }
+.win-min .terminal::after { content: "// minimized: click the title bar to unfold"; display: block; padding: 10px 14px; color: var(--comment); font-size: 11px; }
+
+/* ─── Frozen heads: the explorer's prompt and path, and the file window's prompt line, stay in view ─── */
+.explorer-head { position: sticky; top: -20px; z-index: 5; margin: -20px -24px 0; padding: 20px 24px 0; background: var(--terminal-bg); }
+.explorer-head .explorer-breadcrumb { padding-top: 14px; }
+body.one-pane[data-pane="view"] .viewer-prompt:not(:empty) { position: sticky; top: -20px; z-index: 5; margin: -20px -24px 8px; padding: 20px 24px 10px; background: var(--terminal-bg); }
+@media (max-width: 768px) {
+    /* the ☰ menu button sits over the window's top-left corner: keep the window buttons clear of it */
+    .split-pane .terminal-header { padding-left: 64px; }
+    /* one panel on phones: the way back from a file stays visible (other title-bar buttons stay hidden) */
+    body.one-pane .viewer-back { display: inline-flex !important; margin-left: auto; }
+}

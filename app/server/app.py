@@ -65,7 +65,8 @@ ADMIN_USERS = [
     for name in os.environ.get("ITC_OS_ADMINS", "rathpisey").split(",")
     if name.strip()
 ]
-MAX_LOGIN_ATTEMPTS = 5
+MAX_LOGIN_ATTEMPTS = 5          # failed attempts per address and account in the window
+MAX_LOGIN_FAILS_PER_IP = 60     # failed attempts per address (a computer room shares one)
 LOGIN_WINDOW_SEC = 60
 SESSION_TIMEOUT_SEC = 3600  # 1 hour
 
@@ -196,12 +197,13 @@ def _save_sessions():
 _load_sessions()
 
 
-def _rate_limited(ip):
+def _rate_limited(key):
     now = time.time()
-    attempts = [t for t in _login_attempts.get(ip, [])
+    attempts = [t for t in _login_attempts.get(key, [])
                 if now - t < LOGIN_WINDOW_SEC]
-    _login_attempts[ip] = attempts
-    return len(attempts) >= MAX_LOGIN_ATTEMPTS
+    _login_attempts[key] = attempts
+    limit = MAX_LOGIN_ATTEMPTS if "|" in key else MAX_LOGIN_FAILS_PER_IP
+    return len(attempts) >= limit
 
 
 def _record_attempt(ip):
@@ -1878,8 +1880,13 @@ def route_auth_login():
     password = body.get("password", "")
     if not username or not password:
         return jsonify({"error": "Username and password required."}), 400
-    _record_attempt(ip)
+    # Count failed attempts per address and account: a whole computer room shares one public address, so a
+    # per-address limit that also counted good logins locked students out when the class logged in together.
+    if _rate_limited(ip + "|" + username):
+        return jsonify({"error": "Too many attempts. Try again later."}), 429
     if not verify_password(username, password):
+        _record_attempt(ip + "|" + username)
+        _record_attempt(ip)
         return jsonify({"error": "Invalid credentials."}), 401
     token, role = create_session(username)
     return jsonify({
@@ -2228,6 +2235,28 @@ def _get_student_info():
     return sid, info
 
 
+@app.route("/api/my/profile")
+@auth_required
+def route_my_profile():
+    """The logged-in account for the portal's profile page: account, role, the student's own ID and name, and
+    their practice rank when the practice room is installed."""
+    s = request._session  # type: ignore
+    user = s["username"]
+    sid = _USER_TO_SID.get(user)
+    out = {"user": user, "role": s["role"], "id": sid or "", "name": STUDENTS.get(sid, {}).get("name", "") if sid else ""}
+    if sid:
+        _common, prac = _practice_mods()
+        if prac:
+            try:
+                entries, metas, profs = prac.ledger(), prac.all_metas(), prac.profiles()
+                profile, _st = _practice_profile(prac, user, entries, metas, profs)
+                out["practice"] = {"xp": profile["xp"], "rank": profile["rank"], "clears": profile["clears"],
+                                   "nick": (profs.get(user) or {}).get("nick", "")}
+            except Exception as exc:  # practice data unreadable: the profile still works
+                print("[profile] practice:", exc, flush=True)
+    return jsonify(out)
+
+
 @app.route("/api/my/grades")
 @auth_required
 def route_my_grades():
@@ -2331,6 +2360,1582 @@ def route_my_activity_tree():
     if tree is None:
         return jsonify({"error": "Activity directory not found"}), 404
     return jsonify(tree)
+
+
+# ── Exam room (see server/examroom/README.md) ─────────────────
+# The paper, the terminal ticket and the progress for students; the board and the replay for the instructor.
+# The exam config and state are written by `sudo examctl`; this service only reads them.
+
+_EXAM_CACHE = {"board": None, "ts": 0.0}
+
+
+def _has_account(user):
+    """`examctl open` leaves out roster names that have no account on the server, so the preview does the same."""
+    import pwd
+    try:
+        pwd.getpwnam(user)
+        return True
+    except KeyError:
+        return False
+
+
+def _exam_modules():
+    """The exam modules: the installed copy in /opt/itc-os-exam first (it has the paper, which is not in git), else
+    the repository's server/examroom."""
+    import sys
+    for folder in (os.environ.get("ITC_EXAM_OPT", "/opt/itc-os-exam"), str(_REPO_ROOT / "server" / "examroom")):
+        if os.path.exists(os.path.join(folder, "midterm.py")):
+            break
+    if folder not in sys.path:
+        sys.path.insert(0, folder)
+    try:
+        import common as exam_common
+        import midterm as exam_midterm
+        # before the exam has drawn, the preview and "view as student" show the draw `examctl open` will write: the balanced
+        # deal over this roster
+        exam_midterm.set_roster_source(lambda: [i["user"] for i in STUDENTS.values() if _has_account(i["user"])])
+        return exam_common, exam_midterm
+    except Exception as exc:  # oslab or the exam files missing
+        print("[exam] modules not loaded:", exc, flush=True)
+        return None, None
+
+
+def _exam_parts(cfg, midterm):
+    return [p for p in cfg.get("parts", []) if p in midterm.PART_TITLES]
+
+
+def _exam_folder(cfg, username):
+    return Path(os.path.expanduser("~" + username)) / cfg.get("folder", "midterm")
+
+
+def _exam_seb(cfg, common):
+    public = (cfg.get("seb") or {}).get("public_api", "").rstrip("/")
+    url = (public + request.full_path.rstrip("?")) if public else request.url
+    return common.seb_ok(cfg, url, request.headers.get("X-SafeExamBrowser-ConfigKeyHash", ""))
+
+
+def _exam_checks(cfg, midterm, username, parts):
+    try:
+        return midterm.checks(_exam_folder(cfg, username), username, parts)
+    except (PermissionError, OSError, midterm.eb.BankError):
+        return None
+
+
+@app.route("/api/exam/state")
+@auth_required
+def route_exam_state():
+    common, midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"exam": None})
+    session = request._session  # type: ignore
+    is_admin = session["role"] == "admin"
+    username = session["username"]
+    preview = request.args.get("user", "") if is_admin else ""
+    target = preview or username
+    state = common.load_state(cfg)
+    parts = _exam_parts(cfg, midterm)
+    sid = _USER_TO_SID.get(target)
+    participant = bool(sid)
+    seb = _exam_seb(cfg, common)
+    out = {
+        "exam": {"id": cfg["id"], "title": cfg["title"], "duration_min": cfg["duration_min"],
+                 "parts": [{"id": p, "title": midterm.PART_TITLES[p][0], "lab": midterm.PART_TITLES[p][1], "marks": 10}
+                           for p in parts],
+                 "total": 10 * len(parts), "rain": bool(cfg.get("rain")),
+                 "large_paste_chars": cfg["flags"]["large_paste_chars"], "folder": cfg["folder"],
+                 "lock_on": cfg["lock"]["on"], "lock_mode": cfg["lock"]["mode"]},
+        "phase": state["phase"], "start": state["start"], "end": state["end"], "now": common.iso(time.time()),
+        "me": {"user": target, "id": sid or "", "name": STUDENTS.get(sid, {}).get("name", "") if sid else "",
+               "admin": is_admin, "participant": participant},
+        "seb_ok": seb, "seb_required": bool(cfg["seb"].get("required")),
+    }
+    show = (state["phase"] in ("open", "ended") and participant and seb) or (preview and participant)
+    if show:
+        try:
+            out["paper"] = midterm.paper(target, parts, cfg["folder"])
+        except midterm.eb.BankError as e:
+            print("[exam] paper of %s: %s" % (target, e), flush=True)
+            out["paper"] = None
+            out["paper_error"] = "Your paper is not available. Tell the invigilator."
+        result = _exam_checks(cfg, midterm, target, parts)
+        if result is None:
+            out["progress"] = None
+        elif preview:
+            out["checks"] = result
+            out["progress"] = midterm.progress(result)
+        else:
+            out["progress"] = {p: {"present": v["present"], "of": v["of"]} for p, v in midterm.progress(result).items()}
+        if state["phase"] == "open" and not preview:
+            out["gateway_url"] = cfg.get("gateway_url", "")
+    return jsonify(out)
+
+
+@app.route("/api/exam/ticket", methods=["POST"])
+@auth_required
+def route_exam_ticket():
+    common, _midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"error": "No exam is set up."}), 404
+    username = request._session["username"]  # type: ignore
+    if username not in _USER_TO_SID:
+        return jsonify({"error": "This account is not on the exam roster."}), 403
+    if common.load_state(cfg)["phase"] != "open":
+        return jsonify({"error": "The exam is not open."}), 409
+    if not _exam_seb(cfg, common):
+        return jsonify({"error": "Open the exam in Safe Exam Browser."}), 403
+    try:
+        ticket = common.make_ticket(username, cfg["id"])
+    except (OSError, ValueError) as exc:
+        print("[exam] ticket:", exc, flush=True)
+        return jsonify({"error": "The exam server is not ready (ticket key)."}), 503
+    return jsonify({"ticket": ticket, "url": cfg.get("gateway_url", ""), "ttl": common.TICKET_TTL})
+
+
+def _exam_board(common, midterm, cfg):
+    state = common.load_state(cfg)
+    parts = _exam_parts(cfg, midterm)
+    rows = []
+    for sid, info in sorted(STUDENTS.items()):
+        user = info["user"]
+        status = common.read_json(common.rec_dir(user) / "status.json", {}) or {}
+        events = common.read_events(user)
+        summary = common.summarize(events, status, cfg, state)
+        result = _exam_checks(cfg, midterm, user, parts)
+        prog = midterm.progress(result) if result is not None else None
+        now = time.time()
+        if status.get("connected") and now - float(status.get("last_seen", 0)) < 20:
+            conn, conn_s = "connected", 0
+        elif status.get("last_seen"):
+            conn_s = now - float(status["last_seen"])
+            conn = "reconnecting" if conn_s < 60 else "offline"  # a gateway that stopped leaves connected=true behind
+        else:
+            conn, conn_s = "never", 0
+        lock = common.current_lock(user, cfg, state)
+        wait = lock.get("mode") == "wait"
+        try:
+            code = common.unlock_code(user, cfg["id"], lock["n"]) if lock["locked"] and not wait else ""
+        except (OSError, ValueError):
+            code = ""
+        summary.update(locked=bool(lock["locked"]), lock_why=lock["why"] if lock["locked"] else "", lock_n=int(lock["n"]),
+                       lock_s=round(common.lock_seconds(lock)), unlock_code=code,
+                       lock_mode="wait" if wait else "code", lock_left=common.lock_left(lock))
+        rows.append({"id": sid, "name": info["name"], "user": user, "connection": conn,
+                     "connection_s": round(conn_s), "connects": status.get("connects", 0),
+                     "last_cmd": status.get("last_cmd", ""), "truncated": bool(status.get("truncated")),
+                     "progress": prog, "points": sum(p["points"] for p in prog.values()) if prog else None,
+                     **summary})
+    order = {"high": 0, "review": 1, "": 2}
+    rows.sort(key=lambda r: (not r["locked"], order.get(r["flag"], 2), r["id"]))  # locked students waiting for a code first
+    end_ts = None
+    if state.get("end"):
+        try:
+            end_ts = common.parse_iso(state["end"])
+        except ValueError:
+            pass
+    return {"exam": {"id": cfg["id"], "title": cfg["title"], "parts": parts, "total": 10 * len(parts),
+                     "large_paste_chars": cfg["flags"]["large_paste_chars"], "lock_on": cfg["lock"]["on"],
+                     "lock_mode": cfg["lock"]["mode"], "profile": cfg["profile"]},
+            "phase": state["phase"], "start": state["start"], "end": state["end"], "now": common.iso(time.time()),
+            "left_s": max(0, round(end_ts - time.time())) if end_ts else None,
+            "connected": sum(1 for r in rows if r["connection"] == "connected"),
+            "students": len(rows), "high": sum(1 for r in rows if r["flag"] == "high"),
+            "review": sum(1 for r in rows if r["flag"] == "review"),
+            "locked": sum(1 for r in rows if r["locked"]),
+            "rows": rows}
+
+
+@app.route("/api/admin/exam/board")
+@admin_required
+def route_admin_exam_board():
+    common, midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"exam": None, "rows": []})
+    if _EXAM_CACHE["board"] is None or time.time() - _EXAM_CACHE["ts"] > 3:
+        _EXAM_CACHE["board"] = _exam_board(common, midterm, cfg)
+        _EXAM_CACHE["ts"] = time.time()
+    return jsonify(_EXAM_CACHE["board"])
+
+
+def _exam_target_user(common):
+    user = request.args.get("user", "")
+    if not common.USER_RE.match(user) or user not in _USER_TO_SID:
+        return None
+    return user
+
+
+@app.route("/api/admin/exam/replay")
+@admin_required
+def route_admin_exam_replay():
+    common, midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"error": "No exam is set up."}), 404
+    user = _exam_target_user(common)
+    if not user:
+        return jsonify({"error": "Unknown student."}), 404
+    folder = common.rec_dir(user)
+    casts = []
+    try:
+        for p in sorted(folder.iterdir()):
+            if common.CAST_RE.match(p.name):
+                casts.append({"name": p.name, "size": p.stat().st_size, "start": int(p.name.split(".")[0].split("-")[0])})
+    except OSError:
+        pass
+    sid = _USER_TO_SID[user]
+    state = common.load_state(cfg)
+    status = common.read_json(folder / "status.json", {}) or {}
+    events = common.read_events(user)
+    return jsonify({"user": user, "id": sid, "name": STUDENTS[sid]["name"], "casts": casts, "events": events,
+                    "status": status, "summary": common.summarize(events, status, cfg, state),
+                    "start": state["start"], "end": state["end"],
+                    "checks": _exam_checks(cfg, midterm, user, _exam_parts(cfg, midterm))})
+
+
+@app.route("/api/admin/exam/cast")
+@admin_required
+def route_admin_exam_cast():
+    common, _midterm = _exam_modules()
+    if not common:
+        return jsonify({"error": "No exam is set up."}), 404
+    user = _exam_target_user(common)
+    name = request.args.get("name", "")
+    if not user or not common.CAST_RE.match(name):
+        return jsonify({"error": "Unknown recording."}), 404
+    path = common.rec_dir(user) / name
+    try:
+        with open(path, "rb") as f:
+            data = f.read(25 * 1024 * 1024)
+    except OSError:
+        return jsonify({"error": "Unknown recording."}), 404
+    return app.response_class(data, mimetype="application/x-asciicast")
+
+
+# ── Exam control panel (instructor board tabs) ────────────────
+# Settings and open / extend / close / harden go to the root helper as queued requests (only when the server was
+# installed with `examctl install --web-control`); unlocking a student goes to the gateway. See common.py.
+
+def _exam_gateway_ok():
+    import urllib.request
+    url = os.environ.get("ITC_EXAM_GW_HEALTH", "http://127.0.0.1:5010/term/health")
+    try:
+        with urllib.request.urlopen(url, timeout=1.5) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+@app.route("/api/admin/exam/control")
+@admin_required
+def route_admin_exam_control():
+    common, _midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"exam": None})
+    state = common.load_state(cfg)
+    agent = common.agent_config()
+    harden = common.read_json(common.var_dir() / "harden.json", None)
+    locked = []
+    for sid, info in sorted(STUDENTS.items()):
+        lk = common.current_lock(info["user"], cfg, state)
+        if lk["locked"]:
+            locked.append(info["user"])
+    return jsonify({
+        "exam": {"id": cfg["id"], "title": cfg["title"], "duration_min": cfg["duration_min"], "folder": cfg["folder"],
+                 "parts": cfg["parts"]},
+        "state": state, "running": common.exam_running(state), "now": common.iso(time.time()),
+        "settings": common.settings_view(cfg), "presets": common.PRESETS,
+        "fixed_while_open": sorted(k for k, v in common.SETTINGS.items() if not v[2]),
+        "seb_keys": bool((cfg.get("seb") or {}).get("config_keys")),
+        "web_control": bool(agent), "preview": bool(agent and agent.get("dev")),
+        "harden": harden if isinstance(harden, dict) else None,
+        "gateway_ok": _exam_gateway_ok(),
+        "students": len(STUDENTS), "locked": locked,
+        "history": common.request_history(25),
+    })
+
+
+@app.route("/api/admin/exam/request", methods=["POST", "GET"])
+@admin_required
+def route_admin_exam_request():
+    common, midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"error": "No exam is set up."}), 404
+    if request.method == "GET":
+        st = common.request_status(request.args.get("id", ""))
+        return (jsonify(st), 200) if st else (jsonify({"error": "Unknown request."}), 404)
+    if not common.agent_config():
+        return jsonify({"error": "Web control is off on this server. Use examctl, or install with --web-control."}), 409
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify({"error": "Bad request."}), 400
+    try:
+        params = common.clean_request(body.get("action"), body.get("params"), common.exam_running(common.load_state(cfg)))
+        _exam_check_bank_request(common, midterm, cfg, body["action"], params)
+        rid = common.submit_request(body["action"], params, request._session["username"])  # type: ignore
+    except (ValueError, midterm.eb.BankError) as e:
+        return jsonify({"error": str(e)}), 400
+    except OSError:
+        return jsonify({"error": "The request folder is missing; reinstall with --web-control."}), 500
+    return jsonify({"id": rid})
+
+
+@app.route("/api/admin/exam/unlock", methods=["POST"])
+@admin_required
+def route_admin_exam_unlock():
+    common, _midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"error": "No exam is set up."}), 404
+    body = request.get_json(silent=True) or {}
+    if body.get("all") is True:
+        users = [info["user"] for info in STUDENTS.values()]
+    else:
+        user = str(body.get("user", ""))
+        if not common.USER_RE.match(user) or user not in _USER_TO_SID:
+            return jsonify({"error": "Unknown student."}), 404
+        users = [user]
+    state = common.load_state(cfg)
+    users = [u for u in users if common.current_lock(u, cfg, state)["locked"]]
+    try:
+        for u in users:
+            common.request_unlock(u, request._session["username"])  # type: ignore
+    except OSError:
+        return jsonify({"error": "The control folder is missing; run examctl install again."}), 500
+    _EXAM_CACHE["board"] = None
+    return jsonify({"sent": len(users)})
+
+
+def _exam_check_bank_request(common, midterm, cfg, action, params):
+    """The checks the API can make before it queues a request that touches the scenario bank (the root helper makes them again)."""
+    state = common.load_state(cfg)
+    if action == "settings" and any(k.startswith("bank.") for k in params["changes"]):
+        if midterm.drawn():
+            raise ValueError("The scenarios are already drawn: discard the draw first (only possible before the exam was opened).")
+        midterm.check_bank_settings(params["changes"], [i["user"] for i in STUDENTS.values()], cfg)
+    elif action == "correct":
+        midterm.check_correction(params["scenario"], params["slot"])
+    elif action in ("draw", "undraw"):
+        st = common.read_json(common.state_path(cfg), {}) or {}
+        if st.get("phase", "sealed") != "sealed" or st.get("start") or state["phase"] != "sealed":
+            raise ValueError("The exam has been opened: its draw is final.")
+        if action == "draw" and midterm.drawn():
+            raise ValueError("Already drawn: discard the draw first to draw again.")
+        if action == "undraw" and not midterm.drawn():
+            raise ValueError("Nothing is drawn.")
+        midterm.bank()
+
+
+def _exam_snapshot(common, cfg, user):
+    """(folder, source label) of what a student's marks are read from: the latest snapshot, else the live folder."""
+    base = common.var_dir() / cfg["id"] / "collect"
+    try:
+        snaps = sorted((base / user).iterdir()) if (base / user).is_dir() else []
+    except OSError:
+        snaps = []
+    return (snaps[-1], "snapshot " + snaps[-1].name) if snaps else (_exam_folder(cfg, user), "live folder")
+
+
+@app.route("/api/admin/exam/report.csv")
+@admin_required
+def route_admin_exam_report():
+    """Automatic points per task, from each student's latest snapshot, or the live folder when there is none. One column per
+    part says which scenario the student drew; a regrade (corrections) is applied and the raw points are kept."""
+    import csv
+    import io
+    common, midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"error": "No exam is set up."}), 404
+    parts = _exam_parts(cfg, midterm)
+    out = io.StringIO()
+    w = csv.writer(out)
+    try:
+        w.writerow(midterm.report_header(parts))
+        fixes = midterm.corrections()
+        for sid, info in sorted(STUDENTS.items()):
+            folder, source = _exam_snapshot(common, cfg, info["user"])
+            w.writerow(midterm.report_row(sid, info["name"], info["user"], source, parts, folder, fixes))
+    except midterm.eb.BankError as e:
+        return jsonify({"error": str(e)}), 500
+    resp = app.response_class(out.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = 'attachment; filename="%s-auto.csv"' % cfg["id"]
+    return resp
+
+
+@app.route("/api/admin/exam/draw")
+@admin_required
+def route_admin_exam_draw():
+    """The Paper tab: the bank's status, the settings, and every student's drawn scenarios (the recorded draw, or what the draw
+    will give). Read-only, needs no web control, and a bad bank or draw is reported as data."""
+    common, midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"exam": None})
+    state = common.load_state(cfg)
+    st = common.read_json(common.state_path(cfg), {}) or {}
+    view = midterm.bank_view(cfg)
+    out = {"exam": {"id": cfg["id"], "phase": state["phase"], "drawn": midterm.drawn(),
+                    "never_opened": st.get("phase", "sealed") == "sealed" and not st.get("start"),
+                    "parts": _exam_parts(cfg, midterm)},
+           "bank": view, "students": [], "counts": {}, "changed": 0, "web_control": bool(common.agent_config())}
+    if not view["ok"]:
+        return jsonify(out)
+    bank = midterm.bank()
+    for sid, info in sorted(STUDENTS.items()):
+        user = info["user"]
+        row = {"id": sid, "name": info["name"], "user": user, "scenarios": {}, "recorded": False, "error": ""}
+        if not _has_account(user):   # `examctl open` leaves these out, so they are not part of the draw either
+            row["error"] = "no account on this server: left out of the exam"
+            out["students"].append(row)
+            continue
+        try:
+            d = midterm.draw(user)
+            row["scenarios"] = d["scenarios"]
+            row["recorded"] = midterm.eb.draw_path(cfg["id"], user).exists()
+            if row["recorded"] and midterm.eb.bank_changed(d, bank):
+                out["changed"] += 1
+            for part, scen in d["scenarios"].items():
+                out["counts"].setdefault(part, {})
+                out["counts"][part][scen] = out["counts"][part].get(scen, 0) + 1
+        except midterm.eb.BankError as e:
+            row["error"] = str(e)[:160]
+        out["students"].append(row)
+    return jsonify(out)
+
+
+@app.route("/api/admin/exam/results")
+@admin_required
+def route_admin_exam_results():
+    """The Results tab's per-scenario numbers: how many students drew each scenario and how they did on each slot, and the
+    corrections in force. From the latest snapshots, or the live folders before the exam is closed."""
+    common, midterm = _exam_modules()
+    cfg = common.load_config() if common else None
+    if not cfg:
+        return jsonify({"exam": None})
+    parts = _exam_parts(cfg, midterm)
+    entries, problems = [], 0
+    try:
+        for sid, info in sorted(STUDENTS.items()):
+            try:
+                folder, _src = _exam_snapshot(common, cfg, info["user"])
+                scen = midterm.draw(info["user"])["scenarios"]
+                entries.append((scen, midterm.checks(folder, info["user"], parts)))
+            except (PermissionError, OSError, midterm.eb.BankError):
+                problems += 1
+        bank = midterm.bank()
+    except midterm.eb.BankError as e:
+        return jsonify({"exam": {"id": cfg["id"]}, "error": str(e)})
+    return jsonify({"exam": {"id": cfg["id"], "phase": common.load_state(cfg)["phase"], "parts": parts},
+                    "stats": midterm.scenario_stats(entries, parts), "problems": problems,
+                    "slots": {p.id: p.slot_ids() for p in midterm.PARTS if p.id in parts},
+                    "scenarios": {part: [sc.id for sc in bank.scenarios[part]] for part in parts},
+                    "corrections": midterm.corrections()})
+
+
+
+# ── Practice Linux Commands (see server/practice/ and teaching/PRACTICE-SCENARIOS-PLAN.md) ─────────
+# Students practise in the exam room's terminal, with their own values; checks run in the root runner (a Unix
+# socket), and only these routes write the ledger, from a runner result. Real names never reach a student.
+
+_PRACTICE_GAP = float(os.environ.get("ITC_PRACTICE_CHECK_GAP", "10"))
+_PRACTICE_LAST = {}
+_PRACTICE_MU = threading.Lock()
+
+
+def _practice_mods():
+    """(exam common, practice) from the installed copy in /opt/itc-os-exam, else the repository; (None, None)."""
+    import sys
+    opt = os.environ.get("ITC_EXAM_OPT", "/opt/itc-os-exam")
+    if os.path.exists(os.path.join(opt, "common.py")) and os.path.exists(os.path.join(opt, "practice", "practice.py")):
+        exam_dir, prac_dir = opt, os.path.join(opt, "practice")
+    else:
+        exam_dir, prac_dir = str(_REPO_ROOT / "server" / "examroom"), str(_REPO_ROOT / "server" / "practice")
+    for folder in (exam_dir, prac_dir):
+        if folder not in sys.path:
+            sys.path.insert(0, folder)
+    try:
+        import common as exam_common
+        import practice as prac
+        return exam_common, prac
+    except Exception as exc:
+        print("[practice] modules not loaded:", exc, flush=True)
+        return None, None
+
+
+def _practice_open(common):
+    if not common.load_practice():
+        return False, "Practice is not set up on this server yet."
+    if common.exam_blocks_practice():
+        return False, "An exam is running: practice is closed until it ends."
+    return True, ""
+
+
+def _practice_profile(prac, user, entries, metas, profs):
+    st = prac.standings(entries, metas).get(user) or prac.empty_standing()
+    i = prac.rank_of(st)
+    return {"xp": st["xp"], "week": st["week"], "rank": prac.RANKS[i][0], "rank_i": i, "ranks": [r[0] for r in prac.RANKS],
+            "rank_xp": prac.RANKS[i][1], "next": prac.next_rank(st), "supers": len(st["supers"]), "clears": len(st["cleared"]),
+            "skills": prac.skills_summary(st),
+            "badges": prac.badges_of(st, metas, author=bool((profs.get(user) or {}).get("author")))}, st
+
+
+def _practice_board(prac, entries, metas, profs, me):
+    st = prac.standings(entries, metas)
+    out = {}
+    for key in ("week", "xp"):
+        rows = sorted(((u, s[key]) for u, s in st.items() if s[key] > 0 and u in _USER_TO_SID),
+                      key=lambda x: (-x[1], _USER_TO_SID[x[0]]))
+        top, mine = [], None
+        for i, (u, x) in enumerate(rows):
+            p = profs.get(u) or {}
+            row = {"pos": i + 1, "id": _USER_TO_SID[u], "nick": p.get("nick", ""), "xp": x,
+                   "rank": prac.RANKS[prac.rank_of(st[u])][0], "me": u == me}
+            if i < 10:
+                top.append(row)
+            if u == me:
+                mine = row
+        out["week" if key == "week" else "all"] = top
+        out["me_week" if key == "week" else "me_all"] = mine
+    return out
+
+
+def _practice_expired(r, now=None):
+    return bool(r) and (now or time.time()) > float(r.get("deadline") or 0)
+
+
+def _practice_view(prac, mod, user, r, cleared):
+    """A scenario or a drill (the roadmap's short exercise) as the page needs it."""
+    m = prac.meta_of(mod)
+    level = m["level"]
+    drill = level in prac.KINDS
+    out = {"meta": {k: m[k] for k in ("id", "track", "level", "title", "xp", "minutes", "learn")},
+           "level_name": prac.LEVEL_NAME.get(level, "Drill"), "kind": "drill" if drill else "scenario",
+           "hints_total": 0 if level == "super" else prac.MAX_HINTS.get(level, 3),
+           "hint_share": list(prac.HINT_SHARE), "cleared_before": m["id"] in cleared}
+    if m.get("stage") or m.get("skills"):   # a drill has a stage; a scenario only the skills it trains
+        out["meta"].update(stage=m.get("stage", ""), skills=m.get("skills", []), readonly=bool(m.get("readonly")),
+                           skill_titles=[prac.SKILLS[s]["title"] for s in m.get("skills", []) if s in prac.SKILLS])
+    if r:
+        v = prac.values(mod, user, r["attempt"])
+        out["brief"] = mod.brief(v)
+        out["steps"] = prac.steps_of(mod, v, r["attempt"])
+        out["hints"] = prac.hints_of(mod, v)[: int(r.get("hints", 0))]
+        if getattr(mod, "hint_steps", None):
+            out["hint_steps"] = mod.hint_steps(v)[: int(r.get("hints", 0))]
+        out["run"] = {k: r.get(k) for k in ("attempt", "started", "deadline", "minutes", "hints", "checks", "cleared", "last")}
+        out["run"]["expired"] = _practice_expired(r)
+        out["run"]["started_iso"] = datetime.fromtimestamp(r["started"], _PPH).isoformat(timespec="seconds")
+        out["run"]["deadline_iso"] = datetime.fromtimestamp(r["deadline"], _PPH).isoformat(timespec="seconds")
+    return out
+
+
+def _practice_target():
+    """The student a practice route works for, and why not (a message and a status) when there is none."""
+    s = request._session  # type: ignore
+    user = s["username"]
+    if user not in _USER_TO_SID:
+        return None, ("This account is not on the class roster.", 403)
+    return user, None
+
+
+def _practice_scenario(prac, sid):
+    """A scenario or a drill (both have a workspace and a check in the runner); a quiz has neither."""
+    return prac.exercise(sid) if isinstance(sid, str) and prac.SCENARIO_RE.match(sid) else None
+
+
+def _practice_quizzes():
+    """The quiz engine (server/practice/quizzes.py), or None. Its keys are read here, like the Super challenges' checkers."""
+    import importlib
+    try:
+        return importlib.import_module("quizzes")
+    except Exception as exc:
+        print("[practice] quizzes not loaded:", exc, flush=True)
+        return None
+
+
+def _practice_roadmap(prac, st, runs, metas):
+    """The Roadmap tab: six stages with their drills and quizzes, the skills acquired, and which exercises train each skill."""
+    cleared, have = st["cleared"], st["skills"]
+    tags = {}
+    for sid, m in metas.items():
+        kind = m["level"] if m["level"] in prac.KINDS else "scenario"
+        for s in m.get("skills") or []:
+            tags.setdefault(s, []).append({"id": sid, "kind": kind, "title": m["title"]})
+    stages, earned_all = [], True
+    for s in prac.STAGES:
+        drills, quizzes = [], []
+        for sid, m in metas.items():
+            if m.get("stage") != s["id"]:
+                continue
+            c, r = cleared.get(sid), runs.get(sid)
+            if m["level"] == "quiz":
+                state = "passed" if c else ("progress" if (r or {}).get("attempt") else "new")
+                quizzes.append({"id": sid, "title": m["title"], "xp": m["xp"], "minutes": m["minutes"], "state": state,
+                                "best": int((r or {}).get("best", 0)), "skills": m.get("skills", [])})
+            else:
+                state = ("cleared_nohint" if c["hints"] == 0 else "cleared") if c else ("progress" if r else "new")
+                drills.append({"id": sid, "title": m["title"], "xp": m["xp"], "minutes": m["minutes"], "state": state,
+                               "skills": m.get("skills", []), "readonly": bool(m.get("readonly"))})
+        skills = [{"id": k, "title": v["title"], "have": k in have} for k, v in prac.SKILLS.items() if v["stage"] == s["id"]]
+        total = len(drills) + len(quizzes)
+        done = sum(1 for x in drills if x["state"].startswith("cleared")) + sum(1 for x in quizzes if x["state"] == "passed")
+        earned = bool(total) and done == total
+        earned_all = earned_all and earned
+        stages.append({"id": s["id"], "title": s["title"], "badge": s["badge"], "drills": drills, "quizzes": quizzes, "skills": skills,
+                       "done": done, "total": total, "earned": earned, "skills_have": sum(1 for k in skills if k["have"])})
+    return {"stages": stages, "skills": prac.skills_summary(st), "journeyman": earned_all and bool(stages), "tags": tags}
+
+
+def _super_locked(prac, mod, cleared, metas):
+    m = mod.META
+    if m["level"] != "super":
+        return False
+    hard = [s for s, x in metas.items() if x["track"] == m["track"] and x["level"] == "hard"]
+    return bool(hard) and not any(s in cleared for s in hard)
+
+
+@app.route("/api/practice/home")
+@auth_required
+def route_practice_home():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    s = request._session  # type: ignore
+    preview = request.args.get("user", "") if s["role"] == "admin" else ""  # "view as student" on the practice board
+    if preview:
+        if preview not in _USER_TO_SID:
+            return jsonify({"error": "Unknown student."}), 404
+        user = preview
+    else:
+        user, err = _practice_target()
+        if err:
+            return jsonify({"error": err[0]}), err[1]
+    open_, why = _practice_open(common)
+    entries, metas, profs = prac.ledger(), prac.metas(), prac.profiles()   # metas: the scenarios' map
+    allm = prac.all_metas()                                                # XP, ranks, skills, badges: everything
+    profile, st = _practice_profile(prac, user, entries, allm, profs)
+    runs = prac.runs(user)
+    tracks = []
+    for t in prac.TRACKS:
+        tiles = []
+        for level in prac.LEVELS:
+            sid = next((s for s, m in metas.items() if m["track"] == t["id"] and m["level"] == level), None)
+            if not sid:
+                tiles.append(None)
+                continue
+            m, r = metas[sid], runs.get(sid)
+            c = st["cleared"].get(sid)
+            state = ("cleared_nohint" if c["hints"] == 0 else "cleared") if c else ("progress" if r else "new")
+            tiles.append({"id": sid, "title": m["title"], "level": level, "xp": m["xp"], "minutes": m["minutes"], "state": state,
+                          "skills": [prac.SKILLS[k]["title"] for k in m.get("skills", []) if k in prac.SKILLS],
+                          "guided": hasattr(prac.catalog()[sid], "steps"),
+                          "locked": _super_locked(prac, prac.catalog()[sid], st["cleared"], metas),
+                          "attempt": (r or {}).get("attempt", 0), "remixes": st["remix"].get(sid, 0)})
+        tracks.append(dict(t, tiles=tiles))
+    p = profs.get(user) or {}
+    out = {"open": open_, "closed_why": why, "levels": prac.LEVEL_NAME, "tracks": tracks, "profile": profile,
+           "preview": bool(preview),
+           "me": {"user": user, "id": _USER_TO_SID[user], "nick": p.get("nick", ""), "nick_cleared": bool(p.get("nick_cleared"))},
+           "leaderboard": _practice_board(prac, entries, allm, profs, user), "now": time.time(),
+           "roadmap": _practice_roadmap(prac, st, runs, allm)}
+    b = prac.bonus_settings()
+    if b.get("published"):
+        out["bonus"] = prac.bonus_for(user, entries, allm, b)
+    return jsonify(out)
+
+
+@app.route("/api/practice/scenario")
+@auth_required
+def route_practice_scenario():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    s = request._session  # type: ignore
+    preview = request.args.get("user", "") if s["role"] == "admin" else ""
+    if preview:
+        if preview not in _USER_TO_SID:
+            return jsonify({"error": "Unknown student."}), 404
+        user = preview
+    else:
+        user, err = _practice_target()
+        if err:
+            return jsonify({"error": err[0]}), err[1]
+    mod = _practice_scenario(prac, request.args.get("id"))
+    if not mod:
+        return jsonify({"error": "Unknown scenario."}), 404
+    st = prac.standings(prac.ledger(), prac.all_metas()).get(user) or prac.empty_standing()
+    r = prac.runs(user).get(mod.META["id"])
+    if preview and not r:
+        r = {"attempt": 1, "started": time.time(), "deadline": time.time() + 60 * int(mod.META["minutes"]),
+             "minutes": mod.META["minutes"], "hints": 3, "checks": 0, "cleared": False}
+    out = _practice_view(prac, mod, user, r, st["cleared"])
+    out["open"], out["closed_why"] = _practice_open(common)
+    out["locked"] = _super_locked(prac, mod, st["cleared"], prac.metas())
+    return jsonify(out)
+
+
+def _practice_setup(prac, user, sid, attempt):
+    res = prac.runner_call({"op": "setup", "user": user, "sid": sid, "attempt": attempt})
+    if res.get("error"):
+        msg = "The practice runner is not running; tell the instructor." if res.get("unavailable") else res["error"]
+        return None, msg
+    return res.get("info") or {}, None
+
+
+def _practice_workspace_gone(user, sid):
+    """True only when the student's home can be read and ~/practice/<id> is not there (the API reads homes through
+    the u:pisey:rx ACL; when it cannot, it assumes the workspace is there)."""
+    home = Path(os.path.expanduser("~" + user))
+    try:
+        return home.is_dir() and os.access(str(home), os.R_OK | os.X_OK) and not (home / "practice" / sid).is_dir()
+    except OSError:
+        return False
+
+
+def _practice_body():
+    body = request.get_json(silent=True) or {}
+    return body if isinstance(body, dict) else {}
+
+
+@app.route("/api/practice/start", methods=["POST"])
+@auth_required
+def route_practice_start():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    user, err = _practice_target()
+    if err:
+        return jsonify({"error": err[0]}), err[1]
+    open_, why = _practice_open(common)
+    if not open_:
+        return jsonify({"error": why}), 409
+    mod = _practice_scenario(prac, _practice_body().get("id"))
+    if not mod:
+        return jsonify({"error": "Unknown scenario."}), 404
+    sid, metas = mod.META["id"], prac.metas()
+    st = prac.standings(prac.ledger(), prac.all_metas()).get(user) or prac.empty_standing()
+    if _super_locked(prac, mod, st["cleared"], metas):
+        return jsonify({"error": "Clear the Hard scenario of this track first."}), 403
+    r = prac.runs(user).get(sid)
+    if r and _practice_workspace_gone(user, sid):  # the student removed ~/practice/<id>: make it again
+        info, e = _practice_setup(prac, user, sid, int(r["attempt"]))
+        if e:
+            return jsonify({"error": e}), 503
+        with prac.locked():
+            runs = prac.runs(user)
+            runs[sid]["info"] = info
+            prac.save_runs(user, runs)
+    if not r:
+        info, e = _practice_setup(prac, user, sid, 1)
+        if e:
+            return jsonify({"error": e}), 503
+        now = time.time()
+        minutes = int(mod.META["minutes"])
+        with prac.locked():
+            runs = prac.runs(user)
+            r = runs.get(sid) or {"attempt": 1, "started": now, "deadline": now + 60 * minutes, "minutes": minutes,
+                                  "hints": 0, "checks": 0, "cleared": False, "last": None, "info": info}
+            runs[sid] = r
+            prac.save_runs(user, runs)
+    return jsonify(_practice_view(prac, mod, user, r, st["cleared"]))
+
+
+@app.route("/api/practice/ticket", methods=["POST"])
+@auth_required
+def route_practice_ticket():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    user, err = _practice_target()
+    if err:
+        return jsonify({"error": err[0]}), err[1]
+    open_, why = _practice_open(common)
+    if not open_:
+        return jsonify({"error": why}), 409
+    mod = _practice_scenario(prac, _practice_body().get("id"))
+    r = prac.runs(user).get(mod.META["id"]) if mod else None
+    if not r:
+        return jsonify({"error": "Start the scenario first."}), 409
+    try:
+        ticket = common.make_ticket(user, common.PRACTICE_ID, extra={"s": mod.META["id"], "a": int(r["attempt"])})
+    except (OSError, ValueError) as exc:
+        print("[practice] ticket:", exc, flush=True)
+        return jsonify({"error": "The practice room is not ready (ticket key)."}), 503
+    return jsonify({"ticket": ticket, "url": common.load_practice().get("gateway_url", ""), "ttl": common.TICKET_TTL})
+
+
+def _award_reasons(prac, meta, e, xp, first):
+    if not first:
+        if meta["level"] in prac.KINDS:
+            return ["played again: a %s earns XP once, and your first clear already counted" % meta["level"]]
+        return ["remix cleared: %d%% of %d XP" % (round(prac.REMIX_SHARE * 100), meta["xp"])] if xp else \
+            ["remix cleared (the first three remixes earn XP)"]
+    out = ["%s %s: %d XP" % (prac.LEVEL_NAME.get(meta["level"], meta["level"].capitalize()),
+                             "passed" if meta["level"] == "quiz" else "cleared", meta["xp"])]
+    if e["hints"]:
+        out.append("%d hint%s: %d%%" % (e["hints"], "s" if e["hints"] > 1 else "", round(prac.HINT_SHARE[e["hints"]] * 100)))
+    elif meta["level"] != "quiz":
+        out.append("no hints: +%d%%" % round(prac.NO_HINT_BONUS * 100))
+    if e.get("fast"):
+        out.append("under half the countdown: +%d%%" % round(prac.FAST_BONUS * 100))
+    if e.get("late"):
+        out.append("after the countdown: half")
+    return out
+
+
+@app.route("/api/practice/check", methods=["POST"])
+@auth_required
+def route_practice_check():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    user, err = _practice_target()
+    if err:
+        return jsonify({"error": err[0]}), err[1]
+    open_, why = _practice_open(common)
+    if not open_:
+        return jsonify({"error": why}), 409
+    mod = _practice_scenario(prac, _practice_body().get("id"))
+    if not mod:
+        return jsonify({"error": "Unknown scenario."}), 404
+    sid = mod.META["id"]
+    r = prac.runs(user).get(sid)
+    if not r:
+        return jsonify({"error": "Start the scenario first."}), 409
+    if mod.META["level"] == "super" and _practice_expired(r) and not r.get("cleared"):
+        return jsonify({"error": "Time is up for this attempt. Remix to try again with new values.", "expired": True}), 409
+    with _PRACTICE_MU:
+        left = _PRACTICE_GAP - (time.time() - _PRACTICE_LAST.get(user, 0))
+        if left > 0:
+            return jsonify({"error": "Wait %d s before the next check." % math.ceil(left), "retry_s": math.ceil(left)}), 429
+        _PRACTICE_LAST[user] = time.time()
+    attempt = int(r["attempt"])
+    res = prac.runner_call({"op": "check", "user": user, "sid": sid, "attempt": attempt, "info": r.get("info") or {}})
+    if res.get("error") == "wait":
+        return jsonify({"error": "Wait a few seconds before the next check.", "retry_s": res.get("retry_s", 5)}), 429
+    if res.get("error"):
+        msg = "The practice runner is not running; tell the instructor." if res.get("unavailable") else res["error"]
+        return jsonify({"error": msg}), 503
+    now = time.time()
+    metas = prac.all_metas()
+    meta = metas[sid]
+    award = None
+    steps = []
+    with prac.locked():
+        runs = prac.runs(user)
+        r = runs.get(sid)
+        if not r or int(r["attempt"]) != attempt:
+            return jsonify({"error": "The scenario changed (a remix) during the check; check again."}), 409
+        r["checks"] = int(r.get("checks", 0)) + 1
+        r["last"] = {"at": now, "ok": bool(res.get("ok")), "checks": res.get("checks", [])}
+        if res.get("ok") and not r.get("cleared"):
+            entries = prac.ledger()
+            before_st = prac.standings(entries, metas).get(user) or prac.empty_standing()
+            first = sid not in before_st["cleared"]
+            secs = now - float(r["started"])
+            e = {"user": user, "kind": "clear", "sid": sid, "attempt": attempt, "hints": int(r.get("hints", 0)),
+                 "checks": r["checks"], "secs": round(secs, 1), "minutes": meta["minutes"],
+                 "late": meta["level"] != "super" and now > float(r["deadline"]),
+                 "fast": meta["level"] == "super" and secs < meta["minutes"] * 30,
+                 "level": meta["level"], "base": meta["xp"], "track": meta["track"], "ts": now}
+            prac.append_ledger(e)
+            after = prac.standings(prac.ledger(), metas)[user]
+            r["cleared"], r["cleared_at"] = True, now
+            old_b = {b["id"] for b in prac.badges_of(before_st, metas) if b["earned"]}
+            new_b = [b["name"] for b in prac.badges_of(after, metas) if b["earned"] and b["id"] not in old_b]
+            ri0, ri1 = prac.rank_of(before_st), prac.rank_of(after)
+            gained = after["xp"] - before_st["xp"]
+            award = {"xp": gained, "total": after["xp"], "reasons": _award_reasons(prac, meta, e, gained, first),
+                     "rank": prac.RANKS[ri1][0], "rank_up": ri1 > ri0, "badges": new_b,
+                     "skills": [prac.SKILLS[k]["title"] for k in sorted(after["skills"] - before_st["skills"]) if k in prac.SKILLS]}
+        runs[sid] = r
+        prac.save_runs(user, runs)
+    out = {"ok": bool(res.get("ok")), "checks": res.get("checks", []), "cleared": bool(r.get("cleared")), "award": award,
+           "run": {k: r.get(k) for k in ("attempt", "hints", "checks", "cleared")}}
+    if getattr(mod, "steps", None):
+        v = prac.values(mod, user, attempt)
+        out["progress"] = prac.step_progress(prac.steps_of(mod, v, attempt), res.get("checks", []))
+    return jsonify(out)
+
+
+@app.route("/api/practice/hint", methods=["POST"])
+@auth_required
+def route_practice_hint():
+    _common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    user, err = _practice_target()
+    if err:
+        return jsonify({"error": err[0]}), err[1]
+    mod = _practice_scenario(prac, _practice_body().get("id"))
+    if not mod:
+        return jsonify({"error": "Unknown scenario."}), 404
+    if mod.META["level"] == "super":
+        return jsonify({"error": "A Super challenge has no hints."}), 400
+    sid = mod.META["id"]
+    with prac.locked():
+        runs = prac.runs(user)
+        r = runs.get(sid)
+        if not r:
+            return jsonify({"error": "Start the scenario first."}), 409
+        cap = prac.MAX_HINTS.get(mod.META["level"], 3)
+        if not r.get("cleared") and int(r.get("hints", 0)) < cap:
+            r["hints"] = int(r.get("hints", 0)) + 1
+            prac.save_runs(user, runs)
+    v = prac.values(mod, user, r["attempt"])
+    out = {"hints": prac.hints_of(mod, v)[: int(r["hints"])], "used": int(r["hints"])}
+    if getattr(mod, "hint_steps", None):
+        out["hint_steps"] = mod.hint_steps(v)[: int(r["hints"])]
+    return jsonify(out)
+
+
+@app.route("/api/practice/reset", methods=["POST"])
+@auth_required
+def route_practice_reset():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    user, err = _practice_target()
+    if err:
+        return jsonify({"error": err[0]}), err[1]
+    open_, why = _practice_open(common)
+    if not open_:
+        return jsonify({"error": why}), 409
+    mod = _practice_scenario(prac, _practice_body().get("id"))
+    r = prac.runs(user).get(mod.META["id"]) if mod else None
+    if not r:
+        return jsonify({"error": "Start the scenario first."}), 409
+    info, e = _practice_setup(prac, user, mod.META["id"], int(r["attempt"]))
+    if e:
+        return jsonify({"error": e}), 503
+    with prac.locked():
+        runs = prac.runs(user)
+        runs[mod.META["id"]]["info"] = info
+        prac.save_runs(user, runs)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/practice/remix", methods=["POST"])
+@auth_required
+def route_practice_remix():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    user, err = _practice_target()
+    if err:
+        return jsonify({"error": err[0]}), err[1]
+    open_, why = _practice_open(common)
+    if not open_:
+        return jsonify({"error": why}), 409
+    mod = _practice_scenario(prac, _practice_body().get("id"))
+    if not mod:
+        return jsonify({"error": "Unknown scenario."}), 404
+    sid = mod.META["id"]
+    r = prac.runs(user).get(sid)
+    if not r or not (r.get("cleared") or (mod.META["level"] == "super" and _practice_expired(r))):
+        return jsonify({"error": "Remix opens once this attempt is cleared."}), 409
+    attempt = int(r["attempt"]) + 1
+    info, e = _practice_setup(prac, user, sid, attempt)
+    if e:
+        return jsonify({"error": e}), 503
+    now, minutes = time.time(), int(mod.META["minutes"])
+    with prac.locked():
+        runs = prac.runs(user)
+        r = {"attempt": attempt, "started": now, "deadline": now + 60 * minutes, "minutes": minutes, "hints": 0, "checks": 0,
+             "cleared": False, "last": None, "info": info}
+        runs[sid] = r
+        prac.save_runs(user, runs)
+    st = prac.standings(prac.ledger(), prac.all_metas()).get(user) or prac.empty_standing()
+    return jsonify(_practice_view(prac, mod, user, r, st["cleared"]))
+
+
+# ── Quizzes: multiple choice, no shell (server/practice/quizzes.py) ──────────
+
+def _quiz_target(need_open=True):
+    """(common, prac, quizzes, user, quiz, err) for a quiz route; err is a (response, status) pair or None."""
+    common, prac = _practice_mods()
+    qz = _practice_quizzes() if prac else None
+    if not prac or not qz:
+        return None, None, None, None, None, (jsonify({"error": "Practice is not installed on this server."}), 503)
+    s = request._session  # type: ignore
+    preview = request.args.get("user", "") if s["role"] == "admin" and request.method == "GET" else ""
+    if preview:
+        if preview not in _USER_TO_SID:
+            return None, None, None, None, None, (jsonify({"error": "Unknown student."}), 404)
+        user = preview
+    else:
+        user, err = _practice_target()
+        if err:
+            return None, None, None, None, None, (jsonify({"error": err[0]}), err[1])
+    if need_open:
+        open_, why = _practice_open(common)
+        if not open_:
+            return None, None, None, None, None, (jsonify({"error": why}), 409)
+    sid = request.args.get("id", "") if request.method == "GET" else _practice_body().get("id", "")
+    quiz = qz.catalog().get(sid) if isinstance(sid, str) and prac.SCENARIO_RE.match(sid) else None
+    if not quiz:
+        return None, None, None, None, None, (jsonify({"error": "Unknown quiz."}), 404)
+    return common, prac, qz, user, quiz, None
+
+
+QUIZ_LIVE_S = 15   # the gateway refreshes a socket's status every 5 s; older than this, the page is not connected
+
+
+def _quiz_gate(common, user, quiz_id, run, now):
+    """The lock on a quiz. A quiz has no typed input for the gateway to drop, so the questions, the hint and the
+    submit are held back here, unless both are true: this attempt has a live socket to the gateway (status.json says
+    kind "quiz", this quiz, this attempt, seen a moment ago), and the practice lock (the shell's, shared) is off.
+    None when the attempt may go on, else {"why": "socket" | "locked", "left": seconds, "message": ...}."""
+    if not run.get("open"):
+        return None
+    st = common.read_json(common.room_dir(user, "practice") / "status.json", {}) or {}
+    try:
+        fresh = now - float(st.get("last_seen", 0)) <= QUIZ_LIVE_S
+        same = st.get("kind") == "quiz" and st.get("scenario") == quiz_id and int(st.get("attempt", -1)) == int(run["attempt"])
+    except (TypeError, ValueError):
+        fresh = same = False
+    if not (st.get("connected") and fresh and same):
+        return {"why": "socket", "left": 0, "message": "Not connected to the practice room: the quiz opens only while its page is connected."}
+    lock = common.read_lock(user, common.PRACTICE_ID, "practice")
+    if lock.get("locked"):
+        return {"why": "locked", "left": common.lock_left(lock), "message": "The quiz is locked: you left fullscreen. Wait for the countdown, then return."}
+    return None
+
+
+def _quiz_view(prac, qz, quiz, user, run, cleared, now, show_questions=True, gate=None):
+    meta = qz.meta_of(quiz)
+    out = {"meta": {k: meta[k] for k in ("id", "title", "xp", "minutes", "learn", "stage", "skills")},
+           "stage_title": next((s["title"] for s in prac.STAGES if s["id"] == meta["stage"]), ""),
+           "skill_titles": [prac.SKILLS[s]["title"] for s in meta["skills"] if s in prac.SKILLS],
+           "rules": {"questions": quiz.n, "pass_mark": qz.pass_mark(quiz.n), "wait_s": qz.WAIT_S, "hint_share": [1.0, prac.HINT_SHARE[1]],
+                     "late_share": prac.LATE_SHARE},
+           "state": qz.state(run, meta["minutes"], now), "cleared_before": meta["id"] in cleared}
+    if run.get("open"):
+        out["gate"] = gate   # None, or why the questions are held back (see _quiz_gate)
+        out["deadline_iso"] = datetime.fromtimestamp(run["deadline"], _PPH).isoformat(timespec="seconds")
+    if run.get("open") and show_questions and not gate:
+        d = qz.draw(quiz, user, run["attempt"])
+        out["questions"] = qz.public(d)
+        h = run.get("hint")
+        out["hint"] = {"q": h["q"], "removed": list(h["removed"])} if h else None
+    return out
+
+
+@app.route("/api/practice/quiz")
+@auth_required
+def route_practice_quiz():
+    common, prac, qz, user, quiz, err = _quiz_target(need_open=False)
+    if err:
+        return err
+    s = request._session  # type: ignore
+    preview = s["role"] == "admin" and bool(request.args.get("user", ""))
+    now = time.time()
+    st = prac.standings(prac.ledger(), prac.all_metas()).get(user) or prac.empty_standing()
+    run = prac.runs(user).get(quiz.id) or {}
+    out = _quiz_view(prac, qz, quiz, user, run, st["cleared"], now, show_questions=not preview,
+                     gate=None if preview else _quiz_gate(common, user, quiz.id, run, now))
+    out["open"], out["closed_why"] = _practice_open(common)
+    out["preview"] = preview
+    return jsonify(out)
+
+
+@app.route("/api/practice/quiz/start", methods=["POST"])
+@auth_required
+def route_practice_quiz_start():
+    common, prac, qz, user, quiz, err = _quiz_target()
+    if err:
+        return err
+    meta = qz.meta_of(quiz)
+    now = time.time()
+    with prac.locked():
+        runs = prac.runs(user)
+        run = runs.get(quiz.id) or {}
+        e = qz.begin(run, meta["minutes"], now)
+        if e:
+            return jsonify({"error": "Wait %d s: the next attempt draws new questions." % math.ceil(e["retry_s"]), "retry_s": e["retry_s"]}), 429
+        runs[quiz.id] = run
+        prac.save_runs(user, runs)
+    st = prac.standings(prac.ledger(), prac.all_metas()).get(user) or prac.empty_standing()
+    # the questions come with the next GET, once the page has its socket (a fresh start has none yet)
+    return jsonify(_quiz_view(prac, qz, quiz, user, run, st["cleared"], now, gate=_quiz_gate(common, user, quiz.id, run, now)))
+
+
+@app.route("/api/practice/quiz/ticket", methods=["POST"])
+@auth_required
+def route_practice_quiz_ticket():
+    """The gateway ticket of an open quiz attempt: a socket with no shell, which holds the lock and the attempt's
+    heartbeat (server/examroom/gateway.py, quiz session)."""
+    common, prac, qz, user, quiz, err = _quiz_target()
+    if err:
+        return err
+    run = prac.runs(user).get(quiz.id) or {}
+    if not run.get("open"):
+        return jsonify({"error": "Start the quiz first."}), 409
+    try:
+        ticket = common.make_ticket(user, common.PRACTICE_ID, extra={"s": quiz.id, "a": int(run["attempt"]), "k": "quiz"})
+    except (OSError, ValueError) as exc:
+        print("[practice] quiz ticket:", exc, flush=True)
+        return jsonify({"error": "The practice room is not ready (ticket key)."}), 503
+    return jsonify({"ticket": ticket, "url": (common.load_practice() or {}).get("gateway_url", ""), "ttl": common.TICKET_TTL})
+
+
+@app.route("/api/practice/quiz/hint", methods=["POST"])
+@auth_required
+def route_practice_quiz_hint():
+    common, prac, qz, user, quiz, err = _quiz_target()
+    if err:
+        return err
+    try:
+        i = int(_practice_body().get("q"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Which question?"}), 400
+    with prac.locked():
+        runs = prac.runs(user)
+        run = runs.get(quiz.id) or {}
+        if not run.get("open"):
+            return jsonify({"error": "Start the quiz first."}), 409
+        gate = _quiz_gate(common, user, quiz.id, run, time.time())
+        if gate:
+            return jsonify({"error": gate["message"], "gate": gate}), 423
+        res = qz.use_hint(run, qz.draw(quiz, user, run["attempt"]), i, user, quiz.id)
+        if res.get("error"):
+            return jsonify(res), 409
+        runs[quiz.id] = run
+        prac.save_runs(user, runs)
+    return jsonify({"q": i, "removed": res["removed"], "hints": int(run.get("hints", 0))})
+
+
+@app.route("/api/practice/quiz/submit", methods=["POST"])
+@auth_required
+def route_practice_quiz_submit():
+    common, prac, qz, user, quiz, err = _quiz_target()
+    if err:
+        return err
+    body = _practice_body()
+    answers = body.get("answers")
+    if not isinstance(answers, dict) or len(answers) > 50:
+        return jsonify({"error": "Send your answers as {question: choice}."}), 400
+    answers = {str(k)[:40]: str(v)[:4] for k, v in answers.items()}
+    try:
+        leaves = max(0, min(50, int(body.get("leaves", 0))))
+    except (TypeError, ValueError):
+        leaves = 0
+    now = time.time()
+    metas = prac.all_metas()
+    meta = metas[quiz.id]
+    award = None
+    with prac.locked():
+        runs = prac.runs(user)
+        run = runs.get(quiz.id) or {}
+        if not run.get("open"):
+            return jsonify({"error": "No attempt is open: start the quiz again."}), 409
+        gate = _quiz_gate(common, user, quiz.id, run, now)
+        if gate:
+            return jsonify({"error": gate["message"], "gate": gate}), 423
+        res = qz.submit(run, qz.draw(quiz, user, run["attempt"]), answers, now)
+        run["leaves"] = int(run.get("leaves", 0)) + leaves   # the page's own count of times it was left; a signal, not a proof
+        if res.get("passed"):
+            entries = prac.ledger()
+            before = prac.standings(entries, metas).get(user) or prac.empty_standing()
+            first = quiz.id not in before["cleared"]
+            e = qz.clear_entry(user, meta, res, now)
+            prac.append_ledger(e)
+            after = prac.standings(prac.ledger(), metas)[user]
+            old_b = {b["id"] for b in prac.badges_of(before, metas) if b["earned"]}
+            new_b = [b["name"] for b in prac.badges_of(after, metas) if b["earned"] and b["id"] not in old_b]
+            ri0, ri1 = prac.rank_of(before), prac.rank_of(after)
+            gained = after["xp"] - before["xp"]
+            award = {"xp": gained, "total": after["xp"], "reasons": _award_reasons(prac, meta, e, gained, first),
+                     "rank": prac.RANKS[ri1][0], "rank_up": ri1 > ri0, "badges": new_b, "skills": []}
+        runs[quiz.id] = run
+        prac.save_runs(user, runs)
+    return jsonify({"result": res, "award": award, "state": qz.state(run, meta["minutes"], now)})
+
+
+@app.route("/api/practice/nick", methods=["POST"])
+@auth_required
+def route_practice_nick():
+    _common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    user, err = _practice_target()
+    if err:
+        return jsonify({"error": err[0]}), err[1]
+    try:
+        nick = prac.clean_nick(_practice_body().get("nick", ""))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    with prac.locked():
+        profs = prac.profiles()
+        p = profs.get(user) or {}
+        p.update(nick=nick, nick_cleared=False)
+        profs[user] = p
+        prac.save_profiles(profs)
+    return jsonify({"nick": nick})
+
+
+def _practice_casts(common, user, sid):
+    folder = common.room_dir(user, "practice") / sid
+    out = []
+    try:
+        for p in sorted(folder.iterdir()):
+            if common.CAST_RE.match(p.name):
+                out.append({"name": p.name, "size": p.stat().st_size, "start": int(p.name.split(".")[0].split("-")[0])})
+    except OSError:
+        pass
+    return out
+
+
+def _practice_cast_file(common, user, sid, name):
+    if not common.SCENARIO_RE.match(str(sid)) or not common.CAST_RE.match(str(name)):
+        return None
+    try:
+        with open(common.room_dir(user, "practice") / sid / name, "rb") as f:
+            return f.read(25 * 1024 * 1024)
+    except OSError:
+        return None
+
+
+@app.route("/api/practice/replays")
+@auth_required
+def route_practice_replays():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    user, err = _practice_target()
+    if err:
+        return jsonify({"error": err[0]}), err[1]
+    sid = request.args.get("id", "")
+    if not common.SCENARIO_RE.match(sid):
+        return jsonify({"error": "Unknown scenario."}), 404
+    return jsonify({"casts": _practice_casts(common, user, sid), "keep_days": 14})
+
+
+@app.route("/api/practice/cast")
+@auth_required
+def route_practice_cast():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    user, err = _practice_target()
+    if err:
+        return jsonify({"error": err[0]}), err[1]
+    data = _practice_cast_file(common, user, request.args.get("id", ""), request.args.get("name", ""))
+    if data is None:
+        return jsonify({"error": "Unknown recording."}), 404
+    return app.response_class(data, mimetype="application/x-asciicast")
+
+
+# instructor
+
+def _practice_user_arg(value):
+    user = str(value or "")
+    return user if user in _USER_TO_SID else None
+
+
+@app.route("/api/admin/practice/overview")
+@admin_required
+def route_admin_practice_overview():
+    common, prac = _practice_mods()
+    if not prac:
+        return jsonify({"error": "Practice is not installed on this server."}), 503
+    from statistics import median
+    entries, metas, profs = prac.ledger(), prac.metas(), prac.profiles()   # metas: the scenarios
+    allm = prac.all_metas()                                                # scenarios, drills and quizzes
+    st = prac.standings(entries, allm)
+    b = prac.bonus_settings()
+    firsts = {}
+    seen = set()
+    for e in sorted(entries, key=lambda x: x.get("ts", 0)):
+        if e.get("kind") == "clear" and (e.get("user"), e.get("sid")) not in seen:
+            seen.add((e.get("user"), e.get("sid")))
+            firsts.setdefault(e.get("sid"), []).append(e)
+    started = {}
+    stuck = {}          # drill id -> {step number: students whose last check left them on that step}
+    drill_mods = prac.exercises()   # drills and scenarios: any guided exercise has steps
+    students, live = [], []
+    now = time.time()
+    for sid_student, info in sorted(STUDENTS.items()):
+        user = info["user"]
+        runs = prac.runs(user)
+        for s in runs:
+            started[s] = started.get(s, 0) + 1
+        for sid_x, r_x in runs.items():
+            mod_x = drill_mods.get(sid_x)
+            lastrun = r_x.get("last") if isinstance(r_x, dict) else None   # a quiz's "last" is "pass" or "fail"
+            last = lastrun.get("checks") if isinstance(lastrun, dict) else None
+            if mod_x is not None and getattr(mod_x, "steps", None) and last and not r_x.get("cleared"):
+                att = int(r_x.get("attempt", 1))
+                cur_step = prac.step_progress(prac.steps_of(mod_x, prac.values(mod_x, user, att), att), last)["current"] + 1
+                stuck.setdefault(sid_x, {})
+                stuck[sid_x][cur_step] = stuck[sid_x].get(cur_step, 0) + 1
+        s = st.get(user) or prac.empty_standing()
+        p = profs.get(user) or {}
+        students.append({"id": sid_student, "name": info["name"], "user": user, "xp": s["xp"], "week": s["week"],
+                         "rank": prac.RANKS[prac.rank_of(s)][0], "clears": len(s["cleared"]), "supers": len(s["supers"]),
+                         "skills": len(s["skills"]),
+                         "last": s["last"] or None, "nick": p.get("nick", ""), "nick_cleared": bool(p.get("nick_cleared")),
+                         "author": bool(p.get("author")), "bonus": prac.bonus_for(user, entries, allm, b)["amount"],
+                         "corrections": s["corrections"]})
+        pdir = common.room_dir(user, "practice")
+        status = common.read_json(pdir / "status.json", {}) or {}
+        if status.get("scenario"):
+            lock = common.read_lock(user, common.PRACTICE_ID, "practice")
+            connected = bool(status.get("connected")) and now - float(status.get("last_seen", 0)) < 20
+            if connected or now - float(status.get("last_seen", 0)) < 3600:
+                live.append({"id": sid_student, "name": info["name"], "user": user, "scenario": status.get("scenario"),
+                             "attempt": status.get("attempt"), "connected": connected, "last_cmd": status.get("last_cmd", ""),
+                             "last_seen": status.get("last_seen"), "locked": bool(lock.get("locked")),
+                             "lock_left": common.lock_left(lock), "lock_n_today": lock.get("day_n", 0)})
+    scen = []
+    for sid, m in sorted(metas.items(), key=lambda x: (prac.TRACK_IDS.index(x[1]["track"]), prac.LEVELS.index(x[1]["level"]))):
+        f = firsts.get(sid, [])
+        scen.append({"id": sid, "title": m["title"], "track": m["track"], "level": m["level"], "xp": m["xp"],
+                     "minutes": m["minutes"], "private": m["private"], "started": started.get(sid, 0), "cleared": len(f),
+                     "median_min": round(median(e.get("secs", 0) for e in f) / 60, 1) if f else None,
+                     "hints_avg": round(sum(e.get("hints", 0) for e in f) / len(f), 2) if f else None,
+                     "hint3": sum(1 for e in f if e.get("hints", 0) >= 3),
+                     "checks_avg": round(sum(e.get("checks", 0) for e in f) / len(f), 1) if f else None,
+                     "skills": m.get("skills", []), "guided": hasattr(prac.catalog()[sid], "steps"),
+                     "stuck": {str(k): v for k, v in sorted((stuck.get(sid) or {}).items())}})
+    road = []
+    for sid, m in allm.items():
+        if not m.get("stage"):
+            continue
+        f = firsts.get(sid, [])
+        road.append({"id": sid, "title": m["title"], "stage": m["stage"], "kind": m["level"], "xp": m["xp"], "minutes": m["minutes"],
+                     "started": started.get(sid, 0), "cleared": len(f),
+                     "median_min": round(median(e.get("secs", 0) for e in f) / 60, 1) if f and m["level"] != "quiz" else None,
+                     "hints_avg": round(sum(e.get("hints", 0) for e in f) / len(f), 2) if f else None,
+                     "checks_avg": round(sum(e.get("checks", 0) for e in f) / len(f), 1) if f and m["level"] != "quiz" else None,
+                     "stuck": {str(k): v for k, v in sorted((stuck.get(sid) or {}).items())}})
+    cfg = common.load_practice()
+    ping = prac.runner_call({"op": "ping"}, timeout=3)
+    return jsonify({"scenarios": scen, "students": students, "live": live, "errors": prac.catalog_errors(),
+                    "roadmap": road, "stages": [{"id": s["id"], "title": s["title"], "badge": s["badge"]} for s in prac.STAGES],
+                    "skills_total": len(prac.SKILLS),
+                    "settings": ({k: common._get(cfg, k) for k in common.PRACTICE_SETTINGS} if cfg else None),
+                    "settings_bounds": {k: list(v[1]) for k, v in common.PRACTICE_SETTINGS.items()},
+                    "installed": bool(cfg), "exam_running": common.exam_blocks_practice(),
+                    "runner_ok": not ping.get("unavailable"), "bonus": b, "ranks": [r[0] for r in prac.RANKS],
+                    "corrections": [e for e in entries if e.get("kind") == "correction"][-30:], "now": now})
+
+
+@app.route("/api/admin/practice/xp", methods=["POST"])
+@admin_required
+def route_admin_practice_xp():
+    _common, prac = _practice_mods()
+    body = _practice_body()
+    user = _practice_user_arg(body.get("user"))
+    xp, reason = body.get("xp"), str(body.get("reason", "")).strip()
+    if not user:
+        return jsonify({"error": "Unknown student."}), 404
+    if not isinstance(xp, int) or isinstance(xp, bool) or xp == 0 or abs(xp) > 2000:
+        return jsonify({"error": "XP must be a whole number from -2000 to 2000, not 0."}), 400
+    if not 3 <= len(reason) <= 120 or "\n" in reason:
+        return jsonify({"error": "Give a reason (3 to 120 characters)."}), 400
+    with prac.locked():
+        e = prac.append_ledger({"user": user, "kind": "correction", "xp": xp, "reason": reason,
+                                "by": request._session["username"]})  # type: ignore
+    return jsonify({"ok": True, "entry": e})
+
+
+@app.route("/api/admin/practice/nick-clear", methods=["POST"])
+@admin_required
+def route_admin_practice_nick_clear():
+    _common, prac = _practice_mods()
+    user = _practice_user_arg(_practice_body().get("user"))
+    if not user:
+        return jsonify({"error": "Unknown student."}), 404
+    with prac.locked():
+        profs = prac.profiles()
+        p = profs.get(user) or {}
+        p.update(nick="", nick_cleared=True)
+        profs[user] = p
+        prac.save_profiles(profs)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/practice/author", methods=["POST"])
+@admin_required
+def route_admin_practice_author():
+    _common, prac = _practice_mods()
+    body = _practice_body()
+    user = _practice_user_arg(body.get("user"))
+    if not user or not isinstance(body.get("on"), bool):
+        return jsonify({"error": "Give a student and on: true or false."}), 400
+    with prac.locked():
+        profs = prac.profiles()
+        p = profs.get(user) or {}
+        p["author"] = body["on"]
+        profs[user] = p
+        prac.save_profiles(profs)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/practice/settings", methods=["POST"])
+@admin_required
+def route_admin_practice_settings():
+    common, prac = _practice_mods()
+    try:
+        changes = common.clean_settings(_practice_body().get("changes"), False, common.PRACTICE_SETTINGS)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    with prac.locked():
+        cur = prac.read_json(prac.var() / "settings.json", {})
+        cur.update(changes)
+        if int(cur.get("lock.wait_max_s", 300)) < int(cur.get("lock.wait_s", 30)):
+            return jsonify({"error": "The longest wait must not be shorter than the first wait."}), 400
+        prac.write_json(prac.var() / "settings.json", cur)
+    return jsonify({"ok": True, "settings": cur})
+
+
+@app.route("/api/admin/practice/bonus", methods=["POST"])
+@admin_required
+def route_admin_practice_bonus():
+    _common, prac = _practice_mods()
+    body = _practice_body()
+    per = body.get("per_rank") if isinstance(body.get("per_rank"), dict) else {}
+    clean = {}
+    for name, amount in per.items():
+        if name not in prac.RANK_NAMES:
+            return jsonify({"error": "Unknown rank %s." % str(name)[:30]}), 400
+        if amount in (None, ""):
+            continue
+        if not isinstance(amount, (int, float)) or isinstance(amount, bool) or not 0 <= amount <= 10:
+            return jsonify({"error": "A bonus is a number from 0 to 10."}), 400
+        clean[name] = round(float(amount), 2)
+    cap = body.get("cap", 0)
+    if not isinstance(cap, (int, float)) or isinstance(cap, bool) or not 0 <= cap <= 10:
+        return jsonify({"error": "The cap is a number from 0 to 10."}), 400
+    read_at = str(body.get("read_at") or "")
+    if read_at and not re.match(r"^20\d\d-\d\d-\d\d$", read_at):
+        return jsonify({"error": "The date is YYYY-MM-DD, or empty for now."}), 400
+    with prac.locked():
+        b = prac.bonus_settings()
+        b.update(per_rank=clean, cap=round(float(cap), 2), read_at=read_at)
+        prac.save_bonus(b)
+    return jsonify({"ok": True, "bonus": b})
+
+
+@app.route("/api/admin/practice/bonus/manual", methods=["POST"])
+@admin_required
+def route_admin_practice_bonus_manual():
+    _common, prac = _practice_mods()
+    body = _practice_body()
+    with prac.locked():
+        b = prac.bonus_settings()
+        if isinstance(body.get("remove"), int) and not isinstance(body.get("remove"), bool):
+            i = body["remove"]
+            if not 0 <= i < len(b["manual"]):
+                return jsonify({"error": "No such manual bonus."}), 404
+            b["manual"].pop(i)
+        else:
+            user = _practice_user_arg(body.get("user"))
+            amount, reason = body.get("amount"), str(body.get("reason", "")).strip()
+            if not user:
+                return jsonify({"error": "Unknown student."}), 404
+            if not isinstance(amount, (int, float)) or isinstance(amount, bool) or not -10 <= amount <= 10 or amount == 0:
+                return jsonify({"error": "The amount is a number from -10 to 10, not 0."}), 400
+            if not 3 <= len(reason) <= 120 or "\n" in reason:
+                return jsonify({"error": "Give a reason (3 to 120 characters)."}), 400
+            b["manual"].append({"user": user, "amount": round(float(amount), 2), "reason": reason,
+                                "by": request._session["username"], "at": time.time()})  # type: ignore
+        prac.save_bonus(b)
+    return jsonify({"ok": True, "bonus": b})
+
+
+@app.route("/api/admin/practice/bonus/publish", methods=["POST"])
+@admin_required
+def route_admin_practice_bonus_publish():
+    _common, prac = _practice_mods()
+    on = _practice_body().get("published")
+    if not isinstance(on, bool):
+        return jsonify({"error": "published: true or false."}), 400
+    with prac.locked():
+        b = prac.bonus_settings()
+        b.update(published=on, published_at=time.time() if on else None)
+        prac.save_bonus(b)
+    return jsonify({"ok": True, "bonus": b})
+
+
+@app.route("/api/admin/practice/export.csv")
+@admin_required
+def route_admin_practice_export():
+    import csv
+    import io
+    _common, prac = _practice_mods()
+    entries, metas, profs = prac.ledger(), prac.all_metas(), prac.profiles()
+    st = prac.standings(entries, metas)
+    b = prac.bonus_settings()
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["id", "name", "user", "nickname", "xp", "xp_this_week", "rank", "clears", "super_clears", "bonus",
+                "bonus_rank", "bonus_published"])
+    for sid_student, info in sorted(STUDENTS.items()):
+        s = st.get(info["user"]) or prac.empty_standing()
+        bon = prac.bonus_for(info["user"], entries, metas, b)
+        w.writerow([sid_student, info["name"], info["user"], (profs.get(info["user"]) or {}).get("nick", ""), s["xp"], s["week"],
+                    prac.RANKS[prac.rank_of(s)][0], len(s["cleared"]), len(s["supers"]), bon["amount"], bon["rank"],
+                    "yes" if b.get("published") else "no"])
+    resp = app.response_class(out.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = 'attachment; filename="practice-xp.csv"'
+    return resp
+
+
+@app.route("/api/admin/practice/unlock", methods=["POST"])
+@admin_required
+def route_admin_practice_unlock():
+    common, _prac = _practice_mods()
+    user = _practice_user_arg(_practice_body().get("user"))
+    if not user:
+        return jsonify({"error": "Unknown student."}), 404
+    try:
+        common.request_unlock(user, request._session["username"], room="practice")  # type: ignore
+    except OSError:
+        return jsonify({"error": "The control folder is missing; run examctl install again."}), 500
+    return jsonify({"sent": 1})
+
+
+@app.route("/api/admin/practice/replay")
+@admin_required
+def route_admin_practice_replay():
+    common, _prac = _practice_mods()
+    user = _practice_user_arg(request.args.get("user"))
+    sid = request.args.get("id", "")
+    if not user or not common.SCENARIO_RE.match(sid):
+        return jsonify({"error": "Unknown student or scenario."}), 404
+    events = []
+    path = common.room_dir(user, "practice") / "events.jsonl"
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(e, dict) and e.get("s") == sid:
+                    events.append(e)
+    except OSError:
+        pass
+    sid_student = _USER_TO_SID[user]
+    return jsonify({"user": user, "id": sid_student, "name": STUDENTS[sid_student]["name"], "scenario": sid,
+                    "casts": _practice_casts(common, user, sid), "events": events[-2000:]})
+
+
+@app.route("/api/admin/practice/cast")
+@admin_required
+def route_admin_practice_cast():
+    common, _prac = _practice_mods()
+    user = _practice_user_arg(request.args.get("user"))
+    data = _practice_cast_file(common, user, request.args.get("id", ""), request.args.get("name", "")) if user else None
+    if data is None:
+        return jsonify({"error": "Unknown recording."}), 404
+    return app.response_class(data, mimetype="application/x-asciicast")
 
 
 # ── Main ───────────────────────────────────────────────────────

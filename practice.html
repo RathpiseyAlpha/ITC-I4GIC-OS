@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice Linux Commands · OS@itc</title>
+<script>try{var t=localStorage.getItem('os-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<link rel="stylesheet" href="app/vendor/xterm/xterm.css">
+<link rel="stylesheet" href="app/exam/exam.css?v=11">
+<link rel="stylesheet" href="app/practice/practice.css?v=6">
+</head>
+<body class="scan">
+
+<!-- Login and messages: one card -->
+<main id="screen" class="center">
+  <section class="win card-screen" aria-live="polite">
+    <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="screen-title">bash — practice</span></div>
+    <div class="win-body" id="screen-body"><p class="muted">Loading…</p></div>
+  </section>
+</main>
+
+<!-- The map, the profile and the leaderboard -->
+<div id="home" class="ph hidden">
+  <header class="ph-head">
+    <p class="prompt"><span class="p-user" id="h-user">student</span>@<span class="p-host">itc-os</span>:<span class="p-path">~/practice</span>$ <span class="muted">practice --map</span></p>
+    <span class="grow"></span>
+    <a class="btn btn-tool" href="index.html#browse" id="h-portal">← menu</a>
+  </header>
+  <p class="note-off hidden" id="h-preview" role="status"></p>
+  <p class="note-off hidden" id="h-closed" role="status"></p>
+  <div class="ph-grid">
+    <div class="ph-main">
+      <div class="tabs-row" role="tablist" aria-label="Practice">
+        <button class="chip" type="button" role="tab" id="tab-map" aria-controls="map-win" aria-selected="true" data-tab="map">Scenarios</button>
+        <button class="chip" type="button" role="tab" id="tab-road" aria-controls="road-win" aria-selected="false" data-tab="road">Roadmap <span class="muted" id="road-count"></span></button>
+      </div>
+      <section class="win" id="map-win" role="tabpanel" aria-labelledby="tab-map">
+        <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="map-h">map — Practice Linux Commands</span></div>
+        <div class="win-body">
+          <div class="tbl-wrap map-wrap"><table class="tbl map" id="map"></table></div>
+          <p class="comment" id="map-note"># every scenario gives you your own values. A track's Super challenge opens once its Hard scenario is cleared.</p>
+        </div>
+      </section>
+      <section class="win hidden" id="road-win" role="tabpanel" aria-labelledby="tab-road">
+        <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title">roadmap — Linux skills</span></div>
+        <div class="win-body" id="road"></div>
+      </section>
+    </div>
+    <aside class="ph-side">
+      <section class="win" aria-labelledby="pf-h">
+        <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="pf-h">whoami</span></div>
+        <div class="win-body profile" id="profile"></div>
+      </section>
+      <section class="win" aria-labelledby="bd-h">
+        <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="bd-h">badges</span></div>
+        <div class="win-body"><div class="badges" id="badges"></div></div>
+      </section>
+      <section class="win" aria-labelledby="lb-h">
+        <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="lb-h">leaderboard</span></div>
+        <div class="win-body stack">
+          <div class="chips" role="group" aria-label="Leaderboard period"><button class="chip" type="button" data-lb="week" aria-pressed="true">This week</button><button class="chip" type="button" data-lb="all" aria-pressed="false">All time</button></div>
+          <div class="tbl-wrap"><table class="tbl"><thead><tr><th class="num">#</th><th>Student</th><th>Rank</th><th class="num">XP</th></tr></thead><tbody id="lb"></tbody></table></div>
+          <p class="comment">Student ID and nickname only. The top 10 and your own place.</p>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<!-- Before a scenario: what it is, and Start -->
+<main id="intro" class="center hidden">
+  <section class="win card-screen wide">
+    <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="in-title">scenario</span></div>
+    <div class="win-body" id="in-body"></div>
+  </section>
+</main>
+
+<!-- The scenario: task and shell, like the exam room -->
+<div id="room" class="exam practice-room hidden">
+  <div class="strip" role="status">
+    <span class="who" id="s-who"></span>
+    <span class="time" id="s-time">--:--</span>
+    <span class="muted" id="s-note">left</span>
+    <span class="notice" id="s-notice"></span>
+    <span class="grow"></span>
+    <span class="conn" id="s-conn"></span>
+    <button class="btn btn-tool drawer-btn" id="paper-btn" type="button" aria-expanded="false">task</button>
+    <span class="rec" title="This session is recorded; you can watch your replay for 14 days"><span class="rec-dot"></span>REC</span>
+  </div>
+  <div class="cols">
+    <section class="win paper" id="paper" aria-label="The task">
+      <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="paper-title">task</span></div>
+      <div class="win-body" id="paper-body"></div>
+    </section>
+    <section class="win termwin" aria-label="Terminal">
+      <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="term-title">bash</span></div>
+      <div id="term"></div>
+    </section>
+  </div>
+  <div class="actions" role="toolbar" aria-label="Scenario">
+    <button class="btn btn-fill" type="button" id="a-check">Check</button>
+    <button class="btn btn-tool" type="button" id="a-hint">Hint</button>
+    <button class="btn btn-tool" type="button" id="a-reset">Reset</button>
+    <button class="btn btn-go hidden" type="button" id="a-remix">Remix</button>
+    <span class="muted" id="a-status" aria-live="polite"></span>
+    <span class="grow"></span>
+    <button class="btn btn-tool" type="button" id="a-leave">← map</button>
+  </div>
+</div>
+
+<!-- A quiz: questions and choices, no shell -->
+<div id="quiz" class="exam practice-room quiz-room hidden">
+  <div class="strip" role="status">
+    <span class="who" id="q-who"></span>
+    <span class="time" id="q-time">--:--</span>
+    <span class="muted" id="q-note">left</span>
+    <span class="notice" id="q-notice"></span>
+    <span class="grow"></span>
+    <span class="muted" id="q-count"></span>
+  </div>
+  <div class="quiz-main">
+    <section class="win quiz-card" aria-label="Question">
+      <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="q-title">quiz</span></div>
+      <div class="win-body" id="q-body"></div>
+    </section>
+  </div>
+  <div class="actions" role="toolbar" aria-label="Quiz">
+    <button class="btn btn-tool" type="button" id="q-prev">← Previous</button>
+    <button class="btn btn-fill" type="button" id="q-next">Next →</button>
+    <button class="btn btn-tool" type="button" id="q-hint">Hint</button>
+    <button class="btn btn-go" type="button" id="q-submit">Submit answers</button>
+    <span class="muted" id="q-status" aria-live="polite"></span>
+    <span class="grow"></span>
+    <button class="btn btn-tool" type="button" id="q-leave">← roadmap</button>
+  </div>
+</div>
+
+<!-- A quiz left fullscreen: the questions are hidden until it is back -->
+<div id="qfs-dialog" class="scrim cover hidden">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="qfs-h" aria-describedby="qfs-p">
+    <h2 id="qfs-h"><span class="ico" aria-hidden="true">⚠️</span>Quiz locked: wait, then continue</h2>
+    <p id="qfs-p"><span id="qfs-why">You left fullscreen.</span> The questions are held back by the server until the countdown ends and you are back in fullscreen. Each time you leave again today, the wait doubles, up to 5 minutes (the practice room's wait). Your answers are kept, and the quiz countdown keeps running.</p>
+    <div class="lock-form">
+      <p class="lock-count" id="qfs-count" role="timer" aria-live="off">…</p>
+      <button class="btn btn-fill" id="qfs-back" type="button" disabled>Continue in fullscreen</button>
+      <p class="err" id="qfs-err" role="alert"></p>
+    </div>
+  </div>
+</div>
+
+<div class="center phone-only"><section class="win card-screen"><div class="win-body">
+  <p class="title">Use a computer</p><p>Practice needs a screen at least 700 pixels wide and a keyboard.</p>
+</div></section></div>
+
+<!-- Back to fullscreen -->
+<div id="fs-dialog" class="scrim hidden">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="fs-h">
+    <h2 id="fs-h"><span class="ico" aria-hidden="true">⚠️</span>You left fullscreen</h2>
+    <p>Practice runs in fullscreen, like the exam. Go back to it to continue.</p>
+    <button class="btn btn-fill" id="fs-back" type="button">Return to fullscreen</button>
+  </div>
+</div>
+
+<!-- The wait (left fullscreen, opened a side panel, started twice) -->
+<div id="lock-dialog" class="scrim cover hidden">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="lk-h" aria-describedby="lk-p">
+    <h2 id="lk-h"><span class="ico" aria-hidden="true">⚠️</span>Wait, then continue</h2>
+    <p id="lk-p"><span id="lk-why">You left fullscreen.</span> The task and the terminal are hidden until the countdown ends. Each time you leave again today, the wait doubles, up to 5 minutes. Your shell and files are kept, and the scenario's countdown keeps running.</p>
+    <div class="lock-form">
+      <p class="lock-count" id="lk-count" role="timer" aria-live="off">0:00</p>
+      <button class="btn btn-fill" type="button" id="lk-go" disabled>Continue in fullscreen</button>
+      <p class="err" id="lk-werr" role="alert"></p>
+    </div>
+  </div>
+</div>
+
+<div id="panel-cover" class="scrim cover hidden">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="pc-h" aria-describedby="pc-p">
+    <h2 id="pc-h"><span class="ico" aria-hidden="true">⚠️</span>Close the side panel to continue</h2>
+    <p id="pc-p">Something is open beside the page: a side panel such as Gemini or Copilot, or the developer tools. The task and the terminal are hidden until you close it.</p>
+  </div>
+</div>
+
+<div id="taken-dialog" class="scrim hidden">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="tk-h">
+    <h2 id="tk-h"><span class="ico" aria-hidden="true">⚠️</span>Practice is open somewhere else</h2>
+    <p>Your practice terminal was opened in another tab or window. Only one can be connected.</p>
+    <button class="btn btn-fill" id="tk-back" type="button">Use this window</button>
+  </div>
+</div>
+
+<div id="net-dialog" class="scrim hidden">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="nd-h" aria-describedby="nd-p">
+    <h2 id="nd-h"><span class="ico" aria-hidden="true">⚠️</span>Connection lost</h2>
+    <p id="nd-p">Wait: the page reconnects by itself. Do not reload the page: that starts a wait. Your shell and files are safe on the server.</p>
+    <p class="muted" id="nd-status" aria-live="polite">Trying again…</p>
+    <button class="btn btn-tool" id="nd-try" type="button">Try now</button>
+  </div>
+</div>
+
+<!-- Confirm a hint, a reset, leaving -->
+<div id="ask" class="scrim hidden">
+  <div class="dialog calm" role="alertdialog" aria-modal="true" aria-labelledby="ask-h" aria-describedby="ask-p">
+    <h2 id="ask-h"></h2>
+    <p id="ask-p"></p>
+    <div class="row"><button class="btn btn-fill" type="button" id="ask-yes"></button><button class="btn btn-tool" type="button" id="ask-no">Cancel</button></div>
+  </div>
+</div>
+
+<!-- Cleared -->
+<div id="clear-dialog" class="scrim hidden">
+  <div class="dialog win-dialog" role="dialog" aria-modal="true" aria-labelledby="cl-h">
+    <h2 id="cl-h">Cleared</h2>
+    <p class="xp-big" id="cl-xp"></p>
+    <ul class="rules" id="cl-why"></ul>
+    <div id="cl-new"></div>
+    <div class="row"><button class="btn btn-fill" type="button" id="cl-map">Back to the map</button><button class="btn btn-go" type="button" id="cl-remix">Remix</button><button class="btn btn-tool" type="button" id="cl-replay">Watch my replay</button><button class="btn btn-tool" type="button" id="cl-stay">Stay here</button></div>
+  </div>
+</div>
+
+<!-- My replay -->
+<div id="replay" class="scrim hidden">
+  <div class="dialog replay-dialog" role="dialog" aria-modal="true" aria-labelledby="rp-h">
+    <h2 id="rp-h">My replay</h2>
+    <div class="row"><select class="input small" id="rp-pick" aria-label="Recording"></select><button class="btn btn-fill" type="button" id="rp-play">▶ Play</button>
+      <span class="chips" id="rp-speeds"><button class="chip" type="button" data-s="1" aria-pressed="false">1×</button><button class="chip" type="button" data-s="4" aria-pressed="true">4×</button><button class="chip" type="button" data-s="16" aria-pressed="false">16×</button></span>
+      <span class="grow"></span><button class="btn btn-tool" type="button" id="rp-close">Close</button></div>
+    <div id="rp-term"></div>
+    <p class="comment" id="rp-note"># recordings are kept 14 days.</p>
+  </div>
+</div>
+
+<script src="app/js/env.js"></script>
+<script src="app/js/config.js?v=22"></script>
+<script src="app/vendor/xterm/xterm.js"></script>
+<script src="app/vendor/xterm/addon-fit.js"></script>
+<script src="app/practice/practice.js?v=7"></script>
+</body>
+</html>

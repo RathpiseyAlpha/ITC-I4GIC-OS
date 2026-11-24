@@ -1,0 +1,194 @@
+/* Practice Linux Commands: the exam room's look (exam.css) plus the map, ranks, badges and the scenario bar.
+   Neon colours and glow as in the portal; ranks and badges are drawn glyphs, not emoji. */
+
+:root, [data-theme="dark"] { --magenta: #d2a8ff; --wash-magenta: rgba(210, 168, 255, 0.10); }
+[data-theme="light"] { --magenta: #8250df; --wash-magenta: rgba(130, 80, 223, 0.08); }
+:root { --lv-easy: var(--green); --lv-medium: var(--cyan); --lv-hard: var(--yellow); --lv-super: var(--magenta); }
+
+.grow { flex: 1; }
+
+/* home */
+.ph { position: relative; z-index: 1; padding: 16px; display: grid; gap: 14px; max-width: 1500px; margin: 0 auto; }
+.ph-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ph-head .prompt { margin: 0; }
+.ph-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 14px; align-items: start; }
+.ph-side { display: grid; gap: 14px; }
+@media (max-width: 1150px) { .ph-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* the map: one row per track, one column per level */
+.map-wrap { border: 0; background: none; }
+.map th { background: none; color: var(--gray); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; font-size: 13px; }
+.map th.lv-easy { color: var(--lv-easy); } .map th.lv-medium { color: var(--lv-medium); }
+.map th.lv-hard { color: var(--lv-hard); } .map th.lv-super { color: var(--lv-super); }
+.map td { border-top: 1px dashed var(--border); padding: 8px 6px; }
+.map td.track { min-width: 12em; }
+.map .track b { display: block; color: var(--white); font-weight: 600; }
+.map .track span { color: var(--comment); font-size: 13px; }
+.tile { width: 100%; min-width: 9.5em; min-height: 64px; display: grid; gap: 2px; align-content: start; text-align: left; padding: 8px 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--r-card); background: var(--terminal-bg); color: var(--white);
+  cursor: pointer; font: inherit; font-size: 14px; transition-property: border-color, box-shadow, background-color; transition-duration: 150ms; }
+.tile .t-name { font-weight: 600; line-height: 1.3; }
+.tile .t-meta { color: var(--gray); font-size: 13px; }
+.tile .t-state { font-size: 13px; }
+@media (hover: hover) { .tile:hover:not(:disabled) { border-color: var(--cyan); box-shadow: 0 0 12px rgba(0, 212, 255, 0.18); } }
+.tile:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.tile.st-progress { border-color: var(--yellow); }
+.tile.st-progress .t-state { color: var(--yellow); }
+.tile.st-cleared, .tile.st-cleared_nohint { border-color: var(--green-dim); background: var(--wash-green); }
+.tile.st-cleared .t-state, .tile.st-cleared_nohint .t-state { color: var(--green); }
+.tile.st-cleared_nohint { box-shadow: 0 0 14px rgba(0, 255, 65, 0.22); }
+.tile:disabled { cursor: not-allowed; opacity: 0.55; border-style: dashed; }
+.tile.soon { opacity: 0.35; border-style: dashed; cursor: default; }
+.lvl { display: inline-block; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
+.lvl.easy { color: var(--lv-easy); } .lvl.medium { color: var(--lv-medium); } .lvl.hard { color: var(--lv-hard); } .lvl.super { color: var(--lv-super); }
+
+/* profile */
+.profile { display: grid; gap: 12px; }
+.rank-row { display: flex; gap: 14px; align-items: center; }
+.rank-row .rk-name { font-size: 22px; font-weight: 600; text-shadow: var(--glow-text); }
+.rank-row .rk-sub { color: var(--gray); font-size: 13px; }
+.glyph { flex: none; }
+.glyph text { font-family: var(--font-mono); font-weight: 700; }
+.xpbar { height: 10px; border: 1px solid var(--border-strong); border-radius: 5px; background: var(--raised); overflow: hidden; }
+.xpbar i { display: block; height: 100%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+.kv { display: flex; gap: 16px; flex-wrap: wrap; color: var(--gray); font-size: 13px; }
+.kv b { color: var(--white); font-weight: 600; font-variant-numeric: tabular-nums; }
+.nick-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.nick-form .input { flex: 1; min-width: 10em; min-height: 34px; font-size: 15px; padding: 4px 8px; }
+.bonus-line { padding: 8px 12px; border: 1px solid var(--green-dim); border-radius: var(--r-card); background: var(--wash-green); font-family: var(--font-sans); }
+
+/* badges */
+.badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
+.badge-g { display: grid; justify-items: center; gap: 4px; text-align: center; font-size: 12px; color: var(--gray); }
+.badge-g.on { color: var(--white); }
+.badge-g .b-name { line-height: 1.25; }
+
+/* leaderboard */
+.tbl tr.me td { background: var(--wash-cyan); }
+.medal { font-style: normal; }
+
+/* the scenario room */
+.practice-room { grid-template-rows: var(--strip) minmax(0, 1fr) auto; }
+.actions { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--raised); border: 1px solid var(--border); border-radius: var(--r-window); flex-wrap: wrap; }
+.actions #a-status { font-family: var(--font-sans); }
+.brief p, .brief li { margin: 6px 0; }
+.brief ol { padding-left: 1.4em; list-style: decimal; }
+.brief ol li { display: list-item; }
+.brief pre { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-control); padding: 8px 10px; overflow: auto; font-size: 14px; }
+.sec { color: var(--yellow); text-transform: uppercase; letter-spacing: 1px; font-size: 13px; margin: 20px 0 8px; font-family: var(--font-mono); }
+.hintbox { margin: 8px 0; padding: 8px 12px; border-left: 3px solid var(--cyan); background: var(--wash-cyan); border-radius: 0 var(--r-card) var(--r-card) 0; }
+.hintbox b { font-family: var(--font-mono); color: var(--cyan); font-size: 13px; margin-right: 6px; }
+.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-family: var(--font-sans); }
+.checks li { display: grid; grid-template-columns: 1.6em minmax(0, 1fr); gap: 4px; }
+.checks .why { grid-column: 2; color: var(--yellow); font-size: 14px; }
+.checks .ok { color: var(--green); } .checks .no { color: var(--red); }
+.learn { color: var(--comment); font-style: italic; }
+.paper h1 .lvl { margin-left: 8px; vertical-align: middle; }
+
+/* intro card */
+.card-screen.wide { width: min(760px, 100%); }
+.facts { display: flex; gap: 22px; flex-wrap: wrap; margin: 6px 0 12px; }
+.facts div { display: grid; }
+.facts .k { color: var(--gray); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+.facts .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* dialogs */
+.dialog.calm { border-color: var(--cyan); box-shadow: 0 0 24px rgba(0, 212, 255, 0.15); }
+.dialog.calm h2 { color: var(--cyan); }
+.win-dialog { border-color: var(--green); box-shadow: 0 0 32px rgba(0, 255, 65, 0.25); width: min(560px, 100%); }
+.win-dialog h2 { color: var(--green); text-shadow: var(--glow-text); font-size: 22px; }
+.xp-big { font-size: 34px; font-weight: 700; color: var(--green); text-shadow: var(--glow-text); margin: 4px 0 8px; font-variant-numeric: tabular-nums; }
+.new-thing { display: flex; gap: 12px; align-items: center; margin: 8px 0; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: var(--r-card); }
+.replay-dialog { width: min(1000px, 100%); border-color: var(--cyan); }
+.replay-dialog h2 { color: var(--cyan); }
+#rp-term { height: 460px; margin-top: 10px; background: var(--term-bg); border: 1px solid var(--border); border-radius: var(--r-window); padding: 6px; overflow: hidden; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .win-dialog { animation: pop 300ms ease-out both; }
+  @keyframes pop { from { opacity: 0; transform: translateY(12px); filter: blur(4px); } }
+}
+
+/* the map's header stays in view while the page scrolls */
+.ph-head { position: sticky; top: 0; z-index: 40; padding: 8px 0; margin: -8px 0; background: var(--bg); }
+
+/* tabs: Scenarios | Roadmap */
+.ph-main { display: grid; gap: 12px; min-width: 0; }
+.tabs-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tabs-row .chip { min-height: 40px; font-size: 15px; }
+
+/* the roadmap: six stages, each with its skills and tiles */
+:root { --lv-drill: var(--cyan); --lv-quiz: var(--yellow); }
+.lvl.drill { color: var(--lv-drill); }
+.road-top { display: grid; gap: 8px; margin-bottom: 14px; }
+.road-top b { font-size: 20px; color: var(--white); font-variant-numeric: tabular-nums; }
+.stage { display: grid; gap: 10px; padding: 12px 14px; margin: 12px 0; border: 1px solid var(--border-strong); border-radius: var(--r-window); background: var(--terminal-bg); }
+.stage.earned { border-color: var(--green-dim); box-shadow: 0 0 14px rgba(0, 255, 65, 0.14); }
+.stage-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.stage-n { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--cyan); border-radius: 50%; color: var(--cyan); font-weight: 700; flex: none; }
+.stage-head b { display: block; color: var(--white); font-size: 17px; }
+.stage-badge { color: var(--comment); font-size: 13px; }
+.stage.earned .stage-badge { color: var(--green); }
+.stage-count { margin-left: auto; color: var(--gray); font-size: 14px; font-variant-numeric: tabular-nums; }
+.xpbar.slim { height: 6px; }
+.skill-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.skill { font: inherit; font-size: 13px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: none; color: var(--gray); cursor: pointer; min-height: 28px; }
+.skill.have { color: var(--green); border-color: var(--green-dim); background: var(--wash-green); }
+.skill[aria-pressed="true"] { outline: 2px solid var(--cyan); outline-offset: 1px; }
+@media (hover: hover) { .skill:hover { border-color: var(--cyan); } }
+.skill:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+span.skill { cursor: default; display: inline-block; margin: 2px 0; }
+.skill-ex { padding: 8px 12px; border-left: 3px solid var(--cyan); background: var(--wash-cyan); border-radius: 0 var(--r-card) var(--r-card) 0; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.skill-ex p { margin: 0; flex-basis: 100%; }
+.ex-link { font-size: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5em, 1fr)); gap: 8px; }
+.tile.quiz { border-style: dashed; border-color: var(--yellow); }
+.tile.quiz.st-cleared { border-style: solid; border-color: var(--green-dim); }
+
+/* steps of a guided exercise, in the task panel */
+.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; font-family: var(--font-sans); }
+.paper .steps li.step { display: block; grid-template-columns: none; margin: 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r-card); }
+.paper .steps li.step.st-current { border-color: var(--cyan); background: var(--wash-cyan); }
+.paper .steps li.step.st-done { border-color: var(--green-dim); opacity: 0.8; }
+.paper .steps li.step.st-todo { border-style: dashed; opacity: 0.7; }
+.s-head { display: flex; gap: 8px; align-items: center; }
+.s-mark { width: 1.4em; text-align: center; color: var(--cyan); }
+.s-learn { margin: 6px 0; color: var(--comment); font-style: italic; }
+.s-task { margin: 6px 0; }
+.s-later { margin: 4px 0 0; font-size: 14px; }
+
+/* a quiz */
+.quiz-room { grid-template-rows: var(--strip) minmax(0, 1fr) auto; }
+.quiz-main { display: grid; place-items: start center; overflow: auto; padding: 4px; }
+.quiz-card { width: min(880px, 100%); }
+.q-dots { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.q-dot { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border-strong); background: none; color: var(--gray); font: inherit; cursor: pointer; font-variant-numeric: tabular-nums; }
+.q-dot.done { border-color: var(--green-dim); color: var(--green); background: var(--wash-green); }
+.q-dot.on { outline: 2px solid var(--cyan); outline-offset: 1px; color: var(--white); }
+.q-n { color: var(--yellow); text-transform: uppercase; letter-spacing: 1px; font-size: 13px; margin: 10px 0 4px; font-family: var(--font-mono); }
+.q-text { font-size: 22px; line-height: 1.35; margin: 0 0 14px; font-weight: 600; font-family: var(--font-sans); }
+.q-text code, .c-text code { font-family: var(--font-mono); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; }
+.choices { display: grid; gap: 10px; }
+.choice { display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 12px 14px; min-height: 52px; font: inherit; font-size: 17px; color: var(--white);
+  border: 1px solid var(--border-strong); border-radius: var(--r-card); background: var(--terminal-bg); cursor: pointer; font-family: var(--font-sans);
+  transition-property: border-color, box-shadow, background-color; transition-duration: 150ms; }
+.choice .c-id { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border-strong); border-radius: 6px; font-family: var(--font-mono); font-size: 14px; color: var(--gray); }
+.choice .c-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+@media (hover: hover) { .choice:hover:not(:disabled) { border-color: var(--cyan); box-shadow: 0 0 12px rgba(0, 212, 255, 0.18); } }
+.choice:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.choice.sel { border-color: var(--green); background: var(--wash-green); box-shadow: 0 0 12px rgba(0, 255, 65, 0.2); }
+.choice.sel .c-id { border-color: var(--green); color: var(--green); }
+.choice.gone { opacity: 0.4; text-decoration: line-through; cursor: not-allowed; border-style: dashed; }
+.choice .c-note { color: var(--yellow); font-size: 13px; text-decoration: none; display: inline-block; }
+.q-result { display: grid; gap: 8px; }
+.q-score { font-size: 44px; font-weight: 700; margin: 0; font-variant-numeric: tabular-nums; }
+.q-result.pass .q-score, .q-result.pass h2 { color: var(--green); text-shadow: var(--glow-text); }
+.q-result.fail .q-score, .q-result.fail h2 { color: var(--yellow); }
+.q-result h2 { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .choice, .tile { transition: none; } }
+
+/* the board: a stage heading inside the roadmap table */
+.stage-row td { background: var(--raised); color: var(--white); border-top: 1px solid var(--border-strong); }
+.tbl .btn-link { white-space: nowrap; }
+
+/* the skills a scenario trains, small, under its state */
+.tile .t-skills { color: var(--comment); font-size: 12px; line-height: 1.3; margin-top: 2px; }

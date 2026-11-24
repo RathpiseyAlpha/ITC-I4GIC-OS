@@ -5,7 +5,7 @@ app/server/sessions.json
 moodle-qbanks/
 Bash Script 2*
 labs/lab10/check_cron_tasks.sh
-exam/
+/exam/
 __pycache__/
 *.pyc
 OS_Labs_Revision_Codex_Prompt.md
@@ -20,3 +20,28 @@ app/server/marks.tmp
 tools/*.ps1
 # Instructor roadmap (mentions final exam content)
 teaching/ROADMAP.md
+# Exam room: the midterm paper and the test file with its model solution stay off GitHub until the exam is over.
+# Copy them to the server by hand (server/examroom/README.md, "Getting the paper onto the server").
+server/examroom/midterm.py
+server/examroom/test_examroom.py
+# Practice Linux Commands: the Super challenges (checkers and hidden inputs) stay off GitHub, like the midterm paper.
+# Copy them to the server by hand (server/practice/README.md).
+server/practice/private/
+# Practice: the test holds working solutions to every public scenario (an answer key), like test_examroom.py.
+server/practice/test_practice.py
+server/practice/test_drills.py
+
+# Exam scenario bank: the scenarios, their tests and the backups of the old paper stay off GitHub.
+server/examroom/bank/
+server/examroom/test_exambank.py
+server/examroom/midterm-v1-backup.py
+server/examroom/test_examroom-v1-backup.py
+server/examroom/bank-review*.md
+# Practice Linux Commands: the drills hold hints that give the command and checks that show the answer, and a test solves them;
+# they go to the server by hand (server/practice/README.md), like the Super challenges. The instructor's plans stay private too.
+server/practice/drills/
+server/practice/test_roadmap_api.py
+teaching/EXAM-BANK-PLAN.md
+teaching/EXAM-TERMINAL-SPEC.md
+teaching/PRACTICE-SCENARIOS-PLAN.md
+teaching/SKILL-ROADMAP-PLAN.md

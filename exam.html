@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam room · OS@itc</title>
+<script>try{var t=localStorage.getItem('os-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+<link rel="stylesheet" href="app/vendor/xterm/xterm.css">
+<link rel="stylesheet" href="app/exam/exam.css?v=11">
+</head>
+<body class="scan">
+<canvas id="rain" aria-hidden="true" class="hidden"></canvas>
+
+<!-- Login, waiting room, finished: one card -->
+<main id="screen" class="center">
+  <section class="win card-screen" aria-live="polite">
+    <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="screen-title">bash — exam room</span></div>
+    <div class="win-body" id="screen-body"><p class="muted">Loading…</p></div>
+  </section>
+</main>
+
+<!-- The exam itself -->
+<div id="exam" class="exam hidden">
+  <div class="strip" role="status">
+    <span class="who" id="s-who"></span>
+    <span class="time" id="s-time">--:--</span>
+    <span class="muted" id="s-note">left</span>
+    <span class="parts" id="s-parts"></span>
+    <span class="notice" id="s-notice"></span>
+    <span class="grow"></span>
+    <span class="conn" id="s-conn"></span>
+    <button class="btn btn-tool drawer-btn" id="paper-btn" type="button" aria-expanded="false">paper</button>
+    <span class="rec" title="This session is recorded"><span class="rec-dot"></span>REC</span>
+  </div>
+  <div class="cols">
+    <section class="win paper" id="paper" aria-label="Exam paper">
+      <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="paper-title">paper</span></div>
+      <div class="win-body" id="paper-body"></div>
+    </section>
+    <section class="win termwin" aria-label="Terminal">
+      <div class="win-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="win-title" id="term-title">bash</span></div>
+      <div id="term"></div>
+    </section>
+  </div>
+</div>
+
+<div class="center phone-only"><section class="win card-screen"><div class="win-body">
+  <p class="title">Use a computer</p><p>The exam needs a screen at least 700 pixels wide and a keyboard. Phones are not supported.</p>
+</div></section></div>
+
+<!-- The one exam dialog: back to fullscreen -->
+<div id="fs-dialog" class="scrim hidden">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="fs-h">
+    <h2 id="fs-h"><span class="ico" aria-hidden="true">⚠️</span>You left fullscreen</h2>
+    <p>The exam runs in fullscreen. Leaving it is recorded, and the time away is shown to the instructor.</p>
+    <button class="btn btn-fill" id="fs-back" type="button">Return to fullscreen</button>
+  </div>
+</div>
+
+<!-- The exam is locked (left fullscreen): the invigilator gives an unlock code from the board -->
+<div id="lock-dialog" class="scrim cover hidden">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="lk-h" aria-describedby="lk-p">
+    <h2 id="lk-h"><span class="ico" aria-hidden="true">⚠️</span>The exam is locked</h2>
+    <p id="lk-p"><span id="lk-why">You left fullscreen.</span> <span id="lk-how">Raise your hand: the invigilator gives you an unlock code. The paper and the terminal are hidden until then, and the timer keeps running.</span></p>
+    <div id="lk-wait" class="lock-form hidden">
+      <p class="lock-count" id="lk-count" role="timer" aria-live="off">0:00</p>
+      <button class="btn btn-fill" type="button" id="lk-go" disabled>Continue in fullscreen</button>
+      <p class="err" id="lk-werr" role="alert"></p>
+    </div>
+    <form id="lk-form" class="lock-form" autocomplete="off">
+      <label for="lk-code">unlock code</label>
+      <div class="row"><input class="input lock-code" id="lk-code" inputmode="numeric" maxlength="6" spellcheck="false" required><button class="btn btn-fill" type="submit">Unlock</button></div>
+      <p class="err" id="lk-err" role="alert"></p>
+    </form>
+  </div>
+</div>
+
+<!-- Something opened beside the page (a side panel or developer tools): the paper and terminal stay hidden until it closes -->
+<div id="panel-cover" class="scrim cover hidden">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="pc-h" aria-describedby="pc-p">
+    <h2 id="pc-h"><span class="ico" aria-hidden="true">⚠️</span>Close the side panel to continue</h2>
+    <p id="pc-p">Something is open beside the exam page: a side panel such as Gemini or Copilot, or the developer tools. The paper and the terminal are hidden until you close it. The timer keeps running, and this is recorded.</p>
+  </div>
+</div>
+
+<!-- Another tab took the terminal -->
+<div id="taken-dialog" class="scrim hidden">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="tk-h">
+    <h2 id="tk-h"><span class="ico" aria-hidden="true">⚠️</span>The exam is open somewhere else</h2>
+    <p>Your terminal was opened in another tab or window. Only one can be connected. Your shell and files are the same in both.</p>
+    <button class="btn btn-fill" id="tk-back" type="button">Use this window</button>
+  </div>
+</div>
+
+<!-- The connection dropped: the page reconnects by itself (shown after 3 s, so short blips pass unnoticed) -->
+<div id="net-dialog" class="scrim hidden">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="nd-h" aria-describedby="nd-p">
+    <h2 id="nd-h"><span class="ico" aria-hidden="true">⚠️</span>Connection lost</h2>
+    <p id="nd-p">Wait: the page reconnects by itself as soon as the network is back. <b>Do not reload the page</b><span id="nd-lock">: reloading locks the exam</span>. Your shell and your files are safe on the server. What you type now is not sent.</p>
+    <p class="muted" id="nd-status" aria-live="polite">Trying again…</p>
+    <button class="btn btn-tool" id="nd-try" type="button">Try now</button>
+  </div>
+</div>
+
+<script src="app/js/env.js"></script>
+<script src="app/js/config.js?v=22"></script>
+<script src="app/vendor/xterm/xterm.js"></script>
+<script src="app/vendor/xterm/addon-fit.js"></script>
+<script src="app/exam/exam.js?v=11"></script>
+</body>
+</html>
