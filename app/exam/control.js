@@ -47,6 +47,11 @@
     function load() {
         return B.api('/api/admin/exam/control').then(function (c) {
             ctl = c;
+            if (!c.exam) {   // no exam.json on the server yet: nothing to show, and every tab below reads ctl.state and ctl.exam
+                $('wc-off').classList.add('hidden');
+                showJob('error', 'No exam is set up on this server yet. Create the exam config with <code>sudo examctl config FILE</code> (see <code>exam.example.json</code> and the runbook), then reload this page.');
+                return;
+            }
             $('wc-off').classList.toggle('hidden', tab === 'live' || on());
             renderExam();
             if (!dirty) renderSettings();
@@ -507,7 +512,7 @@
         B.api('/api/admin/exam/report.csv', { raw: true }).then(function (text) {
             var a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
-            a.download = (ctl ? ctl.exam.id : 'exam') + '-auto.csv';
+            a.download = (ctl && ctl.exam ? ctl.exam.id : 'exam') + '-auto.csv';
             document.body.appendChild(a);
             a.click();
             setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
