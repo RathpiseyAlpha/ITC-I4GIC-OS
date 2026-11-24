@@ -24,9 +24,11 @@ const CONFIG = {
 
     // Exam room (exam.html and exam-board.html). Turn on to show the link in the sidebar while an exam is
     // planned; the pages work by their address either way. See server/examroom/README.md.
+    // Both are on unless env.js says false: a Pages build from the branch has no env.js, and the links should still show.
+    // To hide one, set it to false in the env.js block of .github/workflows/deploy.yml (Pages source: GitHub Actions).
     features: {
-        examRoom: !!(window.__ENV && window.__ENV.examRoom),
-        practice: !!(window.__ENV && window.__ENV.practice)    // Practice Linux Commands (practice.html)
+        examRoom: !(window.__ENV && window.__ENV.examRoom === false),
+        practice: !(window.__ENV && window.__ENV.practice === false)    // Practice Linux Commands (practice.html)
     },
 
     // Firebase Realtime Database (for web visitor presence tracking)
