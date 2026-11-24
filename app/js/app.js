@@ -1811,7 +1811,7 @@
 
     // ── Helpers for admin detail views (deadline + per-file dates) ──
 
-    function renderDeadlineSummary(g) {
+    function renderDeadlineSummary(g, hideScore) {
         var html = '';
         if (g.deadline && g.deadline.due) {
             var dueDate = new Date(g.deadline.due);
@@ -1827,7 +1827,7 @@
                         + ' &mdash; weight: ' + Math.round(g.lateInfo.weight * 100) + '%'
                         + ' &mdash; penalty: <strong>-' + g.lateInfo.penalty + ' pts</strong>'
                         + '</div>';
-                    if (g.finalScore !== undefined) {
+                    if (g.finalScore !== undefined && !hideScore) {
                         html += '<div style="color:var(--yellow);margin-top:2px;">Score: ' + formatScore(g.score) + ' &rarr; ' + formatScore(g.finalScore) + '/' + formatScore(g.total) + '</div>';
                     }
                 } else {
@@ -2284,32 +2284,17 @@
             var labGrades = labData.grades || [];
             var actGrades = actData.grades || [];
 
-            // Combined totals (use finalScore which includes late penalties)
-            var totalScore = 0, totalPossible = 0;
-            labGrades.forEach(function (g) { totalScore += (g.finalScore !== undefined ? g.finalScore : g.score); totalPossible += g.total; });
-            actGrades.forEach(function (g) { totalScore += (g.finalScore !== undefined ? g.finalScore : g.score); totalPossible += g.total; });
-            var totalPct = totalPossible > 0 ? Math.round(totalScore / totalPossible * 1000) / 10 : 0;
-            var summaryClass = totalPct >= 80 ? 'grade-a' : totalPct >= 50 ? 'grade-b' : 'grade-c';
-
+            // Lab file-check points and their total are not shown to students (the instructor mark is);
+            // class activities keep their score and percentage.
             var html = '<div class="student-summary">'
-                + '<span class="student-summary-label">Overall Total:</span> '
-                + '<span class="' + summaryClass + '">' + formatScore(totalScore) + '/' + formatScore(totalPossible) + '</span>'
                 + '<button class="deadline-refresh-btn" onclick="refreshStudentDeadlines()" title="Refresh deadlines">&#x1F504; Refresh</button>'
                 + '</div>';
 
-            // Sub-totals
-            var labScore = 0, labPossible = 0;
-            labGrades.forEach(function (g) { labScore += (g.finalScore !== undefined ? g.finalScore : g.score); labPossible += g.total; });
-            var labPct = labPossible > 0 ? Math.round(labScore / labPossible * 1000) / 10 : 0;
             var actScore = 0, actPossible = 0;
             actGrades.forEach(function (g) { actScore += (g.finalScore !== undefined ? g.finalScore : g.score); actPossible += g.total; });
             var actPct = actPossible > 0 ? Math.round(actScore / actPossible * 1000) / 10 : 0;
 
             html += '<div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;">'
-                + '<div class="student-subtotal">'
-                + '<span style="color:var(--cyan);font-size:11px;">Labs:</span> '
-                + '<span class="' + (labPct >= 80 ? 'grade-a' : labPct >= 50 ? 'grade-b' : 'grade-c') + '">' + formatScore(labScore) + '/' + formatScore(labPossible) + '</span>'
-                + '</div>'
                 + '<div class="student-subtotal">'
                 + '<span style="color:var(--cyan);font-size:11px;">Activities:</span> '
                 + '<span class="' + (actPct >= 80 ? 'grade-a' : actPct >= 50 ? 'grade-b' : 'grade-c') + '">' + formatScore(actScore) + '/' + formatScore(actPossible) + ' (' + actPct + '%)</span>'
@@ -2325,10 +2310,9 @@
                     html += '<div class="student-lab-card" style="margin-bottom:6px;padding:6px 8px;">'
                         + '<div class="student-lab-header">'
                         + '<span class="student-lab-name">' + escapeHtml(g.lab) + '</span> '
-                        + statusIcon + ' '
-                        + renderScoreValue(g)
+                        + statusIcon
                         + ' <span class="admin-detail-btn" onclick="showStudentLabDetail(\'' + escapeHtml(g.lab) + '\')">view</span>'
-                        + '</div></div>';
+                        + '</div>' + renderStudentMark(g.mark, false) + '</div>';
                 });
             }
 
@@ -2418,14 +2402,8 @@
                 return;
             }
             var grades = data.grades || [];
-            var totalScore = 0, totalPossible = 0;
-            grades.forEach(function (g) { totalScore += (g.finalScore !== undefined ? g.finalScore : g.score); totalPossible += g.total; });
-            var totalPct = totalPossible > 0 ? Math.round(totalScore / totalPossible * 1000) / 10 : 0;
-            var summaryClass = totalPct >= 80 ? 'grade-a' : totalPct >= 50 ? 'grade-b' : 'grade-c';
-
+            // The file-check score (x/100) is not shown to students here; the instructor mark is.
             var html = '<div class="student-summary">'
-                + '<span class="student-summary-label">Labs Overall:</span> '
-                + '<span class="' + summaryClass + '">' + formatScore(totalScore) + '/' + formatScore(totalPossible) + '</span>'
                 + '<button class="deadline-refresh-btn" onclick="refreshStudentDeadlines()" title="Refresh deadlines">&#x1F504; Refresh</button>'
                 + '</div>';
 
@@ -2487,8 +2465,7 @@
                     + deadlineHtml
                     + '<div class="student-lab-header">'
                     + '<span class="student-lab-name">' + escapeHtml(g.lab) + '</span> '
-                    + statusIcon + ' '
-                    + renderScoreValue(g)
+                    + statusIcon
                     + ' <span class="admin-detail-btn" onclick="showStudentLabDetail(\'' + escapeHtml(g.lab) + '\')">view details</span>'
                     + '</div>';
                 html += renderStudentMark(g.mark, false);
@@ -2664,7 +2641,6 @@
             var html = '<div class="admin-section-header">'
                 + '<span class="admin-back-btn" onclick="switchStudentTab(\'my-labs\')">\u2190 back</span> '
                 + escapeHtml(lab)
-                + ' \u2014 ' + renderScoreValue(g)
                 + '</div>';
 
             if (g.labPath) {
@@ -2674,7 +2650,7 @@
             html += renderStudentMark(g.mark, true);
 
             // Deadline & penalty summary
-            html += renderDeadlineSummary(g);
+            html += renderDeadlineSummary(g, true);
 
             // Two-column layout: tree + checklist
             html += '<div class="grade-detail-columns">';
@@ -2705,7 +2681,6 @@
                 var commitInfo = renderFileCommitDate(item.expected, g.fileDates, deadlineDt);
                 html += '<div class="grade-item ' + cls + '">'
                     + icon + ' <span class="grade-item-name">' + escapeHtml(item.expected) + '</span>'
-                    + ' <span class="grade-item-pts">' + item.points + '/' + item.maxPoints + '</span>'
                     + detail + commitInfo
                     + '</div>';
             });
