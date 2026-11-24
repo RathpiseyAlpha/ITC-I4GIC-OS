@@ -27,7 +27,9 @@ jobs:
         run: |
           cat > app/js/env.js << 'ENVEOF'
           window.__ENV = {
-              serverUrl: '${{ secrets.PRESENCE_SERVER_URL }}'
+              serverUrl: '${{ secrets.PRESENCE_SERVER_URL }}',
+              examRoom: true,   // the exam room and the exam board links in the portal menu
+              practice: true    // the Practice Linux Commands links
           };
           ENVEOF
 
