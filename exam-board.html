@@ -172,6 +172,7 @@
           <fieldset>
             <legend>Flags on the board</legend>
             <label class="inline" for="s-second">A second screen <select class="input small" id="s-second"><option value="review">review</option><option value="high">high</option><option value="">no flag</option></select></label>
+            <label class="inline" for="s-pasteblock">Paste into the terminal <select class="input small" id="s-pasteblock"><option value="block">switched off (the page and the gateway stop it)</option><option value="allow">allowed (only recorded)</option></select></label>
             <label class="inline" for="s-side">A side panel opened <select class="input small" id="s-side"><option value="review">review</option><option value="high">high</option><option value="">no flag</option></select></label>
             <label class="inline" for="s-away-review">Review after away in total, seconds <input class="input small" type="number" id="s-away-review" min="10" max="3600"></label>
             <label class="inline" for="s-away-high">High after away in total, seconds <input class="input small" type="number" id="s-away-high" min="30" max="7200"></label>
@@ -256,7 +257,7 @@
 <script src="app/js/config.js?v=24"></script>
 <script src="app/vendor/xterm/xterm.js"></script>
 <script src="app/vendor/xterm/addon-fit.js"></script>
-<script src="app/exam/board.js?v=11"></script>
-<script src="app/exam/control.js?v=5"></script>
+<script src="app/exam/board.js?v=12"></script>
+<script src="app/exam/control.js?v=6"></script>
 </body>
 </html>

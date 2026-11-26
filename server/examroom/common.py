@@ -50,6 +50,8 @@ DEFAULT_FLAGS = {
     "high_offline_s": 120,     # offline this long while the exam is open: high
     "second_screen": "review", # a second screen connected (Chrome and Edge report it): "review", "high" or ""
     "side_panel": "review",    # the page got narrower inside the same window (a side panel or developer tools)
+    "paste": "allow",          # "block": pasting into the terminal is switched off (page and gateway); "allow": only recorded
+    "max_input_chars": 64,     # with paste blocked, one input message longer than this is dropped (typing comes a few characters at a time)
 }
 
 
@@ -313,6 +315,7 @@ def summarize(events, status, cfg, state):
     """Counts and the flag for one student. The flag is a reason to look at the replay, never a mark."""
     flags = cfg["flags"]
     away_n, away_ms, pastes, big_paste, big_input, fs_exits = 0, 0, 0, 0, 0, 0
+    blocked = 0   # pastes the page stopped (paste_blocked) and long inputs the gateway dropped (input_blocked)
     away_since = None
     screens = "unknown"  # "extended" once the page has seen a second screen, "single" if it saw only one
     panel_n, panel_ms, panel_since = 0, 0, None
@@ -343,6 +346,8 @@ def summarize(events, status, cfg, state):
                 big_paste += 1
         elif k == "big_input":
             big_input += 1
+        elif k in ("paste_blocked", "input_blocked"):
+            blocked += 1
         elif k == "fs_exit":
             fs_exits += 1
     # One paste is usually seen twice: by the page (paste) and by the gateway (a long input). Count the larger.
@@ -363,7 +368,7 @@ def summarize(events, status, cfg, state):
     elif total_away > flags["review_away_s"] or big >= 1 or "review" in extra:
         level = "review"
     return {"away_n": away_n, "away_s": round(total_away), "away_now": bool(away_since), "pastes": pastes,
-            "large_pastes": big, "fs_exits": fs_exits, "offline_s": round(offline_s), "screens": screens,
+            "large_pastes": big, "blocked": blocked, "fs_exits": fs_exits, "offline_s": round(offline_s), "screens": screens,
             "panel_n": panel_n, "panel_s": round(panel_s), "panel_now": bool(panel_since), "wrong_codes": wrong_codes,
             "flag": level}
 
@@ -397,6 +402,8 @@ SETTINGS = {
     "flags.large_paste_chars": ("int", (50, 5000), True),
     "flags.high_pastes": ("int", (1, 20), True),
     "flags.high_offline_s": ("int", (30, 3600), True),
+    "flags.paste": ("choice", ("allow", "block"), True),
+    "flags.max_input_chars": ("int", (16, 1000), True),
     "rain": ("bool", None, True),
     "seb.required": ("bool", None, False),   # on while students are in: everyone would be cut off
     "title": ("text", 80, False),
@@ -413,10 +420,10 @@ SETTINGS = {
 PRESETS = {
     "exam": {"profile": "exam", "lock.on": ["fs_exit"], "lock.mode": "code", "lock.max_attempts": 3,
              "lock.wait_s": 30, "lock.wait_max_s": 300,
-             "flags.second_screen": "review", "flags.side_panel": "review"},
+             "flags.second_screen": "review", "flags.side_panel": "review", "flags.paste": "block"},
     "practice": {"profile": "practice", "lock.on": ["fs_exit", "panel"], "lock.mode": "wait", "lock.max_attempts": 3,
                  "lock.wait_s": 30, "lock.wait_max_s": 300,
-                 "flags.second_screen": "review", "flags.side_panel": "review"},
+                 "flags.second_screen": "review", "flags.side_panel": "review", "flags.paste": "block"},
 }
 
 ACTIONS = {
@@ -640,6 +647,8 @@ PRACTICE_SETTINGS = {
     "lock.wait_max_s": ("int", (10, 1800), True),
     "max_sessions": ("int", (1, 60), True),
     "idle_min": ("int", (5, 120), True),
+    "flags.paste": ("choice", ("allow", "block"), True),
+    "flags.max_input_chars": ("int", (16, 1000), True),
 }
 
 
@@ -654,7 +663,7 @@ def load_practice():
         return None
     pre = PRESETS["practice"]
     cfg = {"id": PRACTICE_ID, "profile": "practice", "gateway_url": str(base.get("gateway_url", "")),
-           "max_sessions": 20, "idle_min": 15, "flags": dict(DEFAULT_FLAGS),
+           "max_sessions": 20, "idle_min": 15, "flags": dict(DEFAULT_FLAGS, paste="block"),
            "lock": {"on": list(pre["lock.on"]), "mode": "wait", "max_attempts": 3,
                     "wait_s": pre["lock.wait_s"], "wait_max_s": pre["lock.wait_max_s"]}}
     over = read_json(practice_var() / "settings.json", {}) or {}

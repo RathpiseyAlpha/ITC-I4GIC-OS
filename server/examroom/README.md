@@ -334,3 +334,25 @@ python3 server/examroom/devstack.py             # local preview; prints the two 
 ```
 
 The SSH test starts an unprivileged sshd on 127.0.0.1 as yourself. Nothing needs root.
+
+
+## Paste into the terminal (2026-11-26)
+
+With `flags.paste = "block"` pasting into the web terminal is switched off, in two layers:
+
+- **The page** (`exam.js`, `practice.js`) stops the `paste` and `drop` events in the capture phase before xterm sees them (Ctrl+V,
+  Shift+Insert, the context menu, middle-click, dragged text), shows "Paste is switched off in this terminal: type your commands" and
+  sends a `paste_blocked` event. The rules list on the start screen says so.
+- **The gateway** drops any single input message longer than `flags.max_input_chars` (64): typing arrives a few characters at a time, so
+  a message that long is a paste or a forged client. It records an `input_blocked` event (at most once a second), tells the page
+  with `{"t":"note","what":"paste_blocked"}` and runs nothing. Short chunks still pass: composed input (Khmer and other IMEs), voice
+  typing, and the terminal's own replies. The setting is read for every message, so a change on the board applies within 10 seconds,
+  without a new connection. The `hello` message carries `"paste"` so the page knows.
+
+Where: the exam presets (**Exam** and **Practice** on the board's Settings tab) set it to `block`; the example config has it; an exam
+config without it keeps `allow` (only recorded, as before). The practice room defaults to `block` and has its own select on the
+practice board (`flags.paste`, `flags.max_input_chars` in `/srv/practice/settings.json`). The exam board's Settings tab has "Paste
+into the terminal" next to the flags. The Live board shows "N blocked" in the paste column (`summarize` counts `paste_blocked` and
+`input_blocked`). Limits: a student can still retype from another device, and a typing macro at human speed looks like typing; the
+labs on the students' own SSH sessions are not affected. A per-student exemption (for assistive tools that send long chunks) is not
+built: raise `flags.max_input_chars` or set paste to `allow` for the room.

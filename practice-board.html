@@ -94,6 +94,7 @@
             <label class="check"><input type="checkbox" id="p-lock-panel"> Wait when a side panel opens (Gemini, Copilot, developer tools)</label>
             <label class="check"><input type="checkbox" id="p-lock-leave"> Wait when a student leaves the page (Alt+Tab, another tab)</label>
             <label class="inline" for="p-wait">First wait, seconds <input class="input small" type="number" id="p-wait" min="5" max="600"></label>
+            <label class="inline" for="p-paste">Paste into the terminal <select class="input small" id="p-paste"><option value="block">switched off</option><option value="allow">allowed (only recorded)</option></select></label>
             <label class="inline" for="p-wait-max">Longest wait, seconds <input class="input small" type="number" id="p-wait-max" min="10" max="1800"></label>
           </fieldset>
           <fieldset>
@@ -145,6 +146,6 @@
 
 <script src="app/js/env.js"></script>
 <script src="app/js/config.js?v=24"></script>
-<script src="app/practice/practice-admin.js?v=7"></script>
+<script src="app/practice/practice-admin.js?v=8"></script>
 </body>
 </html>

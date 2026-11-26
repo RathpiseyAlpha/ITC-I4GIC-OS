@@ -2504,7 +2504,7 @@ def route_exam_state():
                            for p in parts],
                  "total": 10 * len(parts), "rain": bool(cfg.get("rain")),
                  "large_paste_chars": cfg["flags"]["large_paste_chars"], "folder": cfg["folder"],
-                 "lock_on": cfg["lock"]["on"], "lock_mode": cfg["lock"]["mode"]},
+                 "lock_on": cfg["lock"]["on"], "lock_mode": cfg["lock"]["mode"], "paste": cfg["flags"].get("paste", "allow")},
         "phase": state["phase"], "start": state["start"], "end": state["end"], "now": common.iso(time.time()),
         "me": {"user": target, "id": sid or "", "name": STUDENTS.get(sid, {}).get("name", "") if sid else "",
                "admin": is_admin, "participant": participant},
@@ -3098,6 +3098,7 @@ def route_practice_home():
         tracks.append(dict(t, tiles=tiles))
     p = profs.get(user) or {}
     out = {"open": open_, "closed_why": why, "levels": prac.LEVEL_NAME, "tracks": tracks, "profile": profile,
+           "paste": ((common.load_practice() or {}).get("flags") or {}).get("paste", "allow"),
            "preview": bool(preview),
            "me": {"user": user, "id": _USER_TO_SID[user], "nick": p.get("nick", ""), "nick_cleared": bool(p.get("nick_cleared"))},
            "leaderboard": _practice_board(prac, entries, allm, profs, user), "now": time.time(),

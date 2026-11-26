@@ -285,6 +285,7 @@
                     : '<li>Three hints; each one lowers the XP of the clear (90%, 70%, then 40%).</li>') +
             (m.level === 'drill' ? '<li>A drill earns XP the first time. Playing it again (a new attempt, new values) is practice and earns nothing, and the skill stays yours.</li>' : '') +
             '<li><b>No AI.</b> The page stays in fullscreen. Leaving it, opening a side panel or reloading starts a <b>wait</b>: 30 seconds the first time, doubling each time today.</li>' +
+            (home.paste === 'block' ? '<li><b>Pasting into the terminal is switched off.</b> Type your commands, hints included.</li>' : '') +
             '<li>Check as often as you like, once every 10 seconds; it never costs XP. Everything you type is recorded; you can watch your replay for 14 days.</li></ul>';
     }
 
@@ -1012,7 +1013,19 @@
         window.addEventListener('resize', fitNow);
         $('term').addEventListener('paste', function (e) {
             var text = (e.clipboardData && e.clipboardData.getData('text')) || '';
+            if (pasteOff) {   // the gateway said paste is switched off: nothing reaches the terminal, and the instructor sees the try
+                e.preventDefault(); e.stopPropagation();
+                sendEvent({ k: 'paste_blocked', n: text.length });
+                notice(PASTE_OFF);
+                return;
+            }
             sendEvent({ k: 'paste', n: text.length });
+        }, true);
+        $('term').addEventListener('drop', function (e) {   // dragging text in is a paste too
+            if (!pasteOff) return;
+            e.preventDefault(); e.stopPropagation();
+            sendEvent({ k: 'paste_blocked', n: 0 });
+            notice(PASTE_OFF);
         }, true);
     }
     function fitNow() {
@@ -1036,6 +1049,7 @@
                 if (typeof m.data !== 'string') { term.write(new Uint8Array(m.data)); return; }
                 var msg; try { msg = JSON.parse(m.data); } catch (e) { return; }
                 if (msg.t === 'hello') {
+                    pasteOff = msg.paste === 'block';
                     wsOpen = true; retry = 0; connecting = false;
                     $('s-conn').textContent = '';
                     netBack(); flushQueue(); term.focus();
@@ -1049,6 +1063,8 @@
                     showLock(msg.why, msg.bad, msg);
                 } else if (msg.t === 'unlocked') {
                     locked = ''; stopWait(); applyCover();
+                } else if (msg.t === 'note' && msg.what === 'paste_blocked') {
+                    notice(PASTE_OFF);
                 } else if (msg.t === 'note' && msg.what === 'shell_end') {
                     term.write('\r\n\x1b[33m[the shell ended; a new one opens]\x1b[0m\r\n');
                 }
@@ -1158,6 +1174,8 @@
     document.addEventListener('visibilitychange', function () { if (document.hidden) leave('tab'); else back(); });
     window.addEventListener('blur', function () { setTimeout(function () { if (!document.hasFocus()) leave('window'); }, 50); });
     window.addEventListener('focus', back);
+    var pasteOff = false;   // set from the gateway's hello; the gateway also drops a long input by itself
+    var PASTE_OFF = 'Paste is switched off in this terminal: type your commands.';
     function notice(text) {
         var el = $('s-notice');
         el.innerHTML = '<i class="ico" aria-hidden="true">⚠️</i>' + esc(text);

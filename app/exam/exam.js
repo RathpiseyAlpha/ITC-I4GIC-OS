@@ -104,7 +104,8 @@
             '<li>You work in a shell on the course server, in <code>~/' + esc(exam.folder) + '/</code>. Your files are collected when the time is up.</li>' +
             '<li>No AI and no other websites. Everything you type in the exam terminal is recorded.</li>' +
             '<li>The page notes when you leave it, leave fullscreen, open a side panel (such as an AI assistant), use a second screen, ' +
-            'or paste a long text. The instructor sees those notes.</li>' +
+            (exam.paste === 'block' ? 'or try to paste. The instructor sees those notes.</li>' : 'or paste a long text. The instructor sees those notes.</li>') +
+            (exam.paste === 'block' ? '<li><b>Pasting into the terminal is switched off.</b> Type your commands; the names you need are in <code>values.txt</code>.</li>' : '') +
             lockRule(exam.lock_on || [], exam.lock_mode) +
             '<li><b>Before you start</b>, connect to the network you will use for the whole exam (Wi-Fi or cable) and check it works. ' +
             'Changing the network during the exam means leaving fullscreen' +
@@ -345,7 +346,19 @@
         // Paste: xterm reads the clipboard from its hidden textarea; listen in the capture phase for the length.
         $('term').addEventListener('paste', function (e) {
             var text = (e.clipboardData && e.clipboardData.getData('text')) || '';
+            if (pasteOff) {   // the gateway said paste is switched off: nothing reaches the terminal, and the instructor sees the try
+                e.preventDefault(); e.stopPropagation();
+                sendEvent({ k: 'paste_blocked', n: text.length });
+                notice(PASTE_OFF);
+                return;
+            }
             sendEvent({ k: 'paste', n: text.length });
+        }, true);
+        $('term').addEventListener('drop', function (e) {   // dragging text in is a paste too
+            if (!pasteOff) return;
+            e.preventDefault(); e.stopPropagation();
+            sendEvent({ k: 'paste_blocked', n: 0 });
+            notice(PASTE_OFF);
         }, true);
         term.focus();
     }
@@ -376,6 +389,7 @@
                 if (typeof m.data !== 'string') { term.write(new Uint8Array(m.data)); return; }
                 var msg; try { msg = JSON.parse(m.data); } catch (e) { return; }
                 if (msg.t === 'hello') {
+                    pasteOff = msg.paste === 'block';
                     wsOpen = true; retry = 0; connecting = false;
                     $('s-conn').textContent = '';
                     netBack();
@@ -391,6 +405,8 @@
                     $('lk-code').value = '';
                     $('lk-err').textContent = '';
                     applyCover();
+                } else if (msg.t === 'note' && msg.what === 'paste_blocked') {
+                    notice(PASTE_OFF);
                 } else if (msg.t === 'note' && msg.what === 'shell_end') {
                     term.write('\r\n\x1b[33m[the shell ended; a new one opens]\x1b[0m\r\n');
                 }
@@ -537,6 +553,8 @@
     window.addEventListener('blur', function () { setTimeout(function () { if (!document.hasFocus()) leave('window'); }, 50); });
     window.addEventListener('focus', back);
 
+    var pasteOff = false;   // set from the gateway's hello; the gateway also drops a long input by itself
+    var PASTE_OFF = 'Paste is switched off in this terminal: type your commands.';
     function notice(text, plain) {
         var el = $('s-notice');
         el.innerHTML = (plain ? '' : '<i class="ico" aria-hidden="true">⚠️</i>') + esc(text);

@@ -177,7 +177,7 @@
         $('set-form').querySelectorAll('input').forEach(function (i) { i.disabled = !s; });
         if (!s) { $('set-note').textContent = 'Practice is not set up on this server yet.'; return; }
         ['fs_exit', 'panel', 'leave'].forEach(function (t) { $('p-lock-' + t).checked = (s['lock.on'] || []).indexOf(t) >= 0; });
-        $('p-wait').value = s['lock.wait_s']; $('p-wait-max').value = s['lock.wait_max_s'];
+        $('p-wait').value = s['lock.wait_s']; $('p-wait-max').value = s['lock.wait_max_s']; $('p-paste').value = s['flags.paste'] || 'block';
         $('p-cap').value = s.max_sessions; $('p-idle').value = s.idle_min;
     }
 
@@ -271,7 +271,7 @@
         e.preventDefault();
         var on = ['fs_exit', 'panel', 'leave'].filter(function (t) { return $('p-lock-' + t).checked; });
         post('/api/admin/practice/settings', { changes: { 'lock.on': on, 'lock.wait_s': +$('p-wait').value, 'lock.wait_max_s': +$('p-wait-max').value,
-            max_sessions: +$('p-cap').value, idle_min: +$('p-idle').value } }, 'Saved. The gateway uses it within 10 seconds.');
+            'flags.paste': $('p-paste').value, max_sessions: +$('p-cap').value, idle_min: +$('p-idle').value } }, 'Saved. The gateway uses it within 10 seconds.');
     });
     $('bonus-form').addEventListener('submit', function (e) {
         e.preventDefault();

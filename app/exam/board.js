@@ -148,7 +148,8 @@
             var away = r.away_n ? esc(r.away_n) + ' × ' + esc(mmss(r.away_s)) + (r.away_now ? ' <span class="st-partial">now</span>' : '') : '0';
             return '<tr' + (r.flag === 'high' ? ' class="flag-high"' : '') + '><td><span class="id">' + esc(r.id) + '</span> ' + esc(r.name) + '</td>' +
                 '<td>' + conn + '</td><td>' + flag + '</td><td class="num">' + away + '</td>' +
-                '<td class="num">' + esc(r.large_pastes) + (r.pastes > r.large_pastes ? '<span class="muted"> (' + esc(r.pastes) + ')</span>' : '') + '</td>' +
+                '<td class="num">' + esc(r.large_pastes) + (r.pastes > r.large_pastes ? '<span class="muted"> (' + esc(r.pastes) + ')</span>' : '') +
+                (r.blocked ? '<span class="st-partial" title="pastes the page stopped, and long inputs the gateway dropped"> ' + esc(r.blocked) + ' blocked</span>' : '') + '</td>' +
                 '<td class="num">' + esc(r.fs_exits) + '</td><td>' + screenCell(r) + '</td><td>' + progressCell(r.progress, b.exam.parts) + '</td>' +
                 '<td class="num">' + (r.points == null ? '—' : esc(r.points)) + '</td>' +
                 '<td><code class="st-ok" title="' + esc(r.last_cmd) + '">' + esc(r.last_cmd || '') + '</code>' + (r.truncated ? ' <span class="badge st-bad">output truncated</span>' : '') + '</td>' +

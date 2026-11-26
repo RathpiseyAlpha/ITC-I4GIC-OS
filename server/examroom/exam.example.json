@@ -24,6 +24,7 @@
   "high_pastes": 3,
   "high_offline_s": 120,
   "second_screen": "review",
-  "side_panel": "review"
+  "side_panel": "review",
+  "paste": "block"
  }
 }

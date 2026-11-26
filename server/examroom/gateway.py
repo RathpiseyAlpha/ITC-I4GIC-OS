@@ -20,6 +20,11 @@ Protocol (one websocket per terminal):
     gateway -> page: binary frames = terminal output; text JSON {"t":"hello"|"bye"|"pong"|"note", ...}
         {"t":"lock","why":..,"bad":"wrong"|"wait"}  {"t":"unlocked"}
 
+Paste: with "flags": {"paste": "block"} (exam presets and the practice room by default) the page stops pastes before the terminal
+sees them, and the gateway drops any single input message longer than flags.max_input_chars (64): typing arrives a few
+characters at a time, and a message that long is a paste or a forged client. The page gets {"t":"note","what":"paste_blocked"}
+and the record gets an input_blocked event. {"t":"hello"} carries "paste": "allow" | "block".
+
 Exam lock: with "lock": {"on": ["fs_exit"]} in the config, leaving fullscreen (or starting the exam a second time)
 locks the student. Typed input is dropped until the page sends the unlock code shown on the instructor board.
 
@@ -66,7 +71,7 @@ except ImportError:  # pragma: no cover
 
 log = logging.getLogger("examgw")
 
-EVENT_KINDS = {"start", "leave", "back", "paste", "fs_exit", "fs_enter", "reload", "note",
+EVENT_KINDS = {"start", "leave", "back", "paste", "paste_blocked", "fs_exit", "fs_enter", "reload", "note",
                "screens", "panel_open", "panel_close", "kb_lock", "stop"}
 MAX_EVENTS_PER_MIN = 120
 STATUS_EVERY = 5.0
@@ -438,8 +443,16 @@ class Session:
             await self.throttle(len(data))
             await self.ws.send(data)
 
+    async def input_blocked(self, n):
+        """Paste is switched off and one input message was longer than max_input_chars: it is dropped. Recorded and told to the
+        page at most once a second, so a flood of them cannot fill the events file."""
+        now = time.monotonic()
+        if now - getattr(self, "blocked_t", -10.0) >= 1.0:
+            self.blocked_t = now
+            self.event("input_blocked", n=min(int(n), 10 ** 9))
+            await self.send_json({"t": "note", "what": "paste_blocked"})
+
     async def pump_in(self):
-        flags = self.cfg["flags"]
         async for msg in self.ws:
             if isinstance(msg, bytes):
                 continue
@@ -453,6 +466,10 @@ class Session:
             if t == "i":
                 d = m.get("d")
                 if not isinstance(d, str) or not d or self.lockst["locked"]:
+                    continue
+                flags = self.cfg["flags"]   # read for every message: the instructor's settings apply within 10 seconds
+                if flags.get("paste") == "block" and len(d) > int(flags.get("max_input_chars") or 64):
+                    await self.input_blocked(len(d))
                     continue
                 d = d[:65536]
                 self.last_input = time.monotonic()
@@ -660,7 +677,8 @@ class Session:
                 return
         self.event("connect", cols=self.cols, rows=self.rows)
         self.write_status(True)
-        await self.send_json({"t": "hello", "user": self.user, "cast": self.rec.name if self.rec else ""})
+        await self.send_json({"t": "hello", "user": self.user, "cast": self.rec.name if self.rec else "",
+                              "paste": self.cfg["flags"].get("paste", "allow")})
         if not self.practice():
             self.sync_opening(common.load_state(self.cfg))
         if self.lockst["locked"]:

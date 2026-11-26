@@ -213,7 +213,7 @@
         ['lock.max_attempts', 's-max', 'int'], ['flags.second_screen', 's-second', 'choice'], ['flags.side_panel', 's-side', 'choice'],
         ['flags.review_away_s', 's-away-review', 'int'], ['flags.high_away_s', 's-away-high', 'int'],
         ['flags.large_paste_chars', 's-paste', 'int'], ['flags.high_pastes', 's-pastes', 'int'], ['flags.high_offline_s', 's-offline', 'int'],
-        ['title', 's-title', 'text'], ['duration_min', 's-duration', 'int'], ['seb.required', 's-seb', 'bool'], ['rain', 's-rain', 'bool']
+        ['flags.paste', 's-pasteblock', 'choice'], ['title', 's-title', 'text'], ['duration_min', 's-duration', 'int'], ['seb.required', 's-seb', 'bool'], ['rain', 's-rain', 'bool']
     ];
     var TRIGGERS = ['fs_exit', 'panel', 'leave'];
 
